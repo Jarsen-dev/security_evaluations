@@ -1,0 +1,46 @@
+# ===========================================================================
+# Sistema de Evaluación de Conocimientos — override de DESARROLLO
+#
+#   docker-compose -f docker-compose.yml -f docker-compose.dev.yml up --build
+#
+# Diferencias contra producción:
+#   - Recarga en caliente del backend (uvicorn --reload) y del frontend (next dev).
+#   - Código montado desde el host, no copiado a la imagen.
+#   - Puertos de db/backend/frontend publicados al host para inspección directa.
+# ===========================================================================
+
+name: evaluaciones
+
+services:
+  db:
+    ports:
+      # Permite conectarse con: psql -h localhost -p ${POSTGRES_PORT} -U ${POSTGRES_USER}
+      - "${POSTGRES_PORT}:5432"
+
+  backend:
+    build:
+      target: dev
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+    environment:
+      # Un solo worker: --reload no es compatible con múltiples workers.
+      # Entre comillas a propósito (ver nota en docker-compose.yml).
+      UVICORN_WORKERS: "1"
+    volumes:
+      - ./backend:/app
+    ports:
+      - "${BACKEND_PORT}:8000"
+
+  frontend:
+    build:
+      target: dev
+    command: ["npm", "run", "dev"]
+    environment:
+      NODE_ENV: development
+    volumes:
+      - ./frontend:/app
+      # Volúmenes anónimos: conservan lo instalado/compilado dentro del
+      # contenedor en vez de que el bind mount del host los pise.
+      - /app/node_modules
+      - /app/.next
+    ports:
+      - "${FRONTEND_PORT}:3000"

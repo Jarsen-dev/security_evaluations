@@ -1,0 +1,111 @@
+# ===========================================================================
+# Sistema de Evaluación de Conocimientos — stack de PRODUCCIÓN
+#
+#   docker-compose up -d --build
+#
+# El servidor hospeda otros proyectos: este stack declara su propio `name`,
+# su propia red y su propio volumen para no colisionar con ellos.
+# El único puerto expuesto al host es el de Nginx.
+# ===========================================================================
+
+name: evaluaciones
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: evaluaciones_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+      # Evita que un cambio de locale del host altere el ordenamiento de texto.
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"
+    volumes:
+      - evaluaciones_pgdata:/var/lib/postgresql/data
+    networks:
+      - evaluaciones_net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    # En producción el puerto de Postgres NO se publica al host.
+    # Ver docker-compose.dev.yml si necesitas conectarte con psql o pgAdmin.
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: evaluaciones_backend
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      SECRET_KEY: ${SECRET_KEY}
+      ACCESS_TOKEN_EXPIRE_HOURS: ${ACCESS_TOKEN_EXPIRE_HOURS}
+      COOKIE_SECURE: ${COOKIE_SECURE}
+      UMBRAL_APROBACION: ${UMBRAL_APROBACION}
+      RATE_LIMIT_PETICIONES: ${RATE_LIMIT_PETICIONES:-30}
+      RATE_LIMIT_VENTANA_SEGUNDOS: ${RATE_LIMIT_VENTANA_SEGUNDOS:-60}
+      NEXT_PUBLIC_BASE_URL: ${NEXT_PUBLIC_BASE_URL}
+      # Las comillas son obligatorias: docker-compose v2.24 serializa los
+      # enteros de YAML sin comillas como `%!s(int=4)` al fusionar varios
+      # archivos, y uvicorn lee UVICORN_WORKERS automáticamente (prefijo
+      # UVICORN_ de su CLI), así que el valor corrupto le impide arrancar.
+      UVICORN_WORKERS: "4"
+    networks:
+      - evaluaciones_net
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/api/health', timeout=5).status == 200 else 1)\""]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        # Next.js incrusta las variables NEXT_PUBLIC_* en el bundle durante el
+        # build, no en runtime: por eso viaja como build arg y no solo como env.
+        NEXT_PUBLIC_BASE_URL: ${NEXT_PUBLIC_BASE_URL}
+    container_name: evaluaciones_frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    environment:
+      NODE_ENV: production
+      NEXT_PUBLIC_BASE_URL: ${NEXT_PUBLIC_BASE_URL}
+      # URL interna que usan los Server Components para hablar con la API
+      # sin salir de la red de Docker.
+      API_INTERNAL_URL: http://backend:8000
+    networks:
+      - evaluaciones_net
+
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: evaluaciones_nginx
+    restart: unless-stopped
+    depends_on:
+      - backend
+      - frontend
+    ports:
+      - "${NGINX_PORT}:80"
+    volumes:
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+    networks:
+      - evaluaciones_net
+
+volumes:
+  evaluaciones_pgdata:
+    name: evaluaciones_pgdata
+
+networks:
+  evaluaciones_net:
+    name: evaluaciones_net
+    driver: bridge

@@ -1,0 +1,20 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    /* Evita que iOS agrande el texto al rotar el celular en el
+       formulario público. */
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    @apply bg-fondo text-texto font-sans antialiased;
+  }
+
+  /* Foco siempre visible: el panel se opera mucho con teclado. */
+  :focus-visible {
+    @apply outline-none ring-2 ring-primario ring-offset-2 ring-offset-fondo;
+  }
+}

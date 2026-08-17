@@ -1,0 +1,49 @@
+import { NextResponse, type NextRequest } from 'next/server';
+
+/**
+ * Guardia de navegación del panel.
+ *
+ * IMPORTANTE: esto solo comprueba que la cookie de sesión exista. No valida
+ * la firma del JWT, y no debe hacerlo: la llave secreta vive en el backend.
+ * La autorización real la aplica la API en cada endpoint; este middleware
+ * únicamente evita el parpadeo de cargar el panel para luego rebotar al
+ * login. Un token vencido o falsificado pasa de aquí, pero recibe 401 en la
+ * primera llamada a la API y `EncabezadoPanel` redirige al login.
+ */
+
+const COOKIE_SESION = 'evaluaciones_sesion';
+
+const RUTAS_PROTEGIDAS = ['/cuestionarios', '/estadisticas'];
+
+export function middleware(request: NextRequest) {
+  const { pathname } = request.nextUrl;
+  // `cookies.has()` da true con una cookie de valor vacío; se exige contenido
+  // para que `evaluaciones_sesion=` no pase el guardia.
+  const tieneSesion = (request.cookies.get(COOKIE_SESION)?.value ?? '').length > 0;
+
+  const esRutaProtegida = RUTAS_PROTEGIDAS.some(
+    (ruta) => pathname === ruta || pathname.startsWith(`${ruta}/`),
+  );
+
+  if (esRutaProtegida && !tieneSesion) {
+    const url = request.nextUrl.clone();
+    url.pathname = '/login';
+    return NextResponse.redirect(url);
+  }
+
+  if (pathname === '/login' && tieneSesion) {
+    const url = request.nextUrl.clone();
+    url.pathname = '/cuestionarios';
+    return NextResponse.redirect(url);
+  }
+
+  return NextResponse.next();
+}
+
+export const config = {
+  /*
+   * Se excluyen los recursos estáticos y, sobre todo, `/r/` y `/api/`:
+   * el formulario público no lleva sesión y jamás debe redirigirse al login.
+   */
+  matcher: ['/((?!api|_next/static|_next/image|favicon.ico|r/).*)'],
+};
