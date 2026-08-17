@@ -23,6 +23,7 @@ import {
   type ErroresPregunta,
 } from '@/components/cuestionarios/TarjetaPregunta';
 import { Button } from '@/components/ui/Button';
+import { idUnico } from '@/lib/navegador';
 import type { OpcionBorrador, PreguntaBorrador } from '@/lib/types';
 
 interface ConstructorProps {
@@ -31,9 +32,14 @@ interface ConstructorProps {
   errores: Record<string, ErroresPregunta>;
 }
 
-/** Genera una clave local estable para React. */
+/**
+ * Genera una clave local estable para React.
+ *
+ * Delega en `idUnico()`: `crypto.randomUUID` no existe por HTTP en una IP de
+ * LAN, que es justo como corre el sistema en planta.
+ */
 export function nuevoIdLocal(): string {
-  return crypto.randomUUID();
+  return idUnico();
 }
 
 export function opcionVacia(): OpcionBorrador {

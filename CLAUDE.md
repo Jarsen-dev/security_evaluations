@@ -72,7 +72,34 @@ Nada de cargar todos los intentos a memoria para contarlos. Usa `GROUP BY`,
 La única excepción es el pivote de la hoja "Respuestas detalladas" del Excel,
 que arma columnas dinámicas: eso es presentación, no agregación.
 
-### 5. Todo el texto visible va en español
+### 5. El sistema corre en un contexto NO seguro
+
+El navegador solo considera "seguro" a HTTPS y a `localhost`. En planta esto
+corre por **HTTP sobre una IP de LAN**, donde varias APIs del navegador
+**no existen**, ni siquiera fallan: son `undefined`.
+
+| API | Por `localhost` | Por `http://192.168.1.x` |
+|---|---|---|
+| `crypto.randomUUID` | funciona | **undefined** |
+| `navigator.clipboard` | funciona | **undefined** |
+| `crypto.getRandomValues` | funciona | funciona |
+| `localStorage` | funciona | funciona |
+
+Pasó en producción: `crypto.randomUUID()` tumbaba el constructor de
+cuestionarios con *"Application error: a client-side exception has occurred"*,
+y el desarrollo en `localhost` nunca lo detectó.
+
+Usa siempre los envoltorios de `src/lib/navegador.ts` (`idUnico()`,
+`copiarAlPortapapeles()`). **Nunca llames a esas APIs directamente.**
+
+Antes de dar por bueno un cambio en el frontend, pruébalo entrando por la IP
+de LAN, no por `localhost`:
+
+```
+http://<tu-ip>:8080     ←  así se ve en planta
+```
+
+### 6. Todo el texto visible va en español
 
 Incluye los mensajes de error de la API. Starlette y Pydantic los generan en
 inglés, así que `app/main.py` los traduce con `MENSAJES_HTTP` y
@@ -212,3 +239,5 @@ docker compose logs backend | tail -20      # sin trazas de error
 
 Si tocaste endpoints públicos, repite la auditoría de la regla 1.
 Si tocaste el modelo de datos, prueba la idempotencia de la migración.
+Si tocaste el frontend, **ábrelo por la IP de LAN**, no por localhost: es la
+única forma de detectar los fallos de contexto no seguro (regla 5).

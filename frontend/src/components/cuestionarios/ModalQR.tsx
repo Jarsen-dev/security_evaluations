@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
 import { useToast } from '@/components/ui/Toast';
+import { copiarAlPortapapeles } from '@/lib/navegador';
 import type { CuestionarioResumen } from '@/lib/types';
 
 interface ModalQRProps {
@@ -50,16 +51,12 @@ export function ModalQR({ abierto, cuestionario, onCerrar }: ModalQRProps) {
   }, [abierto, cuestionario, url]);
 
   async function copiarLiga() {
-    try {
-      await navigator.clipboard.writeText(url);
+    if (await copiarAlPortapapeles(url)) {
       mostrarToast('Liga copiada al portapapeles.', 'exito');
-    } catch {
-      // El portapapeles requiere contexto seguro: en HTTP puro el navegador
-      // lo bloquea, así que se avisa en lugar de fallar en silencio.
-      mostrarToast(
-        'El navegador bloqueó el portapapeles. Copia la liga manualmente.',
-        'error',
-      );
+    } else {
+      // La liga ya está visible en el modal, así que se puede seleccionar
+      // a mano si hasta el respaldo falla.
+      mostrarToast('No se pudo copiar. Selecciona la liga de arriba.', 'error');
     }
   }
 

@@ -8,6 +8,7 @@ import { ModalQR } from '@/components/cuestionarios/ModalQR';
 import { TarjetaCuestionario } from '@/components/cuestionarios/TarjetaCuestionario';
 import { Button } from '@/components/ui/Button';
 import { useToast } from '@/components/ui/Toast';
+import { copiarAlPortapapeles } from '@/lib/navegador';
 import {
   ErrorDeApi,
   actualizarCuestionario,
@@ -96,12 +97,9 @@ export default function PaginaCuestionarios() {
     const base = (process.env.NEXT_PUBLIC_BASE_URL ?? '').replace(/\/$/, '');
     const url = `${base}/r/${cuestionario.token_publico}`;
 
-    try {
-      await navigator.clipboard.writeText(url);
+    if (await copiarAlPortapapeles(url)) {
       mostrarToast('Liga copiada al portapapeles.', 'exito');
-    } catch {
-      // El API de portapapeles exige contexto seguro; en HTTP el navegador lo
-      // bloquea. Se muestra la liga para copiarla a mano.
+    } else {
       mostrarToast(`Copia la liga manualmente: ${url}`, 'error');
     }
   }
