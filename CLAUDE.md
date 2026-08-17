@@ -153,6 +153,15 @@ relativas, así que comparte origen con la API y la cookie de sesión viaja sola
 | `schemas/` | Pydantic. `publico.py` está separado a propósito (ver regla 1) |
 | `core/` | Configuración, constantes, seguridad, límite de tasa, errores |
 
+Las exportaciones viven en `services/`: `excel_export.py` y `pptx_export.py`
+(reportes de estadísticas), `pdf_export.py` (cuestionario imprimible) y
+`exportacion_comun.py` con lo que comparten. Todas generan en `BytesIO` y se
+devuelven con `StreamingResponse`: nada toca el disco del servidor.
+
+**El PDF imprimible nunca marca la respuesta correcta.** Se le entrega a quien
+va a contestar. `pdf_export.py` no debe leer `es_correcta` bajo ninguna
+circunstancia (misma lógica que la regla 1).
+
 **Frontend** (`frontend/src/`)
 
 El grupo de rutas `(panel)` comparte el encabezado con las dos pestañas.

@@ -16,6 +16,7 @@ from pptx.enum.text import PP_ALIGN
 from pptx.slide import Slide
 from pptx.util import Emu, Inches, Pt
 
+from app.core.config import RUTA_LOGO, hay_logo
 from app.services.exportacion_comun import (
     DatosReporte,
     generar_conclusiones,
@@ -31,7 +32,6 @@ AZUL_CLARO = RGBColor(0x2F, 0x81, 0xF7)
 GRIS_TEXTO = RGBColor(0x59, 0x59, 0x59)
 VERDE = RGBColor(0x0F, 0x7B, 0x2F)
 ROJO = RGBColor(0xC0, 0x26, 0x26)
-BLANCO = RGBColor(0xFF, 0xFF, 0xFF)
 
 MAX_TEXTO_PREGUNTA = 55
 
@@ -83,33 +83,60 @@ def _estilo_grafica(grafica, con_leyenda: bool = False) -> None:
 # --- 1. Portada ------------------------------------------------------------
 
 
+ANCHO_LOGO_PORTADA = Inches(2.1)
+
+
 def _portada(presentacion: Presentation, datos: DatosReporte, periodo: str) -> None:
+    """Logo a la izquierda y el título a su derecha, sobre fondo claro.
+
+    El logo institucional es azul marino: sobre una franja del mismo tono
+    quedaría invisible. Por eso la portada usa fondo blanco con una barra de
+    acento delgada arriba, en lugar del bloque de color completo.
+    """
     diapositiva = _diapositiva_en_blanco(presentacion)
 
-    fondo = diapositiva.shapes.add_shape(MSO_SHAPE.RECTANGLE, 0, 0, ANCHO, Inches(2.6))
-    fondo.fill.solid()
-    fondo.fill.fore_color.rgb = AZUL
-    fondo.line.fill.background()
-    fondo.shadow.inherit = False
+    barra = diapositiva.shapes.add_shape(MSO_SHAPE.RECTANGLE, 0, 0, ANCHO, Inches(0.28))
+    barra.fill.solid()
+    barra.fill.fore_color.rgb = AZUL
+    barra.line.fill.background()
+    barra.shadow.inherit = False
+
+    izquierda_texto = Inches(1.0)
+    arriba_bloque = Inches(2.3)
+
+    if hay_logo():
+        imagen = diapositiva.shapes.add_picture(
+            str(RUTA_LOGO), Inches(1.0), arriba_bloque, width=ANCHO_LOGO_PORTADA
+        )
+        # El título arranca después del logo, con un respiro de media pulgada.
+        izquierda_texto = Emu(int(imagen.left + imagen.width + Inches(0.5)))
+        # Se centra verticalmente el bloque de texto respecto al logo.
+        arriba_texto = Emu(int(imagen.top - Inches(0.15)))
+    else:
+        arriba_texto = arriba_bloque
 
     caja = diapositiva.shapes.add_textbox(
-        Inches(0.9), Inches(0.9), ANCHO - Inches(1.8), Inches(1.4)
+        izquierda_texto,
+        arriba_texto,
+        ANCHO - izquierda_texto - Inches(0.9),
+        Inches(2.0),
     )
     marco = caja.text_frame
     marco.word_wrap = True
+
     parrafo = marco.paragraphs[0]
     parrafo.text = "Evaluación de Conocimientos"
-    parrafo.font.size = Pt(20)
-    parrafo.font.color.rgb = BLANCO
+    parrafo.font.size = Pt(16)
+    parrafo.font.color.rgb = GRIS_TEXTO
 
     nombre = marco.add_paragraph()
     nombre.text = datos.cuestionario.nombre
-    nombre.font.size = Pt(36)
+    nombre.font.size = Pt(32)
     nombre.font.bold = True
-    nombre.font.color.rgb = BLANCO
+    nombre.font.color.rgb = AZUL
 
     detalle = diapositiva.shapes.add_textbox(
-        Inches(0.9), Inches(3.3), ANCHO - Inches(1.8), Inches(2)
+        Inches(1.0), Inches(5.0), ANCHO - Inches(2.0), Inches(1.8)
     )
     marco_detalle = detalle.text_frame
     marco_detalle.word_wrap = True
@@ -125,7 +152,7 @@ def _portada(presentacion: Presentation, datos: DatosReporte, periodo: str) -> N
             marco_detalle.paragraphs[0] if indice == 0 else marco_detalle.add_paragraph()
         )
         parrafo_detalle.text = linea
-        parrafo_detalle.font.size = Pt(16)
+        parrafo_detalle.font.size = Pt(15)
         parrafo_detalle.font.color.rgb = GRIS_TEXTO
 
 

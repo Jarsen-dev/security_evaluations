@@ -5,6 +5,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
 import { Button } from '@/components/ui/Button';
+import { Logo } from '@/components/ui/Logo';
 import { cerrarSesion, obtenerAdminActual } from '@/lib/api';
 import { cn } from '@/lib/utils';
 
@@ -57,9 +58,12 @@ export function EncabezadoPanel() {
   return (
     <header className="border-b border-borde bg-fondo-elevado">
       <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-6 py-3">
-        <span className="text-sm font-semibold text-texto">
-          Evaluación de Conocimientos
-        </span>
+        <div className="flex items-center gap-3">
+          <Logo alto={30} sobreFondoOscuro />
+          <span className="hidden text-sm font-semibold text-texto sm:inline">
+            Evaluación de Conocimientos
+          </span>
+        </div>
 
         <nav className="flex gap-1" aria-label="Secciones del panel">
           {PESTANAS.map((pestana) => {

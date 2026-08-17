@@ -290,6 +290,45 @@ export interface IntentosPaginados {
   items: IntentoFila[];
 }
 
+/** Opción dentro del detalle de un intento (panel de administración). */
+export interface OpcionRespondida {
+  id: string;
+  orden: number;
+  texto: string;
+  es_correcta: boolean;
+  elegida: boolean;
+}
+
+export interface PreguntaRespondida {
+  pregunta_id: string;
+  orden: number;
+  texto: string;
+  puntos: number;
+  respondida: boolean;
+  acerto: boolean;
+  opciones: OpcionRespondida[];
+}
+
+/** Respuestas completas de una persona, para el modal de la tabla. */
+export interface DetalleIntento {
+  id: string;
+  nombre: string;
+  numero_empleado: string;
+  area: string;
+  area_label: string;
+  iniciado_at: string;
+  finalizado_at: string | null;
+  duracion_segundos: number | null;
+  correctas: number;
+  total_preguntas: number;
+  sin_responder: number;
+  puntaje: string | null;
+  aprobado: boolean;
+  umbral_aprobacion: number;
+  cuestionario_nombre: string;
+  preguntas: PreguntaRespondida[];
+}
+
 export interface MetaArea {
   area: string;
   label: string;

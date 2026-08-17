@@ -12,14 +12,15 @@ from datetime import date, datetime, time, timedelta
 from decimal import Decimal
 from typing import Any
 
-from sqlalchemy import Select, and_, case, func, select
+from sqlalchemy import Select, and_, case, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 from sqlalchemy.sql.elements import ColumnElement
 
 from app.core.config import settings
 from app.core.constants import AREAS, AREAS_VALIDAS, etiqueta_area
-from app.core.errors import ErrorDeNegocio
-from app.models.cuestionario import Opcion, Pregunta
+from app.core.errors import ErrorDeNegocio, RecursoNoEncontrado
+from app.models.cuestionario import Cuestionario, Opcion, Pregunta
 from app.models.intento import Intento, Respuesta
 from app.models.meta_area import MetaArea
 
@@ -41,6 +42,11 @@ COLUMNAS_ORDENABLES = {
 }
 
 MAX_TAMANO_PAGINA = 200
+
+# Caracteres que LIKE interpreta como comodín. Si el usuario escribe "100%"
+# en el buscador, sin escapar traería todos los empleados que empiezan con
+# "100" en vez de los que tienen ese texto literal.
+COMODINES_LIKE = str.maketrans({"\\": "\\\\", "%": "\\%", "_": "\\_"})
 
 
 @dataclass
@@ -384,8 +390,13 @@ async def listar_intentos(
     size: int = 25,
     orden_por: str = "finalizado_at",
     descendente: bool = True,
+    busqueda: str | None = None,
 ) -> dict[str, Any]:
-    """Tabla paginada con ordenamiento por columna."""
+    """Tabla paginada con ordenamiento por columna y búsqueda por texto.
+
+    ``busqueda`` cubre nombre y número de empleado a la vez: quien busca a
+    una persona no tiene por qué saber cuál de los dos datos recuerda.
+    """
     if orden_por not in COLUMNAS_ORDENABLES:
         raise ErrorDeNegocio(
             f"No se puede ordenar por '{orden_por}'. "
@@ -396,6 +407,17 @@ async def listar_intentos(
     size = min(max(1, size), MAX_TAMANO_PAGINA)
 
     condiciones = _condiciones(filtros)
+
+    if busqueda and busqueda.strip():
+        patron = f"%{busqueda.strip().translate(COMODINES_LIKE)}%"
+        # ILIKE: la búsqueda no distingue mayúsculas ni acentos escritos de
+        # más, que es como la va a usar quien atiende en planta.
+        condiciones.append(
+            or_(
+                Intento.nombre.ilike(patron, escape="\\"),
+                Intento.numero_empleado.ilike(patron, escape="\\"),
+            )
+        )
 
     total = await db.scalar(select(func.count(Intento.id)).where(and_(*condiciones)))
 
@@ -455,6 +477,109 @@ async def listar_intentos(
             }
             for fila in filas
         ],
+    }
+
+
+# --- Detalle de un intento -------------------------------------------------
+
+
+async def detalle_intento(db: AsyncSession, intento_id: uuid.UUID) -> dict[str, Any]:
+    """Devuelve las respuestas de una persona, pregunta por pregunta.
+
+    Alimenta el modal de la tabla de intentos: muestra qué eligió, cuál era
+    la correcta y en qué falló. Es información de administración, así que
+    aquí sí se expone ``es_correcta``.
+    """
+    intento = await db.scalar(select(Intento).where(Intento.id == intento_id))
+
+    if intento is None:
+        raise RecursoNoEncontrado("El intento no existe.")
+
+    cuestionario = await db.scalar(
+        select(Cuestionario)
+        .where(Cuestionario.id == intento.cuestionario_id)
+        .options(selectinload(Cuestionario.preguntas).selectinload(Pregunta.opciones))
+    )
+
+    if cuestionario is None:
+        raise RecursoNoEncontrado("El cuestionario de este intento ya no existe.")
+
+    # Lo contestado, en una sola consulta: pregunta_id -> opcion_id.
+    elegidas = {
+        pregunta_id: opcion_id
+        for pregunta_id, opcion_id in (
+            await db.execute(
+                select(Respuesta.pregunta_id, Respuesta.opcion_id).where(
+                    Respuesta.intento_id == intento_id
+                )
+            )
+        ).all()
+    }
+
+    preguntas: list[dict[str, Any]] = []
+    aciertos = 0
+    sin_responder = 0
+
+    for pregunta in cuestionario.preguntas:
+        elegida_id = elegidas.get(pregunta.id)
+        respondida = elegida_id is not None
+
+        if not respondida:
+            sin_responder += 1
+
+        acerto = any(
+            opcion.es_correcta and opcion.id == elegida_id
+            for opcion in pregunta.opciones
+        )
+        if acerto:
+            aciertos += 1
+
+        preguntas.append(
+            {
+                "pregunta_id": pregunta.id,
+                "orden": pregunta.orden,
+                "texto": pregunta.texto,
+                "puntos": pregunta.puntos,
+                "respondida": respondida,
+                "acerto": acerto,
+                "opciones": [
+                    {
+                        "id": opcion.id,
+                        "orden": opcion.orden,
+                        "texto": opcion.texto,
+                        "es_correcta": opcion.es_correcta,
+                        "elegida": opcion.id == elegida_id,
+                    }
+                    for opcion in pregunta.opciones
+                ],
+            }
+        )
+
+    duracion = None
+    if intento.finalizado_at is not None:
+        duracion = int((intento.finalizado_at - intento.iniciado_at).total_seconds())
+
+    return {
+        "id": intento.id,
+        "nombre": intento.nombre,
+        "numero_empleado": intento.numero_empleado,
+        "area": intento.area,
+        "area_label": etiqueta_area(intento.area),
+        "iniciado_at": intento.iniciado_at,
+        "finalizado_at": intento.finalizado_at,
+        "duracion_segundos": duracion,
+        # Se recuentan sobre las respuestas reales en vez de confiar en la
+        # columna: si el cuestionario se editó después, el número guardado
+        # puede no cuadrar con lo que se muestra abajo.
+        "correctas": aciertos,
+        "total_preguntas": len(cuestionario.preguntas),
+        "sin_responder": sin_responder,
+        "puntaje": intento.puntaje,
+        "aprobado": intento.puntaje is not None
+        and intento.puntaje >= Decimal(settings.UMBRAL_APROBACION),
+        "umbral_aprobacion": settings.UMBRAL_APROBACION,
+        "cuestionario_nombre": cuestionario.nombre,
+        "preguntas": preguntas,
     }
 
 

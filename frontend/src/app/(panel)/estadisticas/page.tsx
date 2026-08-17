@@ -10,6 +10,7 @@ import {
   GraficaPromedioPorArea,
 } from '@/components/estadisticas/Graficas';
 import { ModalMetas } from '@/components/estadisticas/ModalMetas';
+import { ModalRespuestas } from '@/components/estadisticas/ModalRespuestas';
 import { TablaIntentos } from '@/components/estadisticas/TablaIntentos';
 import { TarjetaKPI } from '@/components/estadisticas/TarjetaKPI';
 import { Button } from '@/components/ui/Button';
@@ -59,6 +60,10 @@ export default function PaginaEstadisticas() {
   const [lineaTiempo, setLineaTiempo] = useState<PuntoLineaTiempo[]>([]);
   const [intentos, setIntentos] = useState<IntentosPaginados | null>(null);
 
+  const [busqueda, setBusqueda] = useState('');
+  // Valor con retardo: sin esto se dispararía una consulta por cada tecla.
+  const [busquedaAplicada, setBusquedaAplicada] = useState('');
+
   const [pagina, setPagina] = useState(1);
   const [ordenPor, setOrdenPor] = useState<ColumnaOrdenable>('finalizado_at');
   const [descendente, setDescendente] = useState(true);
@@ -67,6 +72,7 @@ export default function PaginaEstadisticas() {
   const [cargandoTabla, setCargandoTabla] = useState(false);
   const [error, setError] = useState('');
   const [metasAbierto, setMetasAbierto] = useState(false);
+  const [intentoDetalle, setIntentoDetalle] = useState<string | null>(null);
   const [descargando, setDescargando] = useState<'excel' | 'powerpoint' | null>(null);
 
   // Catálogos iniciales: cuestionarios y áreas.
@@ -104,6 +110,17 @@ export default function PaginaEstadisticas() {
       cancelado = true;
     };
   }, []);
+
+  // 350 ms es el punto donde la búsqueda se siente inmediata sin castigar
+  // al servidor con una consulta por pulsación.
+  useEffect(() => {
+    const temporizador = setTimeout(() => {
+      setBusquedaAplicada(busqueda.trim());
+      setPagina(1);
+    }, 350);
+
+    return () => clearTimeout(temporizador);
+  }, [busqueda]);
 
   const filtros: FiltrosEstadisticas | null =
     cuestionarioId === ''
@@ -155,6 +172,7 @@ export default function PaginaEstadisticas() {
             size: TAMANO_PAGINA,
             orden_por: ordenPor,
             descendente,
+            busqueda: busquedaAplicada,
           }),
         );
       } catch {
@@ -163,7 +181,7 @@ export default function PaginaEstadisticas() {
         setCargandoTabla(false);
       }
     },
-    [pagina, ordenPor, descendente],
+    [pagina, ordenPor, descendente, busquedaAplicada],
   );
 
   // Recarga los paneles cuando cambian los filtros (no la paginación).
@@ -184,7 +202,17 @@ export default function PaginaEstadisticas() {
     }
     void cargarTabla(filtros);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- misma razón.
-  }, [cuestionarioId, area, desde, hasta, pagina, ordenPor, descendente, cargarTabla]);
+  }, [
+    cuestionarioId,
+    area,
+    desde,
+    hasta,
+    pagina,
+    ordenPor,
+    descendente,
+    busquedaAplicada,
+    cargarTabla,
+  ]);
 
   function alternarOrden(columna: ColumnaOrdenable) {
     if (columna === ordenPor) {
@@ -225,6 +253,7 @@ export default function PaginaEstadisticas() {
     setArea('');
     setDesde('');
     setHasta('');
+    setBusqueda('');
   }
 
   const hayFiltros = area !== '' || desde !== '' || hasta !== '';
@@ -426,9 +455,27 @@ export default function PaginaEstadisticas() {
             descendente={descendente}
             onOrdenar={alternarOrden}
             onPagina={setPagina}
+            areas={areas}
+            busqueda={busqueda}
+            onBusqueda={setBusqueda}
+            // Área y fechas comparten estado con los filtros del tablero:
+            // así no puede haber dos valores contradictorios en pantalla.
+            area={area}
+            onArea={setArea}
+            desde={desde}
+            onDesde={setDesde}
+            hasta={hasta}
+            onHasta={setHasta}
+            onLimpiar={limpiarFiltros}
+            onVerRespuestas={setIntentoDetalle}
           />
         </>
       )}
+
+      <ModalRespuestas
+        intentoId={intentoDetalle}
+        onCerrar={() => setIntentoDetalle(null)}
+      />
 
       <ModalMetas
         abierto={metasAbierto}

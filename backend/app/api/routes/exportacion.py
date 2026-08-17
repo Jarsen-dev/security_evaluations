@@ -5,6 +5,7 @@ Ambos formatos se generan en memoria (``BytesIO``) y se devuelven con
 habría que limpiar y que se acumularían en el servidor de planta.
 """
 
+import uuid
 from urllib.parse import quote
 
 from fastapi import APIRouter, Depends
@@ -14,12 +15,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import obtener_admin_actual
 from app.api.routes.estadisticas import obtener_filtros
 from app.db.session import get_db
-from app.services import cuestionario_service, excel_export, pptx_export
+from app.services import cuestionario_service, excel_export, pdf_export, pptx_export
 from app.services.estadistica_service import Filtros
 from app.services.exportacion_comun import (
     nombre_archivo,
     periodo_texto,
     reunir_datos,
+    slug,
 )
 
 router = APIRouter(
@@ -46,6 +48,31 @@ def _cabecera_descarga(nombre: str) -> dict[str, str]:
             f"filename*=UTF-8''{quote(nombre)}"
         )
     }
+
+
+@router.get(
+    "/cuestionarios/{cuestionario_id}/imprimir",
+    summary="Descarga el cuestionario en PDF para contestarlo en papel",
+)
+async def imprimir_cuestionario(
+    cuestionario_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+) -> StreamingResponse:
+    """Versión imprimible, en blanco.
+
+    Para quien no trae celular a su turno. **No marca la respuesta correcta**:
+    la hoja se le entrega a quien va a contestar.
+    """
+    cuestionario = await cuestionario_service.obtener_cuestionario(db, cuestionario_id)
+    flujo = pdf_export.generar_pdf_cuestionario(cuestionario)
+
+    nombre = f"cuestionario_{slug(cuestionario.nombre)}.pdf"
+
+    return StreamingResponse(
+        flujo,
+        media_type="application/pdf",
+        headers=_cabecera_descarga(nombre),
+    )
 
 
 @router.get(

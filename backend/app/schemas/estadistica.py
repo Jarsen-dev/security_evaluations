@@ -113,6 +113,53 @@ class IntentosPaginados(BaseModel):
     items: list[IntentoFila]
 
 
+class OpcionRespondida(BaseModel):
+    """Opción de una pregunta dentro del detalle de un intento."""
+
+    id: uuid.UUID
+    orden: int
+    texto: str
+    es_correcta: bool
+    elegida: bool = Field(description="Si esta fue la opción que marcó la persona.")
+
+
+class PreguntaRespondida(BaseModel):
+    """Pregunta con lo que contestó la persona y si acertó."""
+
+    pregunta_id: uuid.UUID
+    orden: int
+    texto: str
+    puntos: int
+    respondida: bool = Field(description="False si dejó la pregunta en blanco.")
+    acerto: bool
+    opciones: list[OpcionRespondida]
+
+
+class DetalleIntento(BaseModel):
+    """Respuestas completas de una persona, para el modal de la tabla.
+
+    Es un endpoint de administración: aquí SÍ se expone `es_correcta`, a
+    diferencia de los schemas públicos.
+    """
+
+    id: uuid.UUID
+    nombre: str
+    numero_empleado: str
+    area: str
+    area_label: str
+    iniciado_at: datetime
+    finalizado_at: datetime | None
+    duracion_segundos: int | None
+    correctas: int
+    total_preguntas: int
+    sin_responder: int
+    puntaje: Decimal | None
+    aprobado: bool
+    umbral_aprobacion: int
+    cuestionario_nombre: str
+    preguntas: list[PreguntaRespondida]
+
+
 class MetaAreaOut(BaseModel):
     """Meta de headcount de un área."""
 

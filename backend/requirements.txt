@@ -23,3 +23,6 @@ PyJWT==2.10.1
 # --- Exportaciones ---------------------------------------------------------
 openpyxl==3.1.5
 python-pptx==1.0.2
+# PDF imprimible del cuestionario. reportlab es Python puro: no arrastra
+# dependencias del sistema al contenedor, a diferencia de WeasyPrint.
+reportlab==4.2.5

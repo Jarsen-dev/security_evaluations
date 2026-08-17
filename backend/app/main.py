@@ -8,6 +8,7 @@ from fastapi import FastAPI, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.api.routes import (
@@ -18,7 +19,7 @@ from app.api.routes import (
     publico,
     sistema,
 )
-from app.core.config import settings
+from app.core.config import DIRECTORIO_ESTATICOS, settings
 from app.core.errors import ConflictoDeNegocio, ErrorDeNegocio, RecursoNoEncontrado
 from app.core.ratelimit import MiddlewareRateLimit
 from app.db.session import engine
@@ -185,6 +186,15 @@ async def manejar_conflicto(
         status_code=status.HTTP_409_CONFLICT, content={"detail": exc.mensaje}
     )
 
+
+# Archivos estáticos (el logo). Va bajo /api porque Nginx enruta /api/* al
+# backend; sin sesión, porque el formulario público también lo necesita.
+if DIRECTORIO_ESTATICOS.is_dir():
+    app.mount(
+        "/api/static",
+        StaticFiles(directory=DIRECTORIO_ESTATICOS),
+        name="estaticos",
+    )
 
 app.include_router(sistema.router, prefix="/api")
 app.include_router(auth.router, prefix="/api")

@@ -6,6 +6,7 @@ import { z } from 'zod';
 
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
+import { Logo } from '@/components/ui/Logo';
 import { ErrorDeApi, iniciarSesion } from '@/lib/api';
 
 const esquemaLogin = z.object({
@@ -64,6 +65,8 @@ export default function PaginaLogin() {
     <main className="flex min-h-screen items-center justify-center p-6">
       <div className="w-full max-w-sm">
         <header className="mb-8 text-center">
+          <Logo alto={56} sobreFondoOscuro className="mb-5" />
+
           <h1 className="text-xl font-semibold text-texto">
             Evaluación de Conocimientos
           </h1>

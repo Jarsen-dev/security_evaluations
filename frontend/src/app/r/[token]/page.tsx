@@ -3,6 +3,7 @@
 import { useParams, useRouter } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
 
+import { Logo } from '@/components/ui/Logo';
 import { useColaRespuestas } from '@/hooks/useColaRespuestas';
 import {
   ErrorDeApi,
@@ -208,6 +209,10 @@ export default function FormularioPublico() {
   if (fase === 'identidad') {
     return (
       <main className="mx-auto flex min-h-screen max-w-lg flex-col justify-center p-5">
+        {/* Solo en esta pantalla: al pasar a las preguntas, la barra superior
+            queda fija y el logo restaría espacio de lectura en el celular. */}
+        <Logo alto={88} className="mx-auto mb-6" />
+
         <h1 className="text-2xl font-bold">{cuestionario?.nombre}</h1>
         {cuestionario?.descripcion && (
           <p className="mt-2 text-base text-claro-suave">{cuestionario.descripcion}</p>

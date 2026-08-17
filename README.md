@@ -147,7 +147,17 @@ Cada tarjeta tiene tres formas de repartirla:
 - **QR** — código para escanear con el celular, con opción de descargar el PNG
   para imprimirlo y pegarlo en el área.
 - **Liga escritorio** — copia la URL al portapapeles para PCs.
-- Ambas apuntan a `http://<servidor>:8080/r/<token>`.
+- **Imprimir** — descarga el cuestionario en PDF para contestarlo en papel,
+  para quien no trae celular. Ábrelo y elige la impresora desde tu visor.
+  La hoja sale en blanco: incluye los tres campos de identidad, las áreas
+  como casillas y todas las preguntas con sus opciones, **sin marcar la
+  respuesta correcta**.
+
+Las dos primeras apuntan a `http://<servidor>:8080/r/<token>`.
+
+> Las hojas contestadas en papel se califican a mano: el sistema no las lee.
+> Si necesitas que cuenten en las estadísticas, alguien tiene que capturarlas
+> desde la liga pública.
 
 El token es aleatorio, no se deriva del identificador del cuestionario y no se
 puede adivinar. Para dejar de recibir respuestas, usa **Desactivar** en el menú

@@ -16,6 +16,7 @@ import type {
   CuestionarioCrearPayload,
   CuestionarioResumen,
   CuestionarioPublico,
+  DetalleIntento,
   ErrorApi,
   EstadisticaArea,
   EstadisticaPregunta,
@@ -172,6 +173,14 @@ export const agregarPregunta = (
   api.post<Cuestionario>(`/cuestionarios/${cuestionarioId}/preguntas`, datos);
 
 /** Reordena en lote: espera la lista completa de preguntas con su nuevo orden. */
+export const reordenarPreguntas = (
+  cuestionarioId: string,
+  preguntas: Array<{ id: string; orden: number }>,
+): Promise<Cuestionario> =>
+  api.put<Cuestionario>(`/cuestionarios/${cuestionarioId}/preguntas/orden`, {
+    preguntas,
+  });
+
 // --- Estadísticas ----------------------------------------------------------
 
 /** Convierte los filtros a query string, omitiendo los vacíos. */
@@ -212,7 +221,14 @@ export const obtenerLineaTiempo = (
 
 export const obtenerIntentos = (
   filtros: FiltrosEstadisticas,
-  opciones: { page: number; size: number; orden_por: string; descendente: boolean },
+  opciones: {
+    page: number;
+    size: number;
+    orden_por: string;
+    descendente: boolean;
+    /** Texto a buscar en el nombre o el número de empleado. */
+    busqueda?: string;
+  },
 ): Promise<IntentosPaginados> =>
   api.get<IntentosPaginados>(
     `/estadisticas/intentos?${consulta(filtros, {
@@ -220,8 +236,63 @@ export const obtenerIntentos = (
       size: String(opciones.size),
       orden_por: opciones.orden_por,
       descendente: String(opciones.descendente),
+      // Solo viaja si tiene contenido: un parámetro vacío ensucia la URL.
+      ...(opciones.busqueda ? { busqueda: opciones.busqueda } : {}),
     })}`,
   );
+
+/**
+ * Descarga un archivo del servidor y dispara el guardado en el navegador.
+ *
+ * Devuelve el nombre con el que se guardó. Comparte la mecánica con
+ * `descargarReporte`: pide con `fetch` para poder mostrar un error legible
+ * en vez de navegar a una página con JSON crudo.
+ */
+async function descargarArchivo(ruta: string, nombrePorDefecto: string): Promise<void> {
+  const respuesta = await fetch(`${baseUrl()}${ruta}`, {
+    credentials: 'include',
+    cache: 'no-store',
+  }).catch(() => {
+    throw new ErrorDeApi(0, 'No se pudo conectar con el servidor.');
+  });
+
+  if (!respuesta.ok) {
+    let mensaje = 'No se pudo generar el archivo.';
+    try {
+      const error = (await respuesta.json()) as ErrorApi;
+      if (error.detail) {
+        mensaje = error.detail;
+      }
+    } catch {
+      // Sin cuerpo JSON: se conserva el mensaje genérico.
+    }
+    throw new ErrorDeApi(respuesta.status, mensaje);
+  }
+
+  const disposicion = respuesta.headers.get('content-disposition') ?? '';
+  const coincidencia = /filename="([^"]+)"/.exec(disposicion);
+  const nombre = coincidencia?.[1] ?? nombrePorDefecto;
+
+  const blob = await respuesta.blob();
+  const url = URL.createObjectURL(blob);
+
+  const enlace = document.createElement('a');
+  enlace.href = url;
+  enlace.download = nombre;
+  document.body.appendChild(enlace);
+  enlace.click();
+  enlace.remove();
+
+  URL.revokeObjectURL(url);
+}
+
+/**
+ * Descarga el cuestionario en PDF para contestarlo en papel.
+ *
+ * Sale en blanco: no marca la respuesta correcta.
+ */
+export const descargarCuestionarioPdf = (id: string): Promise<void> =>
+  descargarArchivo(`/cuestionarios/${id}/imprimir`, 'cuestionario.pdf');
 
 /**
  * Descarga un reporte y dispara el guardado en el navegador.
@@ -272,6 +343,10 @@ export async function descargarReporte(
   // Liberar el objeto: si no, el blob se queda en memoria hasta recargar.
   URL.revokeObjectURL(url);
 }
+
+/** Respuestas de un intento, con aciertos y errores por pregunta. */
+export const obtenerDetalleIntento = (intentoId: string): Promise<DetalleIntento> =>
+  api.get<DetalleIntento>(`/estadisticas/intentos/${intentoId}`);
 
 export const obtenerMetas = (): Promise<MetaArea[]> => api.get<MetaArea[]>('/metas-area');
 
@@ -351,11 +426,3 @@ export const guardarRespuesta = (
 
 export const finalizarIntento = (intentoId: string): Promise<ResultadoIntento> =>
   api.post<ResultadoIntento>(`/publico/intento/${intentoId}/finalizar`);
-
-export const reordenarPreguntas = (
-  cuestionarioId: string,
-  preguntas: Array<{ id: string; orden: number }>,
-): Promise<Cuestionario> =>
-  api.put<Cuestionario>(`/cuestionarios/${cuestionarioId}/preguntas/orden`, {
-    preguntas,
-  });

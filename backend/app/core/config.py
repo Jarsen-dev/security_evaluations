@@ -1,10 +1,26 @@
 """Configuración de la aplicación, leída una sola vez desde el entorno."""
 
 from functools import lru_cache
+from pathlib import Path
 from typing import Literal
 
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+# Archivos estáticos servidos por el backend. `config.py` está en
+# backend/app/core/, así que se suben tres niveles para llegar a backend/.
+DIRECTORIO_ESTATICOS = Path(__file__).resolve().parents[2] / "static"
+
+# Logo de la empresa. Aparece en el panel, en el formulario público y en los
+# documentos generados (PDF y PowerPoint). Si el archivo no existe, todo
+# sigue funcionando: cada consumidor lo omite en lugar de fallar.
+RUTA_LOGO = DIRECTORIO_ESTATICOS / "Logo.png"
+
+
+def hay_logo() -> bool:
+    """Indica si el logo está disponible en disco."""
+    return RUTA_LOGO.is_file()
 
 
 class Settings(BaseSettings):

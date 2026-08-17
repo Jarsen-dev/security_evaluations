@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import obtener_admin_actual
 from app.db.session import get_db
 from app.schemas.estadistica import (
+    DetalleIntento,
     EstadisticaArea,
     EstadisticaPregunta,
     IntentosPaginados,
@@ -112,13 +113,37 @@ async def listar_intentos(
     size: int = Query(default=25, ge=1, le=200),
     orden_por: str = Query(default="finalizado_at"),
     descendente: bool = Query(default=True),
+    busqueda: str | None = Query(
+        default=None,
+        max_length=100,
+        description="Texto a buscar en el nombre o el número de empleado.",
+    ),
     db: AsyncSession = Depends(get_db),
 ) -> IntentosPaginados:
     """Ordenable por nombre, número de empleado, área, fecha o puntaje."""
     datos = await estadistica_service.listar_intentos(
-        db, filtros, page=page, size=size, orden_por=orden_por, descendente=descendente
+        db,
+        filtros,
+        page=page,
+        size=size,
+        orden_por=orden_por,
+        descendente=descendente,
+        busqueda=busqueda,
     )
     return IntentosPaginados.model_validate(datos)
+
+
+@router.get(
+    "/estadisticas/intentos/{intento_id}",
+    response_model=DetalleIntento,
+    summary="Respuestas de un intento, con aciertos y errores",
+)
+async def detalle_intento(
+    intento_id: uuid.UUID, db: AsyncSession = Depends(get_db)
+) -> DetalleIntento:
+    """Lo que contestó una persona, pregunta por pregunta."""
+    datos = await estadistica_service.detalle_intento(db, intento_id)
+    return DetalleIntento.model_validate(datos)
 
 
 # --- Metas por área --------------------------------------------------------

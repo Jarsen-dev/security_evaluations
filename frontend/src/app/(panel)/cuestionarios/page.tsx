@@ -12,6 +12,7 @@ import { copiarAlPortapapeles } from '@/lib/navegador';
 import {
   ErrorDeApi,
   actualizarCuestionario,
+  descargarCuestionarioPdf,
   duplicarCuestionario,
   eliminarCuestionario,
   listarCuestionarios,
@@ -30,6 +31,7 @@ export default function PaginaCuestionarios() {
   const [porEliminar, setPorEliminar] = useState<CuestionarioResumen | null>(null);
   const [eliminando, setEliminando] = useState(false);
   const [qrDe, setQrDe] = useState<CuestionarioResumen | null>(null);
+  const [imprimiendoId, setImprimiendoId] = useState<string | null>(null);
 
   const cargar = useCallback(async () => {
     try {
@@ -104,6 +106,22 @@ export default function PaginaCuestionarios() {
     }
   }
 
+  async function imprimir(cuestionario: CuestionarioResumen) {
+    setImprimiendoId(cuestionario.id);
+
+    try {
+      await descargarCuestionarioPdf(cuestionario.id);
+      mostrarToast('PDF descargado. Ábrelo para elegir la impresora.', 'exito');
+    } catch (error) {
+      mostrarToast(
+        error instanceof ErrorDeApi ? error.message : 'No se pudo generar el PDF.',
+        'error',
+      );
+    } finally {
+      setImprimiendoId(null);
+    }
+  }
+
   async function confirmarEliminacion() {
     if (porEliminar === null) {
       return;
@@ -165,6 +183,8 @@ export default function PaginaCuestionarios() {
               onEditar={() => abrirEdicion(cuestionario.id)}
               onVerQR={() => setQrDe(cuestionario)}
               onCopiarLiga={() => void copiarLiga(cuestionario)}
+              onImprimir={() => void imprimir(cuestionario)}
+              imprimiendo={imprimiendoId === cuestionario.id}
               onDuplicar={() => void duplicar(cuestionario)}
               onAlternarActivo={() => void alternarActivo(cuestionario)}
               onEliminar={() => setPorEliminar(cuestionario)}

@@ -12,6 +12,8 @@ interface TarjetaCuestionarioProps {
   onEditar: () => void;
   onVerQR: () => void;
   onCopiarLiga: () => void;
+  onImprimir: () => void;
+  imprimiendo: boolean;
   onDuplicar: () => void;
   onAlternarActivo: () => void;
   onEliminar: () => void;
@@ -22,6 +24,8 @@ export function TarjetaCuestionario({
   onEditar,
   onVerQR,
   onCopiarLiga,
+  onImprimir,
+  imprimiendo,
   onDuplicar,
   onAlternarActivo,
   onEliminar,
@@ -77,9 +81,58 @@ export function TarjetaCuestionario({
           )}
         </div>
 
-        <Badge tono={cuestionario.activo ? 'exito' : 'neutro'}>
-          {cuestionario.activo ? 'Activo' : 'Inactivo'}
-        </Badge>
+        <div className="flex shrink-0 items-center gap-1">
+          <Badge tono={cuestionario.activo ? 'exito' : 'neutro'}>
+            {cuestionario.activo ? 'Activo' : 'Inactivo'}
+          </Badge>
+
+          <div className="relative" ref={contenedorMenu}>
+            <Button
+              variante="fantasma"
+              tamano="sm"
+              onClick={() => setMenuAbierto((previo) => !previo)}
+              aria-haspopup="menu"
+              aria-expanded={menuAbierto}
+              aria-label={`Más acciones para ${cuestionario.nombre}`}
+            >
+              ⋮
+            </Button>
+
+            {menuAbierto && (
+              <div
+                role="menu"
+                className="absolute right-0 z-20 mt-1 w-56 overflow-hidden rounded-md border border-borde bg-fondo-elevado py-1 shadow-lg"
+              >
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => ejecutar(onDuplicar)}
+                  className="block w-full px-4 py-2 text-left text-sm text-texto hover:bg-fondo-sutil"
+                >
+                  Duplicar
+                </button>
+
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => ejecutar(onAlternarActivo)}
+                  className="block w-full px-4 py-2 text-left text-sm text-texto hover:bg-fondo-sutil"
+                >
+                  {cuestionario.activo ? 'Desactivar' : 'Activar'}
+                </button>
+
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => ejecutar(onEliminar)}
+                  className="block w-full px-4 py-2 text-left text-sm text-error hover:bg-error-suave"
+                >
+                  Eliminar
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
       </div>
 
       <dl className="flex gap-6 text-sm">
@@ -93,7 +146,7 @@ export function TarjetaCuestionario({
         </div>
       </dl>
 
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         <Button variante="secundario" tamano="sm" onClick={onEditar}>
           Editar
         </Button>
@@ -111,52 +164,21 @@ export function TarjetaCuestionario({
           Liga escritorio
         </Button>
 
-        <div className="relative ml-auto" ref={contenedorMenu}>
-          <Button
-            variante="fantasma"
-            tamano="sm"
-            onClick={() => setMenuAbierto((previo) => !previo)}
-            aria-haspopup="menu"
-            aria-expanded={menuAbierto}
-            aria-label={`Más acciones para ${cuestionario.nombre}`}
-          >
-            ⋮
-          </Button>
+        <Button
+          variante="secundario"
+          tamano="sm"
+          onClick={onImprimir}
+          cargando={imprimiendo}
+          disabled={cuestionario.total_preguntas === 0}
+          title={
+            cuestionario.total_preguntas === 0
+              ? 'El cuestionario no tiene preguntas que imprimir'
+              : 'Descarga el PDF para contestarlo en papel'
+          }
+        >
+          Imprimir
+        </Button>
 
-          {menuAbierto && (
-            <div
-              role="menu"
-              className="absolute right-0 z-20 mt-1 w-56 overflow-hidden rounded-md border border-borde bg-fondo-elevado py-1 shadow-lg"
-            >
-              <button
-                type="button"
-                role="menuitem"
-                onClick={() => ejecutar(onDuplicar)}
-                className="block w-full px-4 py-2 text-left text-sm text-texto hover:bg-fondo-sutil"
-              >
-                Duplicar
-              </button>
-
-              <button
-                type="button"
-                role="menuitem"
-                onClick={() => ejecutar(onAlternarActivo)}
-                className="block w-full px-4 py-2 text-left text-sm text-texto hover:bg-fondo-sutil"
-              >
-                {cuestionario.activo ? 'Desactivar' : 'Activar'}
-              </button>
-
-              <button
-                type="button"
-                role="menuitem"
-                onClick={() => ejecutar(onEliminar)}
-                className="block w-full px-4 py-2 text-left text-sm text-error hover:bg-error-suave"
-              >
-                Eliminar
-              </button>
-            </div>
-          )}
-        </div>
       </div>
     </Card>
   );

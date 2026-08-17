@@ -2,7 +2,7 @@
 
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
-import type { ColumnaOrdenable, IntentosPaginados } from '@/lib/types';
+import type { Area, ColumnaOrdenable, IntentosPaginados } from '@/lib/types';
 import { cn } from '@/lib/utils';
 
 interface TablaIntentosProps {
@@ -12,6 +12,19 @@ interface TablaIntentosProps {
   descendente: boolean;
   onOrdenar: (columna: ColumnaOrdenable) => void;
   onPagina: (pagina: number) => void;
+
+  // --- Filtros de la sección ---
+  areas: Area[];
+  busqueda: string;
+  onBusqueda: (texto: string) => void;
+  area: string;
+  onArea: (area: string) => void;
+  desde: string;
+  onDesde: (fecha: string) => void;
+  hasta: string;
+  onHasta: (fecha: string) => void;
+  onLimpiar: () => void;
+  onVerRespuestas: (intentoId: string) => void;
 }
 
 const COLUMNAS: Array<{ clave: ColumnaOrdenable | null; etiqueta: string }> = [
@@ -21,6 +34,7 @@ const COLUMNAS: Array<{ clave: ColumnaOrdenable | null; etiqueta: string }> = [
   { clave: 'finalizado_at', etiqueta: 'Fecha' },
   { clave: null, etiqueta: 'Duración' },
   { clave: 'puntaje', etiqueta: 'Puntaje' },
+  { clave: null, etiqueta: 'Acciones' },
 ];
 
 function formatearFecha(iso: string | null): string {
@@ -52,9 +66,22 @@ export function TablaIntentos({
   descendente,
   onOrdenar,
   onPagina,
+  areas,
+  busqueda,
+  onBusqueda,
+  area,
+  onArea,
+  desde,
+  onDesde,
+  hasta,
+  onHasta,
+  onLimpiar,
+  onVerRespuestas,
 }: TablaIntentosProps) {
   const totalPaginas =
     datos === null ? 1 : Math.max(1, Math.ceil(datos.total / datos.size));
+
+  const hayFiltros = busqueda !== '' || area !== '' || desde !== '' || hasta !== '';
 
   return (
     <Card className="overflow-hidden p-0">
@@ -63,6 +90,86 @@ export function TablaIntentos({
         <span className="text-sm text-texto-tenue">
           {datos?.total ?? 0} registro(s)
         </span>
+      </div>
+
+      {/* --- Filtros de la tabla --- */}
+      <div className="flex flex-wrap items-end gap-3 border-b border-borde bg-fondo/40 px-5 py-4">
+        <div className="flex min-w-[15rem] flex-1 flex-col gap-1.5">
+          <label htmlFor="busqueda" className="text-sm font-medium text-texto">
+            Buscar
+          </label>
+          <div className="relative">
+            <input
+              id="busqueda"
+              type="search"
+              value={busqueda}
+              onChange={(evento) => onBusqueda(evento.target.value)}
+              placeholder="Nombre o número de empleado"
+              className="h-10 w-full rounded-md border border-borde bg-fondo px-3 pr-8 text-sm text-texto placeholder:text-texto-tenue focus:border-primario"
+            />
+            {busqueda !== '' && (
+              <button
+                type="button"
+                onClick={() => onBusqueda('')}
+                aria-label="Limpiar la búsqueda"
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-texto-tenue hover:text-texto"
+              >
+                ✕
+              </button>
+            )}
+          </div>
+        </div>
+
+        <div className="flex flex-col gap-1.5">
+          <label htmlFor="area-tabla" className="text-sm font-medium text-texto">
+            Área
+          </label>
+          <select
+            id="area-tabla"
+            value={area}
+            onChange={(evento) => onArea(evento.target.value)}
+            className="h-10 rounded-md border border-borde bg-fondo px-3 text-sm text-texto focus:border-primario"
+          >
+            <option value="">Todas</option>
+            {areas.map((opcion) => (
+              <option key={opcion.value} value={opcion.value}>
+                {opcion.label}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="flex flex-col gap-1.5">
+          <label htmlFor="desde-tabla" className="text-sm font-medium text-texto">
+            Desde
+          </label>
+          <input
+            id="desde-tabla"
+            type="date"
+            value={desde}
+            onChange={(evento) => onDesde(evento.target.value)}
+            className="h-10 rounded-md border border-borde bg-fondo px-3 text-sm text-texto focus:border-primario"
+          />
+        </div>
+
+        <div className="flex flex-col gap-1.5">
+          <label htmlFor="hasta-tabla" className="text-sm font-medium text-texto">
+            Hasta
+          </label>
+          <input
+            id="hasta-tabla"
+            type="date"
+            value={hasta}
+            onChange={(evento) => onHasta(evento.target.value)}
+            className="h-10 rounded-md border border-borde bg-fondo px-3 text-sm text-texto focus:border-primario"
+          />
+        </div>
+
+        {hayFiltros && (
+          <Button variante="fantasma" onClick={onLimpiar}>
+            Limpiar
+          </Button>
+        )}
       </div>
 
       {/* La tabla desborda en horizontal dentro de su propio contenedor: la
@@ -117,7 +224,9 @@ export function TablaIntentos({
             {!cargando && (datos?.items.length ?? 0) === 0 && (
               <tr>
                 <td colSpan={COLUMNAS.length} className="px-5 py-8 text-center text-texto-suave">
-                  No hay intentos para los filtros seleccionados.
+                  {busqueda !== ''
+                    ? `Ningún intento coincide con “${busqueda}”.`
+                    : 'No hay intentos para los filtros seleccionados.'}
                 </td>
               </tr>
             )}
@@ -145,6 +254,17 @@ export function TablaIntentos({
                         </span>
                       </span>
                     )}
+                  </td>
+
+                  <td className="px-5 py-3">
+                    <Button
+                      variante="secundario"
+                      tamano="sm"
+                      onClick={() => onVerRespuestas(intento.id)}
+                      aria-label={`Ver las respuestas de ${intento.nombre}`}
+                    >
+                      Ver respuestas
+                    </Button>
                   </td>
                 </tr>
               ))}
