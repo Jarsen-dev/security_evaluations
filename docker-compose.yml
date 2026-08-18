@@ -122,6 +122,21 @@ services:
     networks:
       - evaluaciones_net
 
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: evaluaciones_cloudflared
+    restart: unless-stopped
+    command: tunnel run
+    depends_on:
+      - nginx
+    environment:
+      TUNNEL_TOKEN: ${TUNNEL_TOKEN}
+    networks:
+      - evaluaciones_net
+    # No expone puertos al host: la conexión hacia Cloudflare la inicia
+    # este contenedor, no al revés. Llega a nginx por nombre de servicio
+    # dentro de evaluaciones_net (http://nginx:80).
+
 volumes:
   evaluaciones_pgdata:
     name: evaluaciones_pgdata
