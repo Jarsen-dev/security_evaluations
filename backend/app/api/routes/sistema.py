@@ -8,9 +8,11 @@ from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.deps import obtener_admin_actual
+from app.core.config import settings
 from app.core.constants import AREAS
 from app.db.session import get_db
-from app.schemas.sistema import AreaOut, EstadoSalud
+from app.schemas.sistema import AreaOut, ConfigWifi, EstadoSalud
 
 logger = logging.getLogger(__name__)
 
@@ -59,3 +61,25 @@ async def listar_areas() -> list[AreaOut]:
     donde agregarlas o renombrarlas.
     """
     return [AreaOut(value=area.value, label=area.label) for area in AREAS]
+
+
+@router.get(
+    "/wifi",
+    response_model=ConfigWifi,
+    summary="Datos de la red WiFi para el código QR de acceso",
+    dependencies=[Depends(obtener_admin_actual)],
+)
+async def config_wifi() -> ConfigWifi:
+    """Devuelve la red configurada en el .env.
+
+    Exige sesión de administrador: la respuesta trae la contraseña de la red
+    en claro. El resto de este router es público, por eso la dependencia va
+    en la ruta y no en el router completo.
+    """
+    return ConfigWifi(
+        configurado=settings.wifi_configurado,
+        ssid=settings.WIFI_SSID,
+        password=settings.WIFI_PASSWORD,
+        seguridad=settings.WIFI_SEGURIDAD,
+        oculta=settings.WIFI_OCULTA,
+    )

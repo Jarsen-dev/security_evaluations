@@ -15,6 +15,15 @@ export interface EstadoSalud {
   version: string;
 }
 
+/** Datos de la red WiFi para el QR de acceso (`GET /api/wifi`). */
+export interface ConfigWifi {
+  configurado: boolean;
+  ssid: string;
+  password: string;
+  seguridad: string;
+  oculta: boolean;
+}
+
 /** Administrador de la sesión actual (`GET /api/auth/me`). */
 export interface Admin {
   id: string;

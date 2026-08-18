@@ -66,6 +66,22 @@ class Settings(BaseSettings):
     RATE_LIMIT_PETICIONES: int = Field(default=30, ge=1)
     RATE_LIMIT_VENTANA_SEGUNDOS: int = Field(default=60, ge=1)
 
+    # --- Red WiFi de planta ------------------------------------------------
+    # Se usan para generar un código QR de acceso a la red, junto al QR del
+    # cuestionario. Deliberadamente SIN el prefijo NEXT_PUBLIC_: esas
+    # variables Next.js las incrusta en el bundle que descarga cualquiera,
+    # incluidos los operadores del formulario público. La contraseña solo
+    # debe viajar al panel de administración, con sesión iniciada.
+    WIFI_SSID: str = ""
+    WIFI_PASSWORD: str = ""
+    WIFI_SEGURIDAD: Literal["WPA", "WEP", "nopass"] = "WPA"
+    WIFI_OCULTA: bool = False
+
+    @property
+    def wifi_configurado(self) -> bool:
+        """El QR de red solo tiene sentido si al menos hay nombre de red."""
+        return bool(self.WIFI_SSID.strip())
+
     # --- Reglas de negocio -------------------------------------------------
     UMBRAL_APROBACION: int = Field(
         default=70,

@@ -10,6 +10,7 @@
 import type {
   Admin,
   Area,
+  ConfigWifi,
   Credenciales,
   Cuestionario,
   CuestionarioActualizarPayload,
@@ -131,6 +132,14 @@ export const api = {
 export const obtenerSalud = (): Promise<EstadoSalud> => api.get<EstadoSalud>('/health');
 
 export const obtenerAreas = (): Promise<Area[]> => api.get<Area[]>('/areas');
+
+/**
+ * Red WiFi configurada en el servidor, para el QR de acceso.
+ *
+ * Requiere sesión: la respuesta incluye la contraseña de la red.
+ */
+export const obtenerConfigWifi = (): Promise<ConfigWifi> =>
+  api.get<ConfigWifi>('/wifi');
 
 // --- Autenticación ---------------------------------------------------------
 
