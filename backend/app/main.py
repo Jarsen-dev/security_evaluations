@@ -55,13 +55,15 @@ app = FastAPI(
     description="API interna para crear cuestionarios y evaluar al personal de planta.",
     version=sistema.VERSION,
     lifespan=lifespan,
-    docs_url="/api/docs",
+    # Solo en desarrollo: en producción el esquema completo de la API no se
+    # publica (ver `docs_publicas` en core/config.py).
+    docs_url="/api/docs" if settings.docs_publicas else None,
     redoc_url=None,
-    openapi_url="/api/openapi.json",
+    openapi_url="/api/openapi.json" if settings.docs_publicas else None,
 )
 
-# Limita las peticiones a /api/publico/*. Se registra antes que CORS para que
-# una IP bloqueada no consuma más trabajo del necesario.
+# Limita el login y los endpoints públicos. Se registra antes que CORS para
+# que una IP bloqueada no consuma más trabajo del necesario.
 app.add_middleware(MiddlewareRateLimit)
 
 app.add_middleware(

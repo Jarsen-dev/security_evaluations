@@ -22,6 +22,8 @@ services:
       target: dev
     command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
     environment:
+      # Reactiva /api/docs y afloja CORS para el frontend en :3200.
+      ENVIRONMENT: development
       # Un solo worker: --reload no es compatible con múltiples workers.
       # Entre comillas a propósito (ver nota en docker-compose.yml).
       UVICORN_WORKERS: "1"

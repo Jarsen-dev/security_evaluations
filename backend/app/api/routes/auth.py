@@ -35,8 +35,10 @@ def _establecer_cookie_sesion(response: Response, token: str) -> None:
         max_age=settings.ACCESS_TOKEN_EXPIRE_HOURS * 3600,
         httponly=True,  # inaccesible desde JavaScript
         samesite="lax",
-        # En la LAN industrial no hay HTTPS: con Secure activado el navegador
-        # descartaría la cookie y el login nunca funcionaría.
+        # Activado en producción: todo el acceso entra por el dominio HTTPS
+        # del túnel. Si se administra entrando directo por la IP de la LAN
+        # (HTTP), hay que apagar COOKIE_SECURE o el navegador descarta la
+        # cookie y el login no funciona por esa vía.
         secure=settings.COOKIE_SECURE,
         path="/",
     )

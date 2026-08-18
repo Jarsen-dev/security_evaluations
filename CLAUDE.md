@@ -25,8 +25,19 @@ desarrollo.
 Auditoría rápida:
 
 ```bash
-curl -s http://localhost:8080/api/openapi.json | grep -c es_correcta   # schemas del panel
-grep -n es_correcta backend/app/schemas/publico.py                     # debe salir vacío
+# La respuesta real del formulario. Debe dar 0.
+curl -s http://localhost:8080/api/publico/<token> | grep -c es_correcta
+
+grep -n es_correcta backend/app/schemas/publico.py   # debe salir vacío
+```
+
+`/api/openapi.json` ya no sirve para auditar: en producción no se publica
+(ver regla 7). Para revisar el esquema completo, genéralo dentro del
+contenedor:
+
+```bash
+docker-compose exec backend python -c \
+  "import json; from app.main import app; print(json.dumps(app.openapi()))"
 ```
 
 ### 2. Las migraciones deben ser idempotentes
@@ -72,11 +83,13 @@ Nada de cargar todos los intentos a memoria para contarlos. Usa `GROUP BY`,
 La única excepción es el pivote de la hoja "Respuestas detalladas" del Excel,
 que arma columnas dinámicas: eso es presentación, no agregación.
 
-### 5. El sistema corre en un contexto NO seguro
+### 5. El frontend debe funcionar en un contexto NO seguro
 
-El navegador solo considera "seguro" a HTTPS y a `localhost`. En planta esto
-corre por **HTTP sobre una IP de LAN**, donde varias APIs del navegador
-**no existen**, ni siquiera fallan: son `undefined`.
+El navegador solo considera "seguro" a HTTPS y a `localhost`. Por el dominio
+público hay HTTPS y todo existe, pero el sistema **se sigue pudiendo abrir por
+la IP de la LAN** (`http://192.168.1.78:8080`), que es la vía de respaldo si el
+túnel se cae. Ahí varias APIs del navegador **no existen**, ni siquiera fallan:
+son `undefined`.
 
 | API | Por `localhost` | Por `http://192.168.1.x` |
 |---|---|---|
@@ -92,8 +105,9 @@ y el desarrollo en `localhost` nunca lo detectó.
 Usa siempre los envoltorios de `src/lib/navegador.ts` (`idUnico()`,
 `copiarAlPortapapeles()`). **Nunca llames a esas APIs directamente.**
 
-Antes de dar por bueno un cambio en el frontend, pruébalo entrando por la IP
-de LAN, no por `localhost`:
+Que ahora el acceso normal sea HTTPS no vuelve opcionales los envoltorios: la
+vía de respaldo por IP dejaría de funcionar. Antes de dar por bueno un cambio
+en el frontend, pruébalo entrando por la IP de LAN, no por `localhost`:
 
 ```
 http://<tu-ip>:8080     ←  así se ve en planta
@@ -105,6 +119,32 @@ Incluye los mensajes de error de la API. Starlette y Pydantic los generan en
 inglés, así que `app/main.py` los traduce con `MENSAJES_HTTP` y
 `MENSAJES_VALIDACION`. Si agregas un validador propio, lanza el `ValueError`
 con el mensaje ya en español: el handler lo conserva tal cual.
+
+### 7. El sistema está publicado en internet
+
+Un túnel de Cloudflare sirve el sitio en `https://evaluaciones.chwon.it.com`.
+El túnel publica **todo**, no solo el formulario, así que la pantalla de
+acceso al panel también es alcanzable desde fuera.
+
+Dos consecuencias al escribir código:
+
+- **La documentación de la API no se publica.** `docs_url` y `openapi_url`
+  dependen de `settings.docs_publicas`, que solo es cierto en desarrollo.
+- **Un endpoint de administración nuevo tiene que colgar de un prefijo ya
+  protegido.** Cloudflare Access filtra por ruta, y las aplicaciones creadas
+  cubren `api/auth`, `api/cuestionarios`, `api/preguntas`, `api/estadisticas`,
+  `api/metas-area` y `api/wifi`. Un endpoint de admin en un prefijo nuevo
+  (`/api/reportes`, digamos) queda fuera de Access sin que nada falle de forma
+  visible: solo lo defiende la cookie de sesión. Si agregas uno, cuélgalo de
+  un prefijo existente o da de alta la aplicación de Access correspondiente y
+  anótala en `SEGURIDAD.md`.
+
+El límite de tasa distingue dos cuotas (`core/ratelimit.py`): la amplia de
+`/api/publico` y una estricta de 5 fallos por 5 minutos en `/api/auth/login`.
+En el login **solo cuentan los 401**, para que un admin no se autobloquee.
+
+`SEGURIDAD.md` tiene el detalle: configuración de Access, revisión previa a
+repartir el QR, vigilancia y los riesgos que el diseño acepta.
 
 ---
 

@@ -313,6 +313,16 @@ docker compose up -d --build             # las migraciones corren solas
 docker compose logs backend | tail -20   # confirmar que arrancó
 ```
 
+`.env` no viaja por git. Si la actualización trae variables nuevas, compáralo
+con `.env.example` y captúralas antes de reconstruir:
+
+```bash
+diff <(grep -oE '^[A-Z_]+' .env.example | sort) <(grep -oE '^[A-Z_]+' .env | sort)
+```
+
+El sistema está publicado en internet por el túnel de Cloudflare: antes de
+abrir una campaña nueva, revisa la lista de `SEGURIDAD.md`.
+
 ## Comandos frecuentes
 
 ```bash

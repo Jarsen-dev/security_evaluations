@@ -1,4 +1,4 @@
-"""Limitador de tasa en memoria para los endpoints públicos.
+"""Limitador de tasa en memoria.
 
 Sin Redis a propósito: a esta escala (~500 empleados, pico de ~150 en una
 hora) un diccionario con ventana deslizante es suficiente y no agrega una
@@ -12,6 +12,7 @@ no aplicar una cuota exacta.
 
 import time
 from collections import defaultdict, deque
+from dataclasses import dataclass
 
 from fastapi import Request, status
 from fastapi.responses import JSONResponse
@@ -60,8 +61,13 @@ class LimitadorDeTasa:
         for clave in inactivas:
             del self._marcas[clave]
 
-    def permitir(self, clave: str) -> bool:
-        """Registra una petición y dice si está dentro del límite."""
+    def excedido(self, clave: str) -> bool:
+        """Dice si la clave ya agotó su cuota, sin consumir un espacio.
+
+        Está separado de ``registrar`` porque el límite del login solo debe
+        contar los intentos fallidos: hay que dejar pasar la petición para
+        conocer su resultado antes de decidir si cuenta.
+        """
         ahora = time.monotonic()
 
         self._peticiones_desde_limpieza += 1
@@ -71,11 +77,17 @@ class LimitadorDeTasa:
 
         marcas = self._marcas[clave]
         self._purgar(marcas, ahora)
+        return len(marcas) >= self.max_peticiones
 
-        if len(marcas) >= self.max_peticiones:
+    def registrar(self, clave: str) -> None:
+        """Consume un espacio de la ventana."""
+        self._marcas[clave].append(time.monotonic())
+
+    def permitir(self, clave: str) -> bool:
+        """Registra una petición y dice si está dentro del límite."""
+        if self.excedido(clave):
             return False
-
-        marcas.append(ahora)
+        self.registrar(clave)
         return True
 
     def segundos_para_reintentar(self, clave: str) -> int:
@@ -106,38 +118,90 @@ def obtener_ip_cliente(request: Request) -> str:
     return request.client.host if request.client else "desconocida"
 
 
-class MiddlewareRateLimit(BaseHTTPMiddleware):
-    """Aplica el límite de tasa solo a las rutas públicas.
+@dataclass(frozen=True)
+class ReglaDeTasa:
+    """Una cuota aplicada a las rutas que empiezan con ``prefijo``."""
 
-    El panel de administración queda fuera: ya está protegido por sesión y un
-    admin legítimo puede hacer muchas peticiones seguidas al abrir el
-    dashboard.
+    prefijo: str
+    limitador: LimitadorDeTasa
+    #: Plantilla del mensaje 429; recibe los segundos de espera.
+    mensaje: str
+    #: Si es ``True``, solo los 401 consumen cuota (ver el login).
+    solo_fallos: bool = False
+
+
+class MiddlewareRateLimit(BaseHTTPMiddleware):
+    """Aplica las cuotas de tasa por IP.
+
+    Dos reglas, con criterios distintos:
+
+    - ``/api/auth/login``: pocos intentos por ventana larga. Es la única
+      puerta a todos los datos del sistema y quedó expuesta a internet por el
+      túnel de Cloudflare, así que sin esto una sola IP puede probar cientos
+      de contraseñas por minuto. Solo cuentan los intentos fallidos: un admin
+      que entra bien nunca se autobloquea.
+    - ``/api/publico``: la cuota amplia del formulario, dimensionada para que
+      una persona conteste sin toparse con ella.
+
+    El resto del panel queda fuera: ya está protegido por sesión y un admin
+    legítimo hace muchas peticiones seguidas al abrir el dashboard.
     """
 
-    def __init__(self, app, prefijo: str = "/api/publico") -> None:
+    def __init__(self, app) -> None:
         super().__init__(app)
-        self.prefijo = prefijo
-        self.limitador = LimitadorDeTasa()
+        # Orden importante: se aplica la primera regla que coincide, así que
+        # el prefijo más específico va primero.
+        self.reglas: tuple[ReglaDeTasa, ...] = (
+            ReglaDeTasa(
+                prefijo="/api/auth/login",
+                limitador=LimitadorDeTasa(
+                    settings.RATE_LIMIT_LOGIN_INTENTOS,
+                    settings.RATE_LIMIT_LOGIN_VENTANA_SEGUNDOS,
+                ),
+                mensaje=(
+                    "Demasiados intentos de acceso fallidos. "
+                    "Espera {espera} segundos e intenta de nuevo."
+                ),
+                solo_fallos=True,
+            ),
+            ReglaDeTasa(
+                prefijo="/api/publico",
+                limitador=LimitadorDeTasa(),
+                mensaje=(
+                    "Estás enviando demasiadas peticiones. "
+                    "Espera {espera} segundos e intenta de nuevo."
+                ),
+            ),
+        )
+
+    def _regla_para(self, ruta: str) -> ReglaDeTasa | None:
+        for regla in self.reglas:
+            if ruta.startswith(regla.prefijo):
+                return regla
+        return None
 
     async def dispatch(
         self, request: Request, call_next: RequestResponseEndpoint
     ) -> Response:
-        if not request.url.path.startswith(self.prefijo):
+        regla = self._regla_para(request.url.path)
+        if regla is None:
             return await call_next(request)
 
         ip = obtener_ip_cliente(request)
 
-        if not self.limitador.permitir(ip):
-            espera = self.limitador.segundos_para_reintentar(ip)
+        if regla.limitador.excedido(ip):
+            espera = regla.limitador.segundos_para_reintentar(ip)
             return JSONResponse(
                 status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                content={
-                    "detail": (
-                        "Estás enviando demasiadas peticiones. "
-                        f"Espera {espera} segundos e intenta de nuevo."
-                    )
-                },
+                content={"detail": regla.mensaje.format(espera=espera)},
                 headers={"Retry-After": str(espera)},
             )
 
-        return await call_next(request)
+        if not regla.solo_fallos:
+            regla.limitador.registrar(ip)
+            return await call_next(request)
+
+        respuesta = await call_next(request)
+        if respuesta.status_code == status.HTTP_401_UNAUTHORIZED:
+            regla.limitador.registrar(ip)
+        return respuesta

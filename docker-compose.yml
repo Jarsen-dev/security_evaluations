@@ -10,11 +10,21 @@
 
 name: evaluaciones
 
+# Rotación de logs. Sin esto, el driver json-file de Docker crece sin tope:
+# con ~500 empleados contestando y Nginx registrando cada petición, el disco
+# del servidor se llena solo. 10 MB x 5 archivos por servicio.
+x-logging: &logging
+  driver: "json-file"
+  options:
+    max-size: "10m"
+    max-file: "5"
+
 services:
   db:
     image: postgres:16-alpine
     container_name: evaluaciones_db
     restart: unless-stopped
+    logging: *logging
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
@@ -40,10 +50,13 @@ services:
       dockerfile: Dockerfile
     container_name: evaluaciones_backend
     restart: unless-stopped
+    logging: *logging
     depends_on:
       db:
         condition: service_healthy
     environment:
+      # Apaga /api/docs y /api/openapi.json (ver docs_publicas en config.py).
+      ENVIRONMENT: ${ENVIRONMENT:-production}
       DATABASE_URL: ${DATABASE_URL}
       SECRET_KEY: ${SECRET_KEY}
       ACCESS_TOKEN_EXPIRE_HOURS: ${ACCESS_TOKEN_EXPIRE_HOURS}
@@ -55,6 +68,8 @@ services:
       WIFI_OCULTA: ${WIFI_OCULTA:-false}
       RATE_LIMIT_PETICIONES: ${RATE_LIMIT_PETICIONES:-30}
       RATE_LIMIT_VENTANA_SEGUNDOS: ${RATE_LIMIT_VENTANA_SEGUNDOS:-60}
+      RATE_LIMIT_LOGIN_INTENTOS: ${RATE_LIMIT_LOGIN_INTENTOS:-5}
+      RATE_LIMIT_LOGIN_VENTANA_SEGUNDOS: ${RATE_LIMIT_LOGIN_VENTANA_SEGUNDOS:-300}
       NEXT_PUBLIC_BASE_URL: ${NEXT_PUBLIC_BASE_URL}
       # Las comillas son obligatorias: docker-compose v2.24 serializa los
       # enteros de YAML sin comillas como `%!s(int=4)` al fusionar varios
@@ -80,6 +95,7 @@ services:
         NEXT_PUBLIC_BASE_URL: ${NEXT_PUBLIC_BASE_URL}
     container_name: evaluaciones_frontend
     restart: unless-stopped
+    logging: *logging
     depends_on:
       - backend
     environment:
@@ -95,6 +111,7 @@ services:
     image: nginx:1.27-alpine
     container_name: evaluaciones_nginx
     restart: unless-stopped
+    logging: *logging
     depends_on:
       - backend
       - frontend

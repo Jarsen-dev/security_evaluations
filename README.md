@@ -6,8 +6,20 @@ contestan desde su celular escaneando un código QR, o desde una PC con la liga
 directa. **Quien responde no necesita cuenta.**
 
 - ~500 empleados, con picos de ~150 personas contestando en la misma hora.
-- Corre en un servidor local de planta, en LAN, sobre HTTP.
+- Corre en un servidor de planta y se publica en internet con un túnel de
+  Cloudflare, para que se pueda contestar con datos móviles. La entrada por la
+  IP de la LAN sigue existiendo como respaldo si el túnel se cae.
 - Tolera cortes de WiFi: las respuestas se guardan solas al reconectar.
+
+## Documentación
+
+| Archivo | Para qué |
+|---|---|
+| `README.md` | Instalación y uso |
+| `DESPLIEGUE.md` | Puesta en producción y operación del servidor |
+| `SEGURIDAD.md` | Exposición pública, Cloudflare Access y revisión previa a repartir el QR |
+| `CLAUDE.md` | Convenciones y trampas conocidas del código |
+| `ESPECIFICACION.md` | Especificación original |
 
 ---
 

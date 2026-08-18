@@ -66,6 +66,13 @@ class Settings(BaseSettings):
     RATE_LIMIT_PETICIONES: int = Field(default=30, ge=1)
     RATE_LIMIT_VENTANA_SEGUNDOS: int = Field(default=60, ge=1)
 
+    # --- Límite de tasa del login -----------------------------------------
+    # Mucho más estricto: el login es la única puerta al panel y quedó
+    # expuesto a internet por el túnel. Solo cuentan los intentos fallidos,
+    # así que un admin que teclea bien su contraseña nunca lo alcanza.
+    RATE_LIMIT_LOGIN_INTENTOS: int = Field(default=5, ge=1)
+    RATE_LIMIT_LOGIN_VENTANA_SEGUNDOS: int = Field(default=300, ge=1)
+
     # --- Red WiFi de planta ------------------------------------------------
     # Se usan para generar un código QR de acceso a la red, junto al QR del
     # cuestionario. Deliberadamente SIN el prefijo NEXT_PUBLIC_: esas
@@ -100,6 +107,16 @@ class Settings(BaseSettings):
                 "postgresql+asyncpg://usuario:contrasena@host:puerto/basededatos"
             )
         return valor
+
+    @property
+    def docs_publicas(self) -> bool:
+        """Si se sirve la documentación interactiva de la API.
+
+        Fuera de desarrollo va apagada: el sistema está publicado en internet
+        por el túnel de Cloudflare y ``/api/docs`` le entregaría a cualquiera
+        el mapa completo de los endpoints del panel.
+        """
+        return self.ENVIRONMENT == "development"
 
     @property
     def base_url_es_local(self) -> bool:
