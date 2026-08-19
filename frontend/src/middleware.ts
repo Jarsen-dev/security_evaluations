@@ -25,6 +25,16 @@ export function middleware(request: NextRequest) {
     (ruta) => pathname === ruta || pathname.startsWith(`${ruta}/`),
   );
 
+  // La raíz se resuelve aquí, no con un `redirect()` en la página: Next
+  // prerenderizaba esa redirección y la respuesta cacheada perdía la cabecera
+  // `Location`, dejando un 307 sin destino que colgaba al navegador. Además
+  // así se llega al destino final en un solo salto.
+  if (pathname === '/') {
+    const url = request.nextUrl.clone();
+    url.pathname = tieneSesion ? '/cuestionarios' : '/login';
+    return NextResponse.redirect(url);
+  }
+
   if (esRutaProtegida && !tieneSesion) {
     const url = request.nextUrl.clone();
     url.pathname = '/login';
