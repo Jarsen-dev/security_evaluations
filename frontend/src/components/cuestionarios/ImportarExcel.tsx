@@ -5,6 +5,7 @@ import { useRef, useState } from 'react';
 import { nuevoIdLocal } from '@/components/cuestionarios/ConstructorPreguntas';
 import { Button } from '@/components/ui/Button';
 import { ErrorDeApi, URL_PLANTILLA_EXCEL, importarExcel } from '@/lib/api';
+import { useTraduccion } from '@/lib/i18n';
 import type { ErrorImportacion, PreguntaBorrador } from '@/lib/types';
 
 interface ImportarExcelProps {
@@ -13,6 +14,7 @@ interface ImportarExcelProps {
 }
 
 export function ImportarExcel({ onImportadas }: ImportarExcelProps) {
+  const t = useTraduccion();
   const selectorArchivo = useRef<HTMLInputElement>(null);
 
   const [importando, setImportando] = useState(false);
@@ -45,14 +47,14 @@ export function ImportarExcel({ onImportadas }: ImportarExcelProps) {
       setErrores(reporte.errores);
       setResumen(
         reporte.importadas === 0
-          ? 'No se importó ninguna pregunta.'
-          : `Se agregaron ${reporte.importadas} pregunta(s) al constructor.`,
+          ? t('importar.sinPreguntas')
+          : t('importar.agregadas', { total: reporte.importadas }),
       );
     } catch (error) {
       setErrorGeneral(
         error instanceof ErrorDeApi
           ? error.message
-          : 'No se pudo importar el archivo.',
+          : t('importar.fallo'),
       );
     } finally {
       setImportando(false);
@@ -72,7 +74,7 @@ export function ImportarExcel({ onImportadas }: ImportarExcelProps) {
           onClick={() => selectorArchivo.current?.click()}
           cargando={importando}
         >
-          Importar desde Excel
+          {t('importar.boton')}
         </Button>
 
         <a
@@ -80,11 +82,11 @@ export function ImportarExcel({ onImportadas }: ImportarExcelProps) {
           download
           className="text-sm text-primario underline underline-offset-2 hover:text-primario-hover"
         >
-          Descargar plantilla
+          {t('importar.plantilla')}
         </a>
 
         <span className="ml-auto text-xs text-texto-tenue">
-          Las preguntas importadas se agregan a las que ya tengas.
+          {t('importar.nota')}
         </span>
       </div>
 
@@ -119,13 +121,14 @@ export function ImportarExcel({ onImportadas }: ImportarExcelProps) {
       {errores.length > 0 && (
         <div className="rounded-md border border-alerta bg-alerta-suave px-3 py-2">
           <p className="text-sm font-medium text-alerta">
-            {errores.length} fila(s) con problemas — corrígelas en tu Excel y
-            vuelve a importar:
+            {t('importar.filasConProblemas', { total: errores.length })}
           </p>
           <ul className="mt-1.5 flex list-inside list-disc flex-col gap-0.5">
             {errores.map((error) => (
               <li key={`${error.fila}-${error.mensaje}`} className="text-sm text-texto-suave">
-                <span className="font-medium text-texto">Fila {error.fila}:</span>{' '}
+                <span className="font-medium text-texto">
+                  {t('importar.fila', { numero: error.fila })}
+                </span>{' '}
                 {error.mensaje}
               </li>
             ))}

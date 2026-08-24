@@ -53,6 +53,13 @@ const config: Config = {
           DEFAULT: '#f85149',
           suave: '#3a1414',
         },
+        // Tercer color del semáforo de los controles: una lectura por encima
+        // del rango normal no es lo mismo que una por debajo, y `alerta` ya
+        // significa otra cosa en el panel.
+        naranja: {
+          DEFAULT: '#f0883e',
+          suave: '#3a2410',
+        },
 
         // --- Formulario público (tema claro, alto contraste) ---
         claro: {
@@ -67,7 +74,18 @@ const config: Config = {
         },
       },
       fontFamily: {
-        sans: ['system-ui', '-apple-system', 'Segoe UI', 'Roboto', 'sans-serif'],
+        // Los respaldos coreanos son obligatorios: sin ellos, Windows dibuja
+        // el hangul con una serif de sistema que desentona con todo el panel.
+        sans: [
+          'system-ui',
+          '-apple-system',
+          'Segoe UI',
+          'Roboto',
+          'Malgun Gothic',
+          'Apple SD Gothic Neo',
+          'Noto Sans KR',
+          'sans-serif',
+        ],
       },
       spacing: {
         // Altura mínima de un objetivo táctil: los operadores contestan

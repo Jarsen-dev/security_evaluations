@@ -1,5 +1,15 @@
 # Especificación de proyecto: Sistema de Evaluación de Conocimientos
 
+> **Nota (agosto 2026).** Este documento es la especificación **original**, y
+> se conserva tal cual como registro de por qué el sistema quedó como quedó.
+> Desde entonces el proyecto se convirtió en el **Sistema ESH** del
+> departamento de seguridad: además de las evaluaciones, ahora captura los
+> controles de inspección (Rayser e inspección de SQP, con más pestañas por
+> habilitar), tiene una sección de inventario y el panel se puede leer en
+> español, inglés y coreano. Lo que está descrito aquí sigue vigente para la
+> parte de cuestionarios y estadísticas; lo nuevo está documentado en
+> `README.md`, `CLAUDE.md` y `SEGURIDAD.md`.
+
 Vas a construir desde cero un sistema web de evaluación de conocimientos (estilo Google Forms) para uso industrial interno, alojado en un servidor local de planta. Este repositorio es completamente independiente de cualquier otro proyecto del servidor y debe correr en puertos propios sin colisionar.
 
 Lee esta especificación completa antes de escribir código. Al final hay un plan de fases: **implementa una fase a la vez y espera confirmación antes de pasar a la siguiente.**

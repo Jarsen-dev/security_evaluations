@@ -2,10 +2,14 @@
 
 import re
 import unicodedata
+from urllib.parse import quote
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
 
+from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
+from openpyxl.utils import get_column_letter
+from openpyxl.worksheet.worksheet import Worksheet
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.cuestionario import Cuestionario
@@ -50,6 +54,49 @@ async def reunir_datos(
         filas_intentos=filas,
         generado_at=datetime.now(UTC),
     )
+
+
+# --- Estilos compartidos de las hojas de Excel -----------------------------
+#
+# Los usan tanto el reporte de evaluaciones (``excel_export``) como los
+# formatos de los controles ESH (``controles_excel``), para que todo lo que
+# salga del sistema se vea como un solo documento.
+
+AZUL = "1F4E79"
+GRIS = "F2F2F2"
+
+FUENTE_ENCABEZADO = Font(bold=True, color="FFFFFF", size=11)
+RELLENO_ENCABEZADO = PatternFill(start_color=AZUL, end_color=AZUL, fill_type="solid")
+FUENTE_TITULO = Font(bold=True, size=14)
+BORDE_FINO = Border(
+    left=Side(style="thin", color="D9D9D9"),
+    right=Side(style="thin", color="D9D9D9"),
+    top=Side(style="thin", color="D9D9D9"),
+    bottom=Side(style="thin", color="D9D9D9"),
+)
+
+FORMATO_FECHA = "dd/mm/yyyy hh:mm"
+FORMATO_PORCENTAJE = "0.00"
+
+
+def escribir_encabezados(
+    hoja: Worksheet, encabezados: list[str], fila: int = 1
+) -> None:
+    """Escribe una fila de encabezados con el estilo del sistema."""
+    for columna, texto in enumerate(encabezados, start=1):
+        celda = hoja.cell(row=fila, column=columna, value=texto)
+        celda.fill = RELLENO_ENCABEZADO
+        celda.font = FUENTE_ENCABEZADO
+        celda.alignment = Alignment(
+            horizontal="center", vertical="center", wrap_text=True
+        )
+        celda.border = BORDE_FINO
+
+
+def ajustar_anchos(hoja: Worksheet, anchos: list[int]) -> None:
+    """Fija el ancho de cada columna, de izquierda a derecha."""
+    for indice, ancho in enumerate(anchos, start=1):
+        hoja.column_dimensions[get_column_letter(indice)].width = ancho
 
 
 def slug(texto: str) -> str:
@@ -181,3 +228,17 @@ def generar_conclusiones(datos: DatosReporte) -> list[str]:
         )
 
     return conclusiones
+
+
+def cabecera_descarga(nombre: str) -> dict[str, str]:
+    """Arma el Content-Disposition de una descarga.
+
+    Los nombres se generan sin acentos, pero se agrega la variante
+    ``filename*`` por si alguno llegara a incluir caracteres fuera de ASCII:
+    sin ella, algunos navegadores truncan el nombre del archivo.
+    """
+    return {
+        "Content-Disposition": (
+            f'attachment; filename="{nombre}"; filename*=UTF-8\'\'{quote(nombre)}'
+        )
+    }

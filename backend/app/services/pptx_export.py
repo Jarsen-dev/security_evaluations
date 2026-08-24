@@ -125,7 +125,7 @@ def _portada(presentacion: Presentation, datos: DatosReporte, periodo: str) -> N
     marco.word_wrap = True
 
     parrafo = marco.paragraphs[0]
-    parrafo.text = "Evaluación de Conocimientos"
+    parrafo.text = "Sistema ESH — Evaluación de Conocimientos"
     parrafo.font.size = Pt(16)
     parrafo.font.color.rgb = GRIS_TEXTO
 

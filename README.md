@@ -1,9 +1,20 @@
-# Sistema de Evaluación de Conocimientos
+# Sistema ESH
 
-Sistema web interno para crear cuestionarios y evaluar al personal de planta.
-El administrador arma las evaluaciones desde un panel; los operadores las
-contestan desde su celular escaneando un código QR, o desde una PC con la liga
-directa. **Quien responde no necesita cuenta.**
+Sistema web interno del departamento de seguridad. Cubre dos cosas:
+
+- **Evaluaciones de conocimientos.** El administrador arma los cuestionarios
+  desde un panel; los operadores los contestan desde su celular escaneando un
+  código QR, o desde una PC con la liga directa. **Quien responde no necesita
+  cuenta.**
+- **Controles ESH.** Los formatos de inspección que se llenaban en papel:
+  presiones del Rayser e inspección de sustancias químicas peligrosas, con
+  semaforización automática, evidencia fotográfica y descarga en Excel con el
+  mismo formato de la hoja original. Los demás controles del recorrido diario
+  ya aparecen como pestañas y se irán habilitando.
+
+El panel se puede leer en **español, inglés y coreano**; se cambia con el
+selector del encabezado. El formulario que contesta el personal de planta va
+siempre en español.
 
 - ~500 empleados, con picos de ~150 personas contestando en la misma hora.
 - Corre en un servidor de planta y se publica en internet con un túnel de

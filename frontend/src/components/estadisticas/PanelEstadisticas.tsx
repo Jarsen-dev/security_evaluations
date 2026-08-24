@@ -15,6 +15,7 @@ import { TablaIntentos } from '@/components/estadisticas/TablaIntentos';
 import { TarjetaKPI } from '@/components/estadisticas/TarjetaKPI';
 import { Button } from '@/components/ui/Button';
 import { useToast } from '@/components/ui/Toast';
+import { useTraduccion } from '@/lib/i18n';
 import {
   ErrorDeApi,
   descargarReporte,
@@ -42,7 +43,12 @@ import type {
 
 const TAMANO_PAGINA = 15;
 
-export default function PaginaEstadisticas() {
+/**
+ * Pestaña "Estadísticas", ahora dentro de Cuestionarios: son dos vistas del
+ * mismo material y separarlas obligaba a saltar de sección para comparar.
+ */
+export function PanelEstadisticas() {
+  const t = useTraduccion();
   const { mostrarToast } = useToast();
 
   const [cuestionarios, setCuestionarios] = useState<CuestionarioResumen[]>([]);
@@ -101,7 +107,7 @@ export default function PaginaEstadisticas() {
           setError(
             problema instanceof ErrorDeApi
               ? problema.message
-              : 'No se pudieron cargar los cuestionarios.',
+              : t('cuestionarios.falloCarga'),
           );
         }
       });
@@ -109,7 +115,7 @@ export default function PaginaEstadisticas() {
     return () => {
       cancelado = true;
     };
-  }, []);
+  }, [t]);
 
   // 350 ms es el punto donde la búsqueda se siente inmediata sin castigar
   // al servidor con una consulta por pulsación.
@@ -155,12 +161,12 @@ export default function PaginaEstadisticas() {
       setError(
         problema instanceof ErrorDeApi
           ? problema.message
-          : 'No se pudieron cargar las estadísticas.',
+          : t('estadisticas.falloCarga'),
       );
     } finally {
       setCargando(false);
     }
-  }, []);
+  }, [t]);
 
   const cargarTabla = useCallback(
     async (activos: FiltrosEstadisticas) => {
@@ -234,14 +240,16 @@ export default function PaginaEstadisticas() {
     try {
       await descargarReporte(formato, filtros);
       mostrarToast(
-        formato === 'excel' ? 'Excel descargado.' : 'PowerPoint descargado.',
+        formato === 'excel'
+          ? t('estadisticas.excelDescargado')
+          : t('estadisticas.powerpointDescargado'),
         'exito',
       );
     } catch (problema) {
       mostrarToast(
         problema instanceof ErrorDeApi
           ? problema.message
-          : 'No se pudo generar el reporte.',
+          : t('estadisticas.falloReporte'),
         'error',
       );
     } finally {
@@ -264,11 +272,13 @@ export default function PaginaEstadisticas() {
   return (
     <section className="flex flex-col gap-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
-        <h1 className="text-xl font-semibold text-texto">Estadísticas</h1>
+        <h1 className="text-xl font-semibold text-texto">
+          {t('cuestionarios.pestanaEstadisticas')}
+        </h1>
 
         <div className="flex flex-wrap items-center gap-2">
           <Button variante="fantasma" onClick={() => setMetasAbierto(true)}>
-            Configurar metas por área
+            {t('estadisticas.configurarMetas')}
           </Button>
 
           {/* Las descargas respetan los filtros activos del dashboard. */}
@@ -278,7 +288,7 @@ export default function PaginaEstadisticas() {
             cargando={descargando === 'excel'}
             onClick={() => void descargar('excel')}
           >
-            Descargar Excel
+            {t('estadisticas.descargarExcel')}
           </Button>
 
           <Button
@@ -287,7 +297,7 @@ export default function PaginaEstadisticas() {
             cargando={descargando === 'powerpoint'}
             onClick={() => void descargar('powerpoint')}
           >
-            Descargar PowerPoint
+            {t('estadisticas.descargarPowerpoint')}
           </Button>
         </div>
       </div>
@@ -296,7 +306,7 @@ export default function PaginaEstadisticas() {
       <div className="flex flex-wrap items-end gap-3 rounded-tarjeta border border-borde bg-fondo-elevado p-4">
         <div className="flex min-w-[16rem] flex-1 flex-col gap-1.5">
           <label htmlFor="cuestionario" className="text-sm font-medium text-texto">
-            Cuestionario
+            {t('estadisticas.cuestionario')}
           </label>
           <select
             id="cuestionario"
@@ -304,10 +314,14 @@ export default function PaginaEstadisticas() {
             onChange={(evento) => setCuestionarioId(evento.target.value)}
             className="h-10 rounded-md border border-borde bg-fondo px-3 text-sm text-texto focus:border-primario"
           >
-            <option value="">Selecciona un cuestionario</option>
+            <option value="">{t('estadisticas.seleccionaCuestionario')}</option>
             {cuestionarios.map((cuestionario) => (
               <option key={cuestionario.id} value={cuestionario.id}>
-                {cuestionario.nombre} ({cuestionario.total_respuestas} respuestas)
+                {cuestionario.nombre} (
+                {t('estadisticas.respuestasContador', {
+                  total: cuestionario.total_respuestas,
+                })}
+                )
               </option>
             ))}
           </select>
@@ -315,7 +329,7 @@ export default function PaginaEstadisticas() {
 
         <div className="flex flex-col gap-1.5">
           <label htmlFor="area" className="text-sm font-medium text-texto">
-            Área
+            {t('comun.area')}
           </label>
           <select
             id="area"
@@ -323,7 +337,7 @@ export default function PaginaEstadisticas() {
             onChange={(evento) => setArea(evento.target.value)}
             className="h-10 rounded-md border border-borde bg-fondo px-3 text-sm text-texto focus:border-primario"
           >
-            <option value="">Todas</option>
+            <option value="">{t('comun.areaTodas')}</option>
             {areas.map((opcion) => (
               <option key={opcion.value} value={opcion.value}>
                 {opcion.label}
@@ -334,7 +348,7 @@ export default function PaginaEstadisticas() {
 
         <div className="flex flex-col gap-1.5">
           <label htmlFor="desde" className="text-sm font-medium text-texto">
-            Desde
+            {t('comun.desde')}
           </label>
           <input
             id="desde"
@@ -347,7 +361,7 @@ export default function PaginaEstadisticas() {
 
         <div className="flex flex-col gap-1.5">
           <label htmlFor="hasta" className="text-sm font-medium text-texto">
-            Hasta
+            {t('comun.hasta')}
           </label>
           <input
             id="hasta"
@@ -360,7 +374,7 @@ export default function PaginaEstadisticas() {
 
         {hayFiltros && (
           <Button variante="fantasma" onClick={limpiarFiltros}>
-            Limpiar filtros
+            {t('estadisticas.limpiarFiltros')}
           </Button>
         )}
       </div>
@@ -376,11 +390,9 @@ export default function PaginaEstadisticas() {
 
       {cuestionarioId === '' && !error && (
         <div className="rounded-tarjeta border border-dashed border-borde p-10 text-center">
-          <p className="text-texto-suave">Selecciona un cuestionario para ver sus datos.</p>
+          <p className="text-texto-suave">{t('estadisticas.seleccionaParaVer')}</p>
           {cuestionarios.length === 0 && (
-            <p className="mt-1 text-sm text-texto-tenue">
-              Todavía no hay cuestionarios creados.
-            </p>
+            <p className="mt-1 text-sm text-texto-tenue">{t('cuestionarios.vacio')}</p>
           )}
         </div>
       )}
@@ -390,49 +402,59 @@ export default function PaginaEstadisticas() {
           {/* --- KPIs --- */}
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
             <TarjetaKPI
-              etiqueta="Respuestas recibidas"
+              etiqueta={t('estadisticas.kpiRespuestas')}
               cargando={sinResumen}
               valor={resumen?.total_respuestas ?? 0}
               detalle={
                 resumen && resumen.total_en_progreso > 0
-                  ? `${resumen.total_en_progreso} sin finalizar`
+                  ? t('estadisticas.sinFinalizarContador', {
+                      total: resumen.total_en_progreso,
+                    })
                   : undefined
               }
             />
 
             <TarjetaKPI
-              etiqueta="Nivel de participación"
+              etiqueta={t('estadisticas.kpiParticipacion')}
               cargando={sinResumen}
               vacio={!participacion?.porcentaje}
               valor={`${participacion?.porcentaje ?? 0}%`}
               detalle={
                 participacion?.meta
-                  ? `${participacion.recibidas} de ${participacion.meta} personas`
-                  : 'Captura las metas por área para calcularlo'
+                  ? t('estadisticas.participacionDetalle', {
+                      recibidas: participacion.recibidas,
+                      meta: participacion.meta,
+                    })
+                  : t('estadisticas.sinMetas')
               }
             />
 
             <TarjetaKPI
-              etiqueta="Calificación promedio"
+              etiqueta={t('estadisticas.kpiPromedio')}
               cargando={sinResumen}
               vacio={resumen?.promedio_general === null}
               valor={`${resumen?.promedio_general ?? 0}%`}
             />
 
             <TarjetaKPI
-              etiqueta="Tasa de aprobación"
+              etiqueta={t('estadisticas.kpiAprobacion')}
               cargando={sinResumen}
               vacio={resumen?.tasa_aprobacion === null}
               valor={`${resumen?.tasa_aprobacion ?? 0}%`}
               detalle={
                 resumen
-                  ? `${resumen.aprobados} aprobados (umbral ${resumen.umbral_aprobacion}%)`
+                  ? t('estadisticas.aprobadosDetalle', {
+                      total: resumen.aprobados,
+                      umbral: resumen.umbral_aprobacion,
+                    })
                   : undefined
               }
             />
           </div>
 
-          {cargando && <p className="text-sm text-texto-suave">Actualizando gráficas…</p>}
+          {cargando && (
+            <p className="text-sm text-texto-suave">{t('estadisticas.actualizando')}</p>
+          )}
 
           {/* --- Gráficas --- */}
           <div className="grid gap-4 xl:grid-cols-2">

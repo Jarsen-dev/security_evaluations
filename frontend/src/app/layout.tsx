@@ -3,8 +3,10 @@ import type { Metadata, Viewport } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'Evaluación de Conocimientos',
-  description: 'Sistema interno de evaluación de conocimientos del personal de planta.',
+  title: 'Sistema ESH',
+  description:
+    'Sistema interno del departamento de seguridad: evaluaciones de ' +
+    'conocimientos y controles ESH.',
 };
 
 export const viewport: Viewport = {

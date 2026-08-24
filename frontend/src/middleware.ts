@@ -13,7 +13,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 
 const COOKIE_SESION = 'evaluaciones_sesion';
 
-const RUTAS_PROTEGIDAS = ['/cuestionarios', '/estadisticas'];
+const RUTAS_PROTEGIDAS = ['/cuestionarios', '/controles', '/inventario'];
 
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;

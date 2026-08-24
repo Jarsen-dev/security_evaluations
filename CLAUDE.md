@@ -113,12 +113,32 @@ en el frontend, pruébalo entrando por la IP de LAN, no por `localhost`:
 http://<tu-ip>:8080     ←  así se ve en planta
 ```
 
-### 6. Todo el texto visible va en español
+### 6. El español es la base; el panel además se traduce
 
-Incluye los mensajes de error de la API. Starlette y Pydantic los generan en
-inglés, así que `app/main.py` los traduce con `MENSAJES_HTTP` y
-`MENSAJES_VALIDACION`. Si agregas un validador propio, lanza el `ValueError`
-con el mensaje ya en español: el handler lo conserva tal cual.
+Nada de texto en inglés escrito a mano en la interfaz. La regla sigue viva
+para todo lo que no pasa por el diccionario:
+
+- **Los mensajes de error de la API van en español.** Starlette y Pydantic los
+  generan en inglés, así que `app/main.py` los traduce con `MENSAJES_HTTP` y
+  `MENSAJES_VALIDACION`. Si agregas un validador propio, lanza el `ValueError`
+  con el mensaje ya en español: el handler lo conserva tal cual.
+- **El formulario público `/r/[token]` va en español.** Lo contesta el personal
+  de piso y se imprime en español.
+
+El **panel** sí cambia de idioma (español, inglés y coreano) con el selector
+del encabezado. Al escribir un componente del panel:
+
+- Nada de texto suelto en el JSX: todo sale de `t('seccion.clave')`, con
+  `useTraduccion()` o `useIdioma()` de `src/lib/i18n`.
+- La clave se agrega primero en `es.ts`. `en.ts` y `ko.ts` están tipados como
+  `Diccionario = typeof es`, así que `npm run typecheck` falla hasta que se
+  traduce en los tres idiomas. Esa es la red de seguridad: no hay forma de
+  dejar un idioma a medias sin romper la compilación.
+- Los datos capturados no se traducen nunca: nombres de cuestionarios,
+  preguntas, observaciones y las etiquetas de área que sirve el backend son
+  dato, no interfaz.
+- Las fechas y los números se formatean con `Intl` usando el `locale` que
+  entrega `useIdioma()`, no con `'es-MX'` fijo.
 
 ### 7. El sistema está publicado en internet
 
@@ -138,6 +158,10 @@ Dos consecuencias al escribir código:
   visible: solo lo defiende la cookie de sesión. Si agregas uno, cuélgalo de
   un prefijo existente o da de alta la aplicación de Access correspondiente y
   anótala en `SEGURIDAD.md`.
+
+  Los controles ESH estrenaron el prefijo `api/controles`, y el panel las
+  rutas `controles` e `inventario`. **Sus aplicaciones de Access todavía están
+  pendientes de crear**; queda anotado en `SEGURIDAD.md`.
 
 El límite de tasa distingue dos cuotas (`core/ratelimit.py`): la amplia de
 `/api/publico` y una estricta de 5 fallos por 5 minutos en `/api/auth/login`.
@@ -191,20 +215,39 @@ relativas, así que comparte origen con la API y la cookie de sesión viaja sola
 | `services/` | Lógica de negocio. No conoce FastAPI |
 | `models/` | SQLAlchemy. Se importan todos en `models/__init__.py` para Alembic |
 | `schemas/` | Pydantic. `publico.py` está separado a propósito (ver regla 1) |
-| `core/` | Configuración, constantes, seguridad, límite de tasa, errores |
+| `core/` | Configuración, constantes, catálogos de los controles, seguridad, límite de tasa, errores |
 
 Las exportaciones viven en `services/`: `excel_export.py` y `pptx_export.py`
-(reportes de estadísticas), `pdf_export.py` (cuestionario imprimible) y
-`exportacion_comun.py` con lo que comparten. Todas generan en `BytesIO` y se
+(reportes de estadísticas), `pdf_export.py` (cuestionario imprimible),
+`controles_excel.py` (formatos de los controles ESH) y `exportacion_comun.py`
+con lo que comparten: estilos de hoja, la cabecera de descarga y los helpers
+de fecha. Todas generan en `BytesIO` y se
 devuelven con `StreamingResponse`: nada toca el disco del servidor.
 
 **El PDF imprimible nunca marca la respuesta correcta.** Se le entrega a quien
 va a contestar. `pdf_export.py` no debe leer `es_correcta` bajo ninguna
 circunstancia (misma lógica que la regla 1).
 
+**Controles ESH** (`api/routes/controles.py`, `services/control_service.py`)
+
+Los formatos de inspección que antes se llenaban en papel. Dos reglas propias:
+
+- Los puntos de la inspección de SQP y el rango de los manómetros viven en
+  `core/controles_catalogo.py` y se sirven por la API, igual que las áreas: el
+  frontend nunca los tiene escritos a mano.
+- La semaforización (verde 125–135 psi, rojo abajo, naranja arriba) **se
+  calcula en el servidor**. El frontend repite la regla solo para pintar el
+  formulario mientras se teclea; lo que se guarda y lo que sale en el Excel lo
+  decide el backend.
+
 **Frontend** (`frontend/src/`)
 
-El grupo de rutas `(panel)` comparte el encabezado con las dos pestañas.
+El grupo de rutas `(panel)` comparte el encabezado con las tres pestañas
+(Cuestionarios, Controles e Inventario). Estadísticas ya no es una ruta: es
+una sub-pestaña dentro de `/cuestionarios`, y la vista activa viaja en la
+query (`?vista=estadisticas`). Controles hace lo mismo con `?control=rayser`.
+
+Los textos del panel salen de `src/lib/i18n` (ver regla 6).
 `/r/[token]` queda fuera: layout propio, sin sesión y en **tema claro de alto
 contraste**, porque se contesta en celulares bajo la luz de la nave.
 
@@ -257,6 +300,15 @@ rebotar. La autorización real la aplica la API en cada endpoint.
 **PostgreSQL no indexa las llaves foráneas solo.** Sin
 `ix_respuestas_opcion_id`, borrar una opción recorría las 188 mil respuestas
 (56 ms por opción, y una edición borra decenas).
+
+**`getUserMedia` no sirve para tomar la foto de evidencia.** Es la misma
+trampa de la regla 5 y una más encima: la API no existe por HTTP en la IP de
+LAN, y aunque se entre por el dominio, Nginx manda
+`Permissions-Policy: camera=()` y el navegador la bloquea. La captura se hace
+con `<input type="file" accept="image/*" capture="environment">`, que abre la
+cámara del celular sin necesitar contexto seguro, y el reescalado con
+`<canvas>`, que tampoco lo necesita. Ver
+`components/controles/rayser/CampoFoto.tsx`.
 
 **El límite de tasa es por worker.** Con 4 workers de uvicorn, el tope
 efectivo por IP es ~4× el configurado. Es aceptable: el objetivo es contener

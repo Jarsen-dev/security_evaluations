@@ -10,6 +10,7 @@
 import type {
   Admin,
   Area,
+  CatalogoSqp,
   ConfigWifi,
   Credenciales,
   Cuestionario,
@@ -26,11 +27,15 @@ import type {
   FiltrosEstadisticas,
   IdentidadRespondiente,
   IntentoIniciado,
+  InspeccionSqpPayload,
+  InspeccionSqpResumen,
   IntentosPaginados,
   Mensaje,
   MetaArea,
   PuntoLineaTiempo,
   RangoDistribucion,
+  RangoRayser,
+  RegistroRayser,
   Resumen,
   PreguntaPayload,
   ResultadoImportacion,
@@ -435,3 +440,97 @@ export const guardarRespuesta = (
 
 export const finalizarIntento = (intentoId: string): Promise<ResultadoIntento> =>
   api.post<ResultadoIntento>(`/publico/intento/${intentoId}/finalizar`);
+
+// --- Controles ESH ---------------------------------------------------------
+
+export const obtenerRangoRayser = (): Promise<RangoRayser> =>
+  api.get<RangoRayser>('/controles/rayser/rango');
+
+export const listarRayser = (desde: string, hasta: string): Promise<RegistroRayser[]> =>
+  api.get<RegistroRayser[]>(
+    `/controles/rayser?${new URLSearchParams({ desde, hasta }).toString()}`,
+  );
+
+export const eliminarRegistroRayser = (id: string): Promise<void> =>
+  api.delete<void>(`/controles/rayser/${id}`);
+
+/** URL de la foto de evidencia. La cookie de sesión viaja sola. */
+export const urlFotoRayser = (id: string): string =>
+  `/api/controles/rayser/${id}/foto`;
+
+/**
+ * Registra la lectura del día.
+ *
+ * No pasa por `solicitar()` porque el cuerpo es `FormData`: forzar
+ * `Content-Type: application/json` rompería el multipart de la foto (mismo
+ * motivo que en `importarExcel`).
+ */
+export async function registrarRayser(datos: {
+  fecha: string;
+  lecturas: string[];
+  observaciones: string;
+  foto: File | null;
+}): Promise<RegistroRayser> {
+  const cuerpo = new FormData();
+  cuerpo.append('fecha', datos.fecha);
+  datos.lecturas.forEach((lectura, indice) => {
+    cuerpo.append(`manometro_${indice + 1}`, lectura);
+  });
+  cuerpo.append('observaciones', datos.observaciones);
+
+  if (datos.foto) {
+    cuerpo.append('foto', datos.foto);
+  }
+
+  let respuesta: Response;
+
+  try {
+    respuesta = await fetch(`${baseUrl()}/controles/rayser`, {
+      method: 'POST',
+      body: cuerpo,
+      credentials: 'include',
+      cache: 'no-store',
+    });
+  } catch {
+    throw new ErrorDeApi(0, 'No se pudo conectar con el servidor.');
+  }
+
+  if (!respuesta.ok) {
+    let mensaje = 'No se pudo guardar el registro.';
+    let errores: ErrorApi['errores'];
+
+    try {
+      const error = (await respuesta.json()) as ErrorApi;
+      if (error.detail) {
+        mensaje = error.detail;
+      }
+      errores = error.errores;
+    } catch {
+      // Sin cuerpo JSON: se conserva el mensaje genérico.
+    }
+
+    throw new ErrorDeApi(respuesta.status, mensaje, errores);
+  }
+
+  return (await respuesta.json()) as RegistroRayser;
+}
+
+export const descargarExcelRayser = (desde: string, hasta: string): Promise<void> =>
+  descargarArchivo(
+    `/controles/rayser/exportar/excel?${new URLSearchParams({ desde, hasta }).toString()}`,
+    'rayser.xlsx',
+  );
+
+export const obtenerCatalogoSqp = (): Promise<CatalogoSqp> =>
+  api.get<CatalogoSqp>('/controles/sqp/catalogo');
+
+export const listarInspeccionesSqp = (): Promise<InspeccionSqpResumen[]> =>
+  api.get<InspeccionSqpResumen[]>('/controles/sqp');
+
+export const registrarInspeccionSqp = (
+  datos: InspeccionSqpPayload,
+): Promise<InspeccionSqpResumen> =>
+  api.post<InspeccionSqpResumen>('/controles/sqp', datos);
+
+export const descargarExcelSqp = (id: string): Promise<void> =>
+  descargarArchivo(`/controles/sqp/${id}/exportar/excel`, 'inspeccion_sqp.xlsx');

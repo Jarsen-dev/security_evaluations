@@ -23,6 +23,7 @@ import {
   type ErroresPregunta,
 } from '@/components/cuestionarios/TarjetaPregunta';
 import { Button } from '@/components/ui/Button';
+import { useTraduccion } from '@/lib/i18n';
 import { idUnico } from '@/lib/navegador';
 import type { OpcionBorrador, PreguntaBorrador } from '@/lib/types';
 
@@ -62,6 +63,8 @@ export function ConstructorPreguntas({
   onCambiar,
   errores,
 }: ConstructorProps) {
+  const t = useTraduccion();
+
   const sensores = useSensors(
     // Los 6px de tolerancia evitan que un clic en el asa dispare un arrastre
     // accidental al escribir.
@@ -185,7 +188,7 @@ export function ConstructorPreguntas({
 
       {preguntas.length === 0 && (
         <p className="rounded-tarjeta border border-dashed border-borde p-6 text-center text-sm text-texto-suave">
-          Este cuestionario todavía no tiene preguntas.
+          {t('constructor.sinPreguntas')}
         </p>
       )}
 
@@ -194,7 +197,7 @@ export function ConstructorPreguntas({
           variante="secundario"
           onClick={() => onCambiar([...preguntas, preguntaVacia()])}
         >
-          Agregar pregunta
+          {t('constructor.agregarPregunta')}
         </Button>
       </div>
     </div>
