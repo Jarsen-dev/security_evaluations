@@ -160,8 +160,9 @@ Dos consecuencias al escribir código:
   anótala en `SEGURIDAD.md`.
 
   Los controles ESH estrenaron el prefijo `api/controles`, y el panel las
-  rutas `controles` e `inventario`. **Sus aplicaciones de Access todavía están
-  pendientes de crear**; queda anotado en `SEGURIDAD.md`.
+  rutas `controles` e `inventario`. La pestaña de Administración estrenó
+  `api/administracion` y la ruta `administracion`. **Sus aplicaciones de Access
+  todavía están pendientes de crear**; queda anotado en `SEGURIDAD.md`.
 
 El límite de tasa distingue dos cuotas (`core/ratelimit.py`): la amplia de
 `/api/publico` y una estricta de 5 fallos por 5 minutos en `/api/auth/login`.
@@ -169,6 +170,72 @@ En el login **solo cuentan los 401**, para que un admin no se autobloquee.
 
 `SEGURIDAD.md` tiene el detalle: configuración de Access, revisión previa a
 repartir el QR, vigilancia y los riesgos que el diseño acepta.
+
+### 8. Los permisos los aplica la API, no el panel
+
+Tener sesión ya no da acceso total. Cada usuario lleva en `admin_users.permisos`
+un JSON por módulo (`cuestionarios`, `controles`, `inventario`): **estar
+presente** es el acceso de ver y crear, `editar` agrega modificar y eliminar. El
+superadministrador (`es_superadmin`) puede todo y es el único que ve
+`/administracion`.
+
+La decisión vive en **un solo lugar**, `AdminUser.puede()`. La capa HTTP la
+traduce con la fábrica `requiere()` de `api/deps.py`:
+
+```python
+router = APIRouter(dependencies=[Depends(requiere("cuestionarios"))])
+
+@router.delete(
+    "/cuestionarios/{id}",
+    dependencies=[Depends(requiere("cuestionarios", editar=True))],
+)
+```
+
+Al agregar un endpoint que **modifica o elimina**, repite la dependencia con
+`editar=True`. Los `POST` que solo crean se quedan con el acceso simple.
+
+El panel esconde pestañas y botones (`useSesion().puede()` y `GuardiaModulo`),
+pero eso es **cosmética**: sirve para no ofrecer acciones que devolverían 403,
+no para autorizar. Nunca muevas una comprobación de la API al frontend.
+
+Desactivar una cuenta corta el acceso de inmediato: `obtener_admin_actual`
+revisa `activo` en cada petición, y el login también lo comprueba (después de
+verificar la contraseña, para no delatar qué cuentas existen).
+
+Dar de alta a alguien desde el panel **nunca** crea un superadministrador: ese
+rol solo se otorga con `python -m app.cli create-admin`. A cambio, el servicio
+impide eliminar o desactivar al último superadministrador activo, y que uno se
+quite a sí mismo; sin esas guardas el sistema se queda sin quien lo administre
+y solo se recupera por SSH.
+
+### 9. La bitácora se llena sola, y deja fuera las lecturas
+
+`core/bitacora.py` es un middleware: escribe un renglón por cada petición que
+**cambia datos** (POST/PUT/PATCH/DELETE con respuesta 2xx), más los inicios de
+sesión y los intentos fallidos. Se hace ahí, y no llamando a un servicio desde
+cada ruta, para que ningún endpoint nuevo se quede sin registrar por olvido.
+
+Qué queda fuera, a propósito:
+
+- **Las lecturas.** Son la mayoría del tráfico y su ruido escondería justo lo
+  que se quiere auditar.
+- **`/api/publico` completo.** Lo contesta el personal de piso, son cientos de
+  peticiones por hora y ya dejan rastro en `intentos` y `respuestas`.
+
+Para que un renglón diga *qué* se tocó y no solo la acción, la ruta llama a
+`anotar(request, detalle=...)`; el catálogo de `core/bitacora.py` pone el resto.
+Si agregas un endpoint que modifica, súmalo al catálogo: sin entrada se
+registra igual, pero con una descripción genérica.
+
+`username` se guarda **desnormalizado** en cada renglón (misma razón que
+`responsable` en los controles ESH): borrar un usuario pone el FK en NULL y el
+histórico quedaría anónimo justo cuando más importa.
+
+La escritura va envuelta en un `try/except` que traga la excepción y la manda a
+los logs. Es la **única** excepción justificada a la regla de no tragarse
+errores, y está comentada como tal: la operación del usuario ya se completó y
+ya se le respondió, así que perder el renglón es malo, pero deshacer un
+cuestionario recién guardado por un fallo al auditarlo lo es mucho más.
 
 ---
 
@@ -215,7 +282,7 @@ relativas, así que comparte origen con la API y la cookie de sesión viaja sola
 | `services/` | Lógica de negocio. No conoce FastAPI |
 | `models/` | SQLAlchemy. Se importan todos en `models/__init__.py` para Alembic |
 | `schemas/` | Pydantic. `publico.py` está separado a propósito (ver regla 1) |
-| `core/` | Configuración, constantes, catálogos de los controles, seguridad, límite de tasa, errores |
+| `core/` | Configuración, constantes, catálogos de los controles, seguridad, límite de tasa, bitácora, errores |
 
 Las exportaciones viven en `services/`: `excel_export.py` y `pptx_export.py`
 (reportes de estadísticas), `pdf_export.py` (cuestionario imprimible),
@@ -242,10 +309,13 @@ Los formatos de inspección que antes se llenaban en papel. Dos reglas propias:
 
 **Frontend** (`frontend/src/`)
 
-El grupo de rutas `(panel)` comparte el encabezado con las tres pestañas
-(Cuestionarios, Controles e Inventario). Estadísticas ya no es una ruta: es
-una sub-pestaña dentro de `/cuestionarios`, y la vista activa viaja en la
-query (`?vista=estadisticas`). Controles hace lo mismo con `?control=rayser`.
+El grupo de rutas `(panel)` comparte el encabezado con las pestañas
+(Cuestionarios, Controles, Inventario y, solo para el superadministrador,
+Administración). El encabezado las filtra con `useSesion().puede()`.
+
+Estadísticas ya no es una ruta: es una sub-pestaña dentro de `/cuestionarios`,
+y la vista activa viaja en la query (`?vista=estadisticas`). Controles hace lo
+mismo con `?control=rayser`, y Administración con `?seccion=logs`.
 
 Los textos del panel salen de `src/lib/i18n` (ver regla 6).
 `/r/[token]` queda fuera: layout propio, sin sesión y en **tema claro de alto
@@ -324,9 +394,11 @@ abuso, no aplicar una cuota exacta.
 | Frontend | 3000 | 3200 | No |
 | Backend | 8000 | 8200 | No |
 | PostgreSQL | 5432 | 5442 | No |
+| pgAdmin | 80 | 5150 | Sí, **solo en la LAN** (el túnel no lo publica) |
 
 Evitar (ocupados por otros proyectos del servidor): 3000, 3001, 8000, 8001,
-5432, 5433, 5050, 80, 11434.
+5432, 5433, 5050, 80, 11434. pgAdmin usa el 5150 y no el 5050, que es su
+puerto habitual, justamente por eso.
 
 ---
 
@@ -339,6 +411,10 @@ docker compose logs backend | tail -20      # sin trazas de error
 ```
 
 Si tocaste endpoints públicos, repite la auditoría de la regla 1.
+Si agregaste un endpoint, revisa que lleve su `requiere(...)` y que aparezca en
+el catálogo de `core/bitacora.py` si modifica datos (reglas 8 y 9).
+Si tocaste el panel, agrega primero la clave en `es.ts`: `npm run typecheck`
+falla hasta traducirla también en `en.ts` y `ko.ts`.
 Si tocaste el modelo de datos, prueba la idempotencia de la migración.
 Si tocaste el frontend, **ábrelo por la IP de LAN**, no por localhost: es la
 única forma de detectar los fallos de contexto no seguro (regla 5).

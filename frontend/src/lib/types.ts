@@ -24,11 +24,107 @@ export interface ConfigWifi {
   oculta: boolean;
 }
 
-/** Administrador de la sesión actual (`GET /api/auth/me`). */
+// --- Usuarios y permisos ---------------------------------------------------
+
+/** Módulos del panel sobre los que se otorgan permisos. */
+export type Modulo = 'cuestionarios' | 'controles' | 'inventario';
+
+/** Lo que puede hacer un usuario dentro de un módulo. */
+export interface PermisoModulo {
+  /** Modificar y eliminar. Ver y crear ya vienen con el acceso. */
+  editar: boolean;
+}
+
+/**
+ * Permisos por módulo. Un módulo AUSENTE significa que el usuario no tiene
+ * acceso a esa pestaña, así que la clave es opcional a propósito.
+ */
+export type Permisos = Partial<Record<Modulo, PermisoModulo>>;
+
+/** Usuario de la sesión actual (`GET /api/auth/me`). */
 export interface Admin {
   id: string;
+  nombre: string;
   username: string;
+  email: string | null;
+  activo: boolean;
+  es_superadmin: boolean;
+  permisos: Permisos;
   last_login_at: string | null;
+}
+
+/** Usuario tal como lo lista la pestaña de Administración. */
+export interface Usuario extends Admin {
+  created_at: string;
+}
+
+/** Alta de un usuario. */
+export interface UsuarioCrearPayload {
+  nombre: string;
+  username: string;
+  email: string;
+  password: string;
+  permisos: Permisos;
+}
+
+/** Edición de un usuario. `password` vacío conserva la actual. */
+export interface UsuarioActualizarPayload {
+  nombre: string;
+  username: string;
+  email: string;
+  password?: string;
+  permisos: Permisos;
+}
+
+// --- Bitácora --------------------------------------------------------------
+
+/** Un renglón de actividad registrada. */
+export interface RegistroBitacora {
+  id: number;
+  creado_at: string;
+  usuario_id: string | null;
+  username: string;
+  accion: string;
+  modulo: string;
+  /** Redactada por el backend, ya en español: es dato, no interfaz. */
+  descripcion: string;
+  metodo: string;
+  ruta: string;
+  estado: number;
+  ip: string | null;
+}
+
+/** Página de la bitácora. */
+export interface BitacoraPaginada {
+  total: number;
+  page: number;
+  size: number;
+  items: RegistroBitacora[];
+}
+
+/** Filtros de la pantalla de logs. */
+export interface FiltrosBitacora {
+  fecha?: string;
+  hora_desde?: string;
+  hora_hasta?: string;
+  usuario?: string;
+}
+
+// --- Mantenimiento ---------------------------------------------------------
+
+/** Un botón de acceso a pgAdmin. */
+export interface AccesoPgAdmin {
+  entorno: 'local' | 'produccion';
+  url: string;
+  disponible: boolean;
+}
+
+/** Accesos y credenciales de pgAdmin (`GET /api/administracion/mantenimiento`). */
+export interface Mantenimiento {
+  accesos: AccesoPgAdmin[];
+  email: string;
+  password: string;
+  configurado: boolean;
 }
 
 /** Credenciales del formulario de acceso. */

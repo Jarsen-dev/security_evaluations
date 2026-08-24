@@ -12,6 +12,7 @@ from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.api.routes import (
+    administracion,
     auth,
     controles,
     cuestionarios,
@@ -20,6 +21,7 @@ from app.api.routes import (
     publico,
     sistema,
 )
+from app.core.bitacora import MiddlewareBitacora
 from app.core.config import DIRECTORIO_ESTATICOS, settings
 from app.core.errors import ConflictoDeNegocio, ErrorDeNegocio, RecursoNoEncontrado
 from app.core.ratelimit import MiddlewareRateLimit
@@ -69,6 +71,11 @@ app = FastAPI(
 # Limita el login y los endpoints públicos. Se registra antes que CORS para
 # que una IP bloqueada no consuma más trabajo del necesario.
 app.add_middleware(MiddlewareRateLimit)
+
+# Escribe en `bitacora` lo que cambia datos y los inicios de sesión. Un 429
+# del limitador no cae en ninguna de sus reglas de registro, así que el orden
+# entre ambos no altera lo que se guarda.
+app.add_middleware(MiddlewareBitacora)
 
 app.add_middleware(
     CORSMiddleware,
@@ -209,3 +216,4 @@ app.include_router(publico.router, prefix="/api")
 app.include_router(estadisticas.router, prefix="/api")
 app.include_router(exportacion.router, prefix="/api")
 app.include_router(controles.router, prefix="/api")
+app.include_router(administracion.router, prefix="/api")

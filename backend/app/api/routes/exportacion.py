@@ -11,7 +11,7 @@ from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import obtener_admin_actual
+from app.api.deps import requiere
 from app.api.routes.estadisticas import obtener_filtros
 from app.db.session import get_db
 from app.services import cuestionario_service, excel_export, pdf_export, pptx_export
@@ -26,7 +26,7 @@ from app.services.exportacion_comun import (
 
 router = APIRouter(
     tags=["exportacion"],
-    dependencies=[Depends(obtener_admin_actual)],
+    dependencies=[Depends(requiere("cuestionarios"))],
 )
 
 TIPO_EXCEL = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"

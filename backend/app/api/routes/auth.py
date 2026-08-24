@@ -3,11 +3,12 @@
 import logging
 from datetime import UTC, datetime
 
-from fastapi import APIRouter, Depends, HTTPException, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import obtener_admin_actual
+from app.core.bitacora import anotar
 from app.core.config import settings
 from app.core.security import (
     COOKIE_SESION,
@@ -25,6 +26,10 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 
 # Mensaje deliberadamente ambiguo: no revela si el usuario existe.
 CREDENCIALES_INVALIDAS = "Usuario o contraseña incorrectos."
+
+CUENTA_DESACTIVADA = (
+    "Tu cuenta fue desactivada. Habla con el administrador del sistema."
+)
 
 
 def _establecer_cookie_sesion(response: Response, token: str) -> None:
@@ -47,10 +52,16 @@ def _establecer_cookie_sesion(response: Response, token: str) -> None:
 @router.post("/login", response_model=AdminOut, summary="Iniciar sesión")
 async def login(
     datos: LoginRequest,
+    request: Request,
     response: Response,
     db: AsyncSession = Depends(get_db),
 ) -> AdminOut:
     """Valida las credenciales y emite el JWT de sesión en una cookie httpOnly."""
+    # El middleware de bitácora deduce al usuario de la cookie de sesión, que
+    # aquí todavía no existe (ni existirá, si las credenciales fallan). Se le
+    # deja escrito desde la ruta, que es la única que lo sabe.
+    anotar(request, username=datos.username)
+
     admin = await db.scalar(
         select(AdminUser).where(AdminUser.username == datos.username)
     )
@@ -70,12 +81,23 @@ async def login(
             status_code=status.HTTP_401_UNAUTHORIZED, detail=CREDENCIALES_INVALIDAS
         )
 
+    # Se revisa DESPUÉS de la contraseña, no antes: comprobarlo primero
+    # convertiría el login en un detector de cuentas desactivadas para quien
+    # ni siquiera sabe la contraseña. Aquí el mensaje sí es específico,
+    # porque quien llega hasta este punto ya demostró ser el dueño.
+    if not admin.activo:
+        logger.warning("Acceso de una cuenta desactivada: %s", admin.username)
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail=CUENTA_DESACTIVADA
+        )
+
     admin.last_login_at = datetime.now(UTC)
     await db.commit()
     await db.refresh(admin)
 
     _establecer_cookie_sesion(response, crear_token_acceso(admin.id, admin.username))
     logger.info("Sesión iniciada: %s", admin.username)
+    anotar(request, usuario_id=admin.id, username=admin.username)
 
     return AdminOut.model_validate(admin)
 

@@ -10,6 +10,7 @@
 import type {
   Admin,
   Area,
+  BitacoraPaginada,
   CatalogoSqp,
   ConfigWifi,
   Credenciales,
@@ -24,12 +25,14 @@ import type {
   EstadisticaPregunta,
   EstadoIntento,
   EstadoSalud,
+  FiltrosBitacora,
   FiltrosEstadisticas,
   IdentidadRespondiente,
   IntentoIniciado,
   InspeccionSqpPayload,
   InspeccionSqpResumen,
   IntentosPaginados,
+  Mantenimiento,
   Mensaje,
   MetaArea,
   PuntoLineaTiempo,
@@ -40,6 +43,9 @@ import type {
   PreguntaPayload,
   ResultadoImportacion,
   ResultadoIntento,
+  Usuario,
+  UsuarioActualizarPayload,
+  UsuarioCrearPayload,
 } from './types';
 
 const EN_SERVIDOR = typeof window === 'undefined';
@@ -534,3 +540,51 @@ export const registrarInspeccionSqp = (
 
 export const descargarExcelSqp = (id: string): Promise<void> =>
   descargarArchivo(`/controles/sqp/${id}/exportar/excel`, 'inspeccion_sqp.xlsx');
+
+// --- Administración: usuarios ----------------------------------------------
+
+export const listarUsuarios = (): Promise<Usuario[]> =>
+  api.get<Usuario[]>('/administracion/usuarios');
+
+export const crearUsuario = (datos: UsuarioCrearPayload): Promise<Usuario> =>
+  api.post<Usuario>('/administracion/usuarios', datos);
+
+export const actualizarUsuario = (
+  id: string,
+  datos: UsuarioActualizarPayload,
+): Promise<Usuario> => api.put<Usuario>(`/administracion/usuarios/${id}`, datos);
+
+export const cambiarEstadoUsuario = (id: string, activo: boolean): Promise<Usuario> =>
+  api.patch<Usuario>(`/administracion/usuarios/${id}/activo`, { activo });
+
+export const eliminarUsuario = (id: string): Promise<void> =>
+  api.delete<void>(`/administracion/usuarios/${id}`);
+
+// --- Administración: bitácora ----------------------------------------------
+
+/** Arma la query de la bitácora omitiendo los filtros vacíos. */
+function consultaBitacora(filtros: FiltrosBitacora, pagina: number): string {
+  const parametros = new URLSearchParams({ page: String(pagina) });
+
+  if (filtros.fecha) parametros.set('fecha', filtros.fecha);
+  if (filtros.hora_desde) parametros.set('hora_desde', filtros.hora_desde);
+  if (filtros.hora_hasta) parametros.set('hora_hasta', filtros.hora_hasta);
+  if (filtros.usuario) parametros.set('usuario', filtros.usuario);
+
+  return parametros.toString();
+}
+
+export const listarBitacora = (
+  filtros: FiltrosBitacora,
+  pagina = 1,
+): Promise<BitacoraPaginada> =>
+  api.get<BitacoraPaginada>(`/administracion/bitacora?${consultaBitacora(filtros, pagina)}`);
+
+/** Usuarios con actividad registrada, incluidos los ya eliminados. */
+export const listarUsuariosBitacora = (): Promise<string[]> =>
+  api.get<string[]>('/administracion/bitacora/usuarios');
+
+// --- Administración: mantenimiento -----------------------------------------
+
+export const obtenerMantenimiento = (): Promise<Mantenimiento> =>
+  api.get<Mantenimiento>('/administracion/mantenimiento');

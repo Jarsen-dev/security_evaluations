@@ -24,8 +24,10 @@ a internet igual que el formulario.
 | `/r/<token>` | Cualquiera con la liga. El token **es** la credencial |
 | `/api/publico/*` | Igual que la anterior: lo consume el formulario |
 | `/api/health`, `/api/areas`, `/api/static/*` | Público (sin datos sensibles) |
-| `/login`, `/cuestionarios`, `/controles`, `/inventario` | Solo administradores |
-| `/api/auth/*`, `/api/cuestionarios/*`, `/api/preguntas/*`, `/api/estadisticas/*`, `/api/metas-area`, `/api/wifi`, `/api/controles/*` | Solo administradores |
+| `/login`, `/cuestionarios`, `/controles`, `/inventario` | Solo usuarios del panel |
+| `/administracion` | Solo el superadministrador |
+| `/api/auth/*`, `/api/cuestionarios/*`, `/api/preguntas/*`, `/api/estadisticas/*`, `/api/metas-area`, `/api/wifi`, `/api/controles/*` | Solo usuarios del panel, según sus permisos |
+| `/api/administracion/*` | Solo el superadministrador |
 
 `/api/wifi` devuelve la contraseña de la red en claro; exige sesión por eso.
 
@@ -34,6 +36,35 @@ a internet igual que el formulario.
 (`/api/controles/rayser/{id}/foto`). Son imágenes tomadas dentro de la planta: viven
 en la base de datos, entran en el respaldo de `evaluaciones_pgdata` y solo se
 entregan con sesión abierta.
+
+### Permisos: quién puede qué
+
+Tener sesión ya no da acceso total. Cada usuario lleva en `admin_users.permisos`
+un JSON por módulo (`cuestionarios`, `controles`, `inventario`): **estar
+presente** es el acceso de ver y crear, y `editar` agrega modificar y eliminar.
+El superadministrador (`es_superadmin`) puede todo y es el único que ve
+`/administracion`.
+
+Quien decide es la API: cada router lleva `Depends(requiere(...))` y los
+endpoints que modifican repiten la dependencia con `editar=True` (ver
+`backend/app/api/deps.py`). El panel esconde pestañas y botones, pero eso es
+cosmética — si alguien llama la API a mano recibe 403.
+
+Desactivar una cuenta (`activo = false`) corta el acceso **de inmediato**:
+`obtener_admin_actual` revisa el estado en cada petición, así que las sesiones
+ya abiertas dejan de servir sin esperar a que venza el token, y el login
+tampoco la deja entrar.
+
+### Bitácora
+
+`/api/administracion/bitacora` expone quién creó, editó o eliminó qué, y los
+inicios de sesión (incluidos los fallidos). La escribe un middleware
+(`backend/app/core/bitacora.py`) y guarda IP y ruta de cada acción. **No**
+registra lecturas ni nada de `/api/publico`: son la mayoría del tráfico y su
+ruido escondería justo lo que se quiere auditar.
+
+El nombre de usuario se guarda desnormalizado en cada renglón, así que el
+histórico sigue diciendo quién fue aunque después se elimine la cuenta.
 
 ---
 
@@ -59,14 +90,19 @@ una aplicación **Self-hosted** por cada ruta del panel:
 | API — metas | `evaluaciones.chwon.it.com` | `api/metas-area` |
 | API — wifi | `evaluaciones.chwon.it.com` | `api/wifi` |
 | API — controles | `evaluaciones.chwon.it.com` | `api/controles` |
+| Panel — administración | `evaluaciones.chwon.it.com` | `administracion` |
+| API — administración | `evaluaciones.chwon.it.com` | `api/administracion` |
 
-> **Pendiente.** Las tres últimas aplicaciones (`controles`, `inventario` y
-> `api/controles`) son nuevas y **todavía no están dadas de alta**. Mientras no
-> se creen, esas rutas quedan fuera de Access y lo único que las defiende es la
-> cookie de sesión: la pantalla de login del panel no aparece, pero la ruta sí
-> es alcanzable desde internet. `estadisticas` ya no necesita su propia
-> aplicación porque ahora es una pestaña dentro de `/cuestionarios`; se puede
-> borrar o dejar, no estorba.
+> **Pendiente.** Cinco aplicaciones son nuevas y **todavía no están dadas de
+> alta**: `controles`, `inventario`, `api/controles`, `administracion` y
+> `api/administracion`. Mientras no se creen, esas rutas quedan fuera de Access
+> y lo único que las defiende es la cookie de sesión más la comprobación de
+> permisos: la pantalla de login del panel no aparece, pero la ruta sí es
+> alcanzable desde internet. Las dos de administración son las más sensibles de
+> la lista, porque desde ahí se dan de alta usuarios.
+>
+> `estadisticas` ya no necesita su propia aplicación porque ahora es una
+> pestaña dentro de `/cuestionarios`; se puede borrar o dejar, no estorba.
 
 Access cubre la ruta indicada y todo lo que cuelga de ella, así que
 `api/cuestionarios` también protege `/api/cuestionarios/{id}/imprimir`.
@@ -187,7 +223,8 @@ Lista corta:
       del servidor actualizado con las variables nuevas.
 - [ ] Contraseña de `admin` cambiada.
 - [ ] Aplicaciones de Access creadas y verificadas con los `curl` de arriba,
-      **incluidas las nuevas** de `controles`, `inventario` y `api/controles`.
+      **incluidas las nuevas** de `controles`, `inventario`, `api/controles`,
+      `administracion` y `api/administracion`.
 - [ ] `/r/<token>` abre sin pedir nada desde una red externa.
 - [ ] `NEXT_PUBLIC_BASE_URL` es el dominio y el frontend se reconstruyó después
       de cambiarlo (Next incrusta esa variable en el build, no la lee en
@@ -198,9 +235,18 @@ Lista corta:
 
 ## 5. Vigilancia durante la campaña
 
+La bitácora del panel (**Administración → Logs**) es ahora la primera parada:
+filtra por fecha, hora y usuario sin entrar al servidor. Lo de abajo sigue
+sirviendo para lo que la bitácora no cubre.
+
 ```bash
-# Intentos de acceso fallidos
-docker compose logs backend | grep -E "Contraseña incorrecta|usuario inexistente"
+# Intentos de acceso fallidos (también salen en la bitácora, como sesion.fallida)
+docker compose logs backend | grep -E "Contraseña incorrecta|usuario inexistente|cuenta desactivada"
+
+# Quién cambió qué, sin abrir el panel
+docker compose exec db psql -U evaluaciones -d evaluaciones -c \
+  "SELECT creado_at, username, accion, descripcion, ip
+     FROM bitacora ORDER BY creado_at DESC LIMIT 50;"
 
 # IPs frenadas por el límite de tasa
 docker compose logs nginx | grep " 429 "
@@ -220,6 +266,29 @@ el QR se reparte dentro de la planta.
 
 No son defectos por corregir, son decisiones tomadas a conciencia. Quedan
 escritas para que la siguiente persona no las descubra a media campaña.
+
+**La contraseña de pgAdmin viaja al navegador.**
+`GET /api/administracion/mantenimiento` devuelve el usuario y la contraseña de
+pgAdmin en claro. Es lo que hace útil al botón de "copiar credenciales":
+pgAdmin no admite iniciar sesión desde una liga externa porque su formulario
+exige un token CSRF propio. Solo la recibe una sesión de superadministrador y
+la ruta va detrás de Access, pero es una credencial de base de datos saliendo
+de la API. Si alguna vez estorba, la alternativa es quitar la contraseña de la
+respuesta y que se teclee a mano.
+
+**pgAdmin escucha en la LAN de la planta.** Es el único puerto del stack, junto
+al de Nginx, que se publica al host (`5150`). El túnel **no** lo publica —
+`cloudflared` apunta solo a `nginx:80` — y **no debe abrirse en `ufw`** hacia
+internet. Dentro de la planta, cualquiera que llegue a `http://<ip>:5150` ve la
+pantalla de login de pgAdmin; por eso el contenedor se deja en `SERVER_MODE`
+(el valor por omisión) y no en modo escritorio, que entraría sin pedir nada.
+
+**Crear usuarios no puede crear superadministradores.** El alta desde el panel
+siempre nace con `es_superadmin = false`. El rol solo se otorga con
+`python -m app.cli create-admin` dentro del contenedor, para que nadie escale
+privilegios desde la interfaz. El reverso es que el sistema puede quedarse sin
+administrador si se pierde esa cuenta: por eso el backend impide eliminar o
+desactivar al último superadministrador activo, y que uno se quite a sí mismo.
 
 **La liga del cuestionario es la credencial.** Quien tenga el token puede
 contestar, y puede pasárselo a alguien de fuera. No hay forma de distinguirlos:

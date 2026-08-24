@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/Button';
 import { useToast } from '@/components/ui/Toast';
 import { useTraduccion } from '@/lib/i18n';
 import { copiarAlPortapapeles } from '@/lib/navegador';
+import { useSesion } from '@/lib/sesion';
 import {
   ErrorDeApi,
   actualizarCuestionario,
@@ -29,6 +30,11 @@ import type { CuestionarioResumen } from '@/lib/types';
 export function PanelCuestionarios() {
   const t = useTraduccion();
   const { mostrarToast } = useToast();
+  const { puede } = useSesion();
+
+  // La API rechaza con 403 lo que este usuario no puede hacer; aquí solo
+  // se esconden los botones para no ofrecerlo.
+  const puedeEditar = puede('cuestionarios', 'editar');
 
   const [cuestionarios, setCuestionarios] = useState<CuestionarioResumen[]>([]);
   const [cargando, setCargando] = useState(true);
@@ -196,6 +202,7 @@ export function PanelCuestionarios() {
               onDuplicar={() => void duplicar(cuestionario)}
               onAlternarActivo={() => void alternarActivo(cuestionario)}
               onEliminar={() => setPorEliminar(cuestionario)}
+              puedeEditar={puedeEditar}
             />
           ))}
         </div>

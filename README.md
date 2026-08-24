@@ -41,12 +41,12 @@ siempre en español.
 | Linux | Probado en Ubuntu 24.04 |
 | Docker | 24 o superior |
 | Docker Compose | v2.x. Si tienes el binario `docker-compose` (con guion) en vez del plugin `docker compose`, usa ese en todos los comandos de este README |
-| Puertos libres | 8080 en producción. En desarrollo también 3200, 8200 y 5442 |
+| Puertos libres | 8080 y 5150 en producción. En desarrollo también 3200, 8200 y 5442 |
 
 Verifica qué puertos están ocupados antes de instalar:
 
 ```bash
-ss -tulpn | grep -E ':(8080|3200|8200|5442) '
+ss -tulpn | grep -E ':(8080|5150|3200|8200|5442) '
 ```
 
 Si alguno aparece, cámbialo en el `.env` (ver la sección de puertos).
@@ -118,7 +118,7 @@ docker compose ps                          # los 4 servicios, db "healthy"
 curl http://localhost:8080/api/health      # {"status":"ok","db":"ok",...}
 ```
 
-### 6. Crear el usuario administrador
+### 6. Crear el superadministrador
 
 No hay registro público: el primer usuario se crea por línea de comandos.
 
@@ -129,6 +129,10 @@ docker compose exec backend python -m app.cli create-admin --username admin
 Pide la contraseña por teclado (mínimo 8 caracteres) y no la muestra al
 escribir. **No se acepta como argumento a propósito**: quedaría registrada en
 el historial del shell y en la lista de procesos.
+
+Este usuario nace como **superadministrador**: es el único que ve la pestaña
+de Administración y, desde ahí, da de alta al resto del personal sin volver a
+tocar la terminal. La CLI queda como vía de rescate.
 
 Ya puedes entrar en `http://<ip-del-servidor>:8080/login`.
 
@@ -208,8 +212,11 @@ estés viendo, respetando los filtros activos.
 | Frontend (Next.js) | 3000 | 3200 | No |
 | Backend (FastAPI) | 8000 | 8200 | No |
 | PostgreSQL | 5432 | 5442 | No |
+| pgAdmin | 80 | 5150 | Sí, solo en la LAN |
 
-En producción solo se publica el 8080. Los demás puertos solo se abren con el
+En producción se publican el 8080 y el 5150 (pgAdmin, alcanzable **solo desde
+la LAN de la planta**: el túnel de Cloudflare no lo publica y ese puerto no
+debe abrirse en el firewall hacia internet). Los demás solo se abren con el
 compose de desarrollo, para depurar.
 
 > **Entra siempre por el 8080.** Si abres el frontend directo en el 3200, las
@@ -234,7 +241,15 @@ docker compose down                    # detener (los datos se conservan)
 docker compose down -v                 # detener Y BORRAR LA BASE DE DATOS
 ```
 
-### Administradores
+### Usuarios del panel
+
+Lo normal es hacerlo desde **Administración → Usuarios**: alta, edición de
+permisos, desactivar y eliminar. Al crear a alguien se marca a qué pestañas
+entra y si puede editar dentro de ellas (sin esa marca solo ve y crea).
+Desactivar cierra sus sesiones abiertas al instante.
+
+La CLI queda para lo que la interfaz no puede hacer a propósito: otorgar el rol
+de superadministrador y recuperar el acceso si se pierde.
 
 ```bash
 docker compose exec backend python -m app.cli listar-admins
@@ -242,6 +257,20 @@ docker compose exec backend python -m app.cli create-admin --username otro
 # Contraseña olvidada:
 docker compose exec backend python -m app.cli create-admin --username admin --reestablecer
 ```
+
+### Actividad del sistema
+
+**Administración → Logs** lista todo lo que se crea, edita o elimina, más los
+inicios de sesión y los intentos fallidos, con filtros por fecha, hora y
+usuario. Las consultas de lectura no se registran, y el formulario público
+tampoco: ese ya deja su rastro en los intentos.
+
+### Base de datos
+
+**Administración → Mantenimiento** abre pgAdmin y copia las credenciales al
+portapapeles. pgAdmin no admite iniciar sesión desde una liga externa (su
+formulario exige un token propio), así que solo hay que pegarlas. El servidor
+de la base viene precargado.
 
 ### Respaldos
 

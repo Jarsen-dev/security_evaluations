@@ -16,11 +16,15 @@ import sys
 
 from sqlalchemy import select
 
+from app.core.constants import LONGITUD_MINIMA_CONTRASENA, MODULOS_PERMISO
 from app.core.security import hashear_contrasena
 from app.db.session import SessionLocal, engine
 from app.models.admin_user import AdminUser
 
-LONGITUD_MINIMA_CONTRASENA = 8
+# El usuario creado por la CLI es superadministrador con acceso completo: es
+# la vía de rescate cuando no queda nadie que pueda entrar al panel. Los
+# usuarios normales se dan de alta desde la pestaña de Administración.
+PERMISOS_COMPLETOS = {modulo: {"editar": True} for modulo in MODULOS_PERMISO}
 
 
 def _pedir_contrasena() -> str:
@@ -43,8 +47,13 @@ def _pedir_contrasena() -> str:
     return contrasena
 
 
-async def crear_admin(username: str, reestablecer: bool) -> None:
-    """Crea el administrador o reestablece su contraseña."""
+async def crear_admin(
+    username: str,
+    reestablecer: bool,
+    nombre: str | None = None,
+    email: str | None = None,
+) -> None:
+    """Crea el superadministrador o reestablece su contraseña."""
     async with SessionLocal() as db:
         existente = await db.scalar(
             select(AdminUser).where(AdminUser.username == username)
@@ -62,15 +71,28 @@ async def crear_admin(username: str, reestablecer: bool) -> None:
 
         if existente is not None:
             existente.password_hash = hashear_contrasena(contrasena)
+            # Reestablecer la contraseña también reabre la cuenta: si se usa
+            # es porque alguien se quedó fuera, y devolverle la contraseña
+            # sin reactivarlo lo dejaría igual de bloqueado.
+            existente.activo = True
+            existente.es_superadmin = True
             await db.commit()
             print(f"Contraseña actualizada para el usuario '{username}'.")
             return
 
         db.add(
-            AdminUser(username=username, password_hash=hashear_contrasena(contrasena))
+            AdminUser(
+                nombre=nombre or username,
+                username=username,
+                email=email,
+                password_hash=hashear_contrasena(contrasena),
+                activo=True,
+                es_superadmin=True,
+                permisos=PERMISOS_COMPLETOS,
+            )
         )
         await db.commit()
-        print(f"Administrador '{username}' creado correctamente.")
+        print(f"Superadministrador '{username}' creado correctamente.")
 
 
 async def listar_admins() -> None:
@@ -84,14 +106,16 @@ async def listar_admins() -> None:
         print("No hay administradores registrados.")
         return
 
-    print(f"{'Usuario':<20} {'Creado':<22} Último acceso")
+    print(f"{'Usuario':<20} {'Rol':<16} {'Estado':<12} Último acceso")
     for admin in admins:
         ultimo = (
             admin.last_login_at.strftime("%Y-%m-%d %H:%M")
             if admin.last_login_at
             else "nunca"
         )
-        print(f"{admin.username:<20} {admin.created_at:%Y-%m-%d %H:%M:%S}    {ultimo}")
+        rol = "superadmin" if admin.es_superadmin else "usuario"
+        estado = "activo" if admin.activo else "desactivado"
+        print(f"{admin.username:<20} {rol:<16} {estado:<12} {ultimo}")
 
 
 def construir_parser() -> argparse.ArgumentParser:
@@ -103,16 +127,19 @@ def construir_parser() -> argparse.ArgumentParser:
     subcomandos = parser.add_subparsers(dest="comando", required=True)
 
     crear = subcomandos.add_parser(
-        "create-admin", help="Crea un administrador o reestablece su contraseña."
+        "create-admin",
+        help="Crea un superadministrador o reestablece su contraseña.",
     )
     crear.add_argument("--username", required=True, help="Nombre de usuario.")
+    crear.add_argument("--nombre", help="Nombre completo (default: el usuario).")
+    crear.add_argument("--email", help="Correo electrónico (opcional).")
     crear.add_argument(
         "--reestablecer",
         action="store_true",
         help="Si el usuario ya existe, cambia su contraseña en lugar de fallar.",
     )
 
-    subcomandos.add_parser("listar-admins", help="Lista los administradores.")
+    subcomandos.add_parser("listar-admins", help="Lista los usuarios del panel.")
 
     return parser
 
@@ -121,7 +148,9 @@ async def _ejecutar(args: argparse.Namespace) -> None:
     """Despacha el subcomando y cierra el pool al terminar."""
     try:
         if args.comando == "create-admin":
-            await crear_admin(args.username, args.reestablecer)
+            await crear_admin(
+                args.username, args.reestablecer, args.nombre, args.email
+            )
         elif args.comando == "listar-admins":
             await listar_admins()
     finally:
