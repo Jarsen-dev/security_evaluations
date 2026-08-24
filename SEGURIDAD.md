@@ -24,10 +24,16 @@ a internet igual que el formulario.
 | `/r/<token>` | Cualquiera con la liga. El token **es** la credencial |
 | `/api/publico/*` | Igual que la anterior: lo consume el formulario |
 | `/api/health`, `/api/areas`, `/api/static/*` | Público (sin datos sensibles) |
-| `/login`, `/cuestionarios`, `/estadisticas` | Solo administradores |
-| `/api/auth/*`, `/api/cuestionarios/*`, `/api/preguntas/*`, `/api/estadisticas/*`, `/api/metas-area`, `/api/wifi` | Solo administradores |
+| `/login`, `/cuestionarios`, `/controles`, `/inventario` | Solo administradores |
+| `/api/auth/*`, `/api/cuestionarios/*`, `/api/preguntas/*`, `/api/estadisticas/*`, `/api/metas-area`, `/api/wifi`, `/api/controles/*` | Solo administradores |
 
 `/api/wifi` devuelve la contraseña de la red en claro; exige sesión por eso.
+
+`/api/controles/*` sirve los registros de los controles ESH, incluidas las
+**fotos de evidencia** del control de Rayser
+(`/api/controles/rayser/{id}/foto`). Son imágenes tomadas dentro de la planta: viven
+en la base de datos, entran en el respaldo de `evaluaciones_pgdata` y solo se
+entregan con sesión abierta.
 
 ---
 
@@ -44,13 +50,23 @@ una aplicación **Self-hosted** por cada ruta del panel:
 |---|---|---|
 | Panel — login | `evaluaciones.chwon.it.com` | `login` |
 | Panel — cuestionarios | `evaluaciones.chwon.it.com` | `cuestionarios` |
-| Panel — estadísticas | `evaluaciones.chwon.it.com` | `estadisticas` |
+| Panel — controles | `evaluaciones.chwon.it.com` | `controles` |
+| Panel — inventario | `evaluaciones.chwon.it.com` | `inventario` |
 | API — auth | `evaluaciones.chwon.it.com` | `api/auth` |
 | API — cuestionarios | `evaluaciones.chwon.it.com` | `api/cuestionarios` |
 | API — preguntas | `evaluaciones.chwon.it.com` | `api/preguntas` |
 | API — estadísticas | `evaluaciones.chwon.it.com` | `api/estadisticas` |
 | API — metas | `evaluaciones.chwon.it.com` | `api/metas-area` |
 | API — wifi | `evaluaciones.chwon.it.com` | `api/wifi` |
+| API — controles | `evaluaciones.chwon.it.com` | `api/controles` |
+
+> **Pendiente.** Las tres últimas aplicaciones (`controles`, `inventario` y
+> `api/controles`) son nuevas y **todavía no están dadas de alta**. Mientras no
+> se creen, esas rutas quedan fuera de Access y lo único que las defiende es la
+> cookie de sesión: la pantalla de login del panel no aparece, pero la ruta sí
+> es alcanzable desde internet. `estadisticas` ya no necesita su propia
+> aplicación porque ahora es una pestaña dentro de `/cuestionarios`; se puede
+> borrar o dejar, no estorba.
 
 Access cubre la ruta indicada y todo lo que cuelga de ella, así que
 `api/cuestionarios` también protege `/api/cuestionarios/{id}/imprimir`.
@@ -170,7 +186,8 @@ Lista corta:
 - [ ] Cambios desplegados en el servidor (`git pull` + `--build`) y `.env`
       del servidor actualizado con las variables nuevas.
 - [ ] Contraseña de `admin` cambiada.
-- [ ] Aplicaciones de Access creadas y verificadas con los `curl` de arriba.
+- [ ] Aplicaciones de Access creadas y verificadas con los `curl` de arriba,
+      **incluidas las nuevas** de `controles`, `inventario` y `api/controles`.
 - [ ] `/r/<token>` abre sin pedir nada desde una red externa.
 - [ ] `NEXT_PUBLIC_BASE_URL` es el dominio y el frontend se reconstruyó después
       de cambiarlo (Next incrusta esa variable en el build, no la lee en
