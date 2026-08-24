@@ -12,7 +12,11 @@ from decimal import Decimal
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from app.core.constants import AREAS_VALIDAS
-from app.core.controles_catalogo import VALORES_SQP
+from app.core.controles_catalogo import (
+    CLAVES_AREAS_PLATICAS,
+    VALORES_CHECKLIST,
+    VALORES_SQP,
+)
 
 
 def _sin_espacios(valor: str) -> str:
@@ -41,9 +45,9 @@ class LecturaManometro(BaseModel):
 class RegistroRayserOut(BaseModel):
     """Registro diario tal como lo consume la tabla del panel.
 
-    No incluye la foto: una lista de 31 días con las imágenes embebidas pesaría
-    varios megabytes. La evidencia se pide aparte, por
-    ``GET /api/controles/rayser/{id}/foto``.
+    No incluye las imágenes: una lista de 31 días con las fotos embebidas
+    pesaría varios megabytes. Solo viajan sus identificadores y cada una se
+    pide aparte por ``GET /api/controles/fotos/{foto_id}``.
     """
 
     model_config = ConfigDict(from_attributes=True)
@@ -52,7 +56,7 @@ class RegistroRayserOut(BaseModel):
     fecha: date
     manometros: list[LecturaManometro]
     observaciones: str | None
-    tiene_foto: bool
+    fotos: list[uuid.UUID]
     fuera_de_rango: bool
     responsable: str
     creado_at: datetime
@@ -67,7 +71,7 @@ class RangoRayser(BaseModel):
     manometros: int
 
 
-# El registro de Rayser llega como multipart (trae la foto), así que sus
+# El registro de Rayser llega como multipart (trae las fotos), así que sus
 # campos se declaran con `Form(...)` en la ruta y no hay schema de entrada:
 # Pydantic no valida cuerpos multipart campo por campo.
 
@@ -176,3 +180,123 @@ class InspeccionSqpDetalle(InspeccionSqpResumen):
     cargo: str | None
     sustancias: list[str]
     respuestas: list[RespuestaSqpOut]
+
+
+# --- Listas de verificación (OK / NO OK) -----------------------------------
+
+
+class PuntoControlOut(BaseModel):
+    """Punto de una lista de verificación, servido desde el catálogo."""
+
+    orden: int
+    clave: str
+    etiqueta: str
+
+
+class CatalogoChecklist(BaseModel):
+    """Respuesta de ``GET /api/controles/checklist/{control}/catalogo``."""
+
+    clave: str
+    titulo: str
+    subtitulo: str | None
+    puntos: list[PuntoControlOut]
+    max_fotos: int = Field(description="Cuántas fotos admite un punto en NO OK.")
+
+
+class PuntoChecklistIn(BaseModel):
+    """Cómo salió un punto. Viaja dentro del campo JSON del multipart."""
+
+    orden: int = Field(ge=0)
+    valor: str = Field(description="'ok' o 'no_ok'.")
+    observaciones: str | None = Field(default=None, max_length=2000)
+
+    _limpiar_observaciones = field_validator("observaciones")(_texto_opcional)
+
+    @field_validator("valor")
+    @classmethod
+    def _validar_valor(cls, valor: str) -> str:
+        normalizado = valor.strip().lower()
+        if normalizado not in VALORES_CHECKLIST:
+            raise ValueError("La respuesta debe ser OK o NO OK.")
+        return normalizado
+
+    @model_validator(mode="after")
+    def _exigir_observaciones(self) -> "PuntoChecklistIn":
+        """Un NO OK sin explicación no le sirve a quien da seguimiento."""
+        if self.valor == "no_ok" and not self.observaciones:
+            raise ValueError("Cada punto marcado como NO OK necesita observaciones.")
+        return self
+
+
+class ChecklistCrear(BaseModel):
+    """Parte estructurada de ``POST /api/controles/checklist/{control}``."""
+
+    fecha: date
+    puntos: list[PuntoChecklistIn]
+
+
+class PuntoChecklistOut(BaseModel):
+    """Punto guardado, con el texto del catálogo ya resuelto."""
+
+    orden: int
+    clave: str
+    etiqueta: str
+    valor: str
+    observaciones: str | None
+    fotos: list[uuid.UUID]
+
+
+class RegistroChecklistOut(BaseModel):
+    """Fila del historial de un control."""
+
+    id: uuid.UUID
+    fecha: date
+    puntos: list[PuntoChecklistOut]
+    hay_hallazgos: bool = Field(description="Si algún punto salió como NO OK.")
+    responsable: str
+    creado_at: datetime
+
+
+# --- Pláticas diarias de seguridad -----------------------------------------
+
+
+class AreaPlaticaOut(BaseModel):
+    """Área del formato de pláticas."""
+
+    clave: str
+    etiqueta: str
+
+
+class PlaticaCrear(BaseModel):
+    """Parte estructurada de ``POST /api/controles/platicas``."""
+
+    fecha: date
+    tema: str = Field(min_length=1, max_length=300)
+    areas: list[str] = Field(min_length=1)
+
+    _limpiar_tema = field_validator("tema")(_sin_espacios)
+
+    @field_validator("areas")
+    @classmethod
+    def _validar_areas(cls, areas: list[str]) -> list[str]:
+        limpias = [area.strip().lower() for area in areas]
+
+        for area in limpias:
+            if area not in CLAVES_AREAS_PLATICAS:
+                raise ValueError("Un área seleccionada no existe en el catálogo.")
+
+        # Sin repetidas: la restricción de la base rechazaría el registro
+        # entero con un error críptico.
+        return list(dict.fromkeys(limpias))
+
+
+class PlaticaOut(BaseModel):
+    """Fila del historial de pláticas."""
+
+    id: uuid.UUID
+    fecha: date
+    tema: str
+    areas: list[AreaPlaticaOut]
+    fotos: list[uuid.UUID]
+    responsable: str
+    creado_at: datetime

@@ -6,7 +6,7 @@ import {
 } from '@/components/controles/rayser/semaforo';
 import { Button } from '@/components/ui/Button';
 import { useIdioma } from '@/lib/i18n';
-import { urlFotoRayser } from '@/lib/api';
+import { urlFotoControl } from '@/lib/api';
 import type { RegistroRayser } from '@/lib/types';
 import { cn, formatearFechaIso } from '@/lib/utils';
 
@@ -92,25 +92,30 @@ export function TablaRayser({
               </td>
 
               <td className="px-3 py-2">
-                {registro.tiene_foto ? (
-                  <a
-                    href={urlFotoRayser(registro.id)}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="inline-block overflow-hidden rounded-md border border-borde"
-                    title={t('rayser.verEvidencia')}
-                  >
-                    {/* eslint-disable-next-line @next/next/no-img-element -- la
-                        imagen la sirve la API con la cookie de sesión; next/image
-                        no puede optimizar una ruta protegida. */}
-                    <img
-                      src={urlFotoRayser(registro.id)}
-                      alt={t('rayser.verEvidencia')}
-                      className="h-12 w-16 object-cover"
-                    />
-                  </a>
-                ) : (
+                {registro.fotos.length === 0 ? (
                   <span className="text-texto-tenue">—</span>
+                ) : (
+                  <span className="flex flex-wrap gap-1">
+                    {registro.fotos.map((foto) => (
+                      <a
+                        key={foto}
+                        href={urlFotoControl(foto)}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-block overflow-hidden rounded-md border border-borde"
+                        title={t('rayser.verEvidencia')}
+                      >
+                        {/* eslint-disable-next-line @next/next/no-img-element -- la
+                            imagen la sirve la API con la cookie de sesión;
+                            next/image no puede optimizar una ruta protegida. */}
+                        <img
+                          src={urlFotoControl(foto)}
+                          alt={t('rayser.verEvidencia')}
+                          className="h-12 w-16 object-cover"
+                        />
+                      </a>
+                    ))}
+                  </span>
                 )}
               </td>
 

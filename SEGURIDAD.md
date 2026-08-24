@@ -32,10 +32,13 @@ a internet igual que el formulario.
 `/api/wifi` devuelve la contraseña de la red en claro; exige sesión por eso.
 
 `/api/controles/*` sirve los registros de los controles ESH, incluidas las
-**fotos de evidencia** del control de Rayser
-(`/api/controles/rayser/{id}/foto`). Son imágenes tomadas dentro de la planta: viven
-en la base de datos, entran en el respaldo de `evaluaciones_pgdata` y solo se
-entregan con sesión abierta.
+**fotos de evidencia** de todos ellos (`/api/controles/fotos/{id}`). Son
+imágenes tomadas dentro de la planta: viven en la base de datos, entran en el
+respaldo de `evaluaciones_pgdata` y solo se entregan con sesión abierta.
+
+Ese respaldo crece con ellas: cada punto en NO OK admite hasta cuatro fotos de
+2 MB, así que un mes de recorridos puede sumar cientos de megabytes. Conviene
+vigilar el tamaño del volumen, no solo el de la base.
 
 ### Permisos: quién puede qué
 

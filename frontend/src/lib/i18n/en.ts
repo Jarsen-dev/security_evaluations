@@ -35,6 +35,8 @@ export const en: Diccionario = {
     sinAcceso: 'You do not have access to this section. Ask the system administrator for it.',
     errorGenerico: 'Something went wrong. Please try again.',
     obligatorio: 'This field is required.',
+    mes: 'Month',
+    descargarExcel: 'Download as Excel',
     si: 'Yes',
     no: 'No',
   },
@@ -109,24 +111,14 @@ export const en: Diccionario = {
     evidenciaDetalle:
       'One or more readings fell outside the normal range: attach the photo ' +
       'and write down what happened.',
-    foto: 'Evidence photo',
-    tomarFoto: 'Take or choose a photo',
-    cambiarFoto: 'Change photo',
-    quitarFoto: 'Remove photo',
-    fotoInvalida: 'The file must be an image.',
-    fotoPesada: 'The photo is too large, even after being resized.',
     observacionesPlaceholder: 'What was observed and what was done?',
     faltaObservaciones: 'Write the notes for the out-of-range reading.',
     faltaFoto: 'Attach the evidence photo.',
     faltanLecturas: 'Enter all four readings.',
     historial: 'Entries',
-    historialVacio: 'There are no entries for this period yet.',
-    mes: 'Month',
-    dia: 'Day',
     evidencia: 'Evidence',
-    verEvidencia: 'View the evidence photo',
-    sinEvidencia: 'No evidence',
-    descargarExcel: 'Download as Excel',
+    verEvidencia: 'View the evidence',
+    historialVacio: 'There are no entries for this period yet.',
     confirmarEliminar: 'Delete the entry for {fecha}?',
     confirmarEliminarDetalle:
       'The reading and its evidence will be deleted. You will be able to ' +
@@ -375,6 +367,65 @@ export const en: Diccionario = {
     incorrectas: 'Incorrect answers',
     porDia: 'Responses per day',
     porDiaDetalle: 'Daily volume and the average of each day.',
+  },
+
+  fotos: {
+    titulo: 'Evidence photos',
+    contador: '({total} of {maximo})',
+    agregar: 'Take or choose a photo',
+    agregarOtra: 'Add another photo',
+    quitar: 'Remove photo {numero}',
+    numero: 'Evidence {numero}',
+    ver: 'View the evidence',
+    invalida: 'The file must be an image.',
+    pesada: 'The photo is too large, even after being resized.',
+    tope: 'You cannot upload more than {total} photos.',
+  },
+
+  checklist: {
+    registroDelDia: "Today's entry",
+    descripcion:
+      'Mark every item. An item marked NO OK needs notes and photo evidence.',
+    ok: 'OK',
+    noOk: 'NOT OK',
+    confirmar: 'Confirm',
+    observacionesPlaceholder: 'What was found and what was done?',
+    faltaFoto: 'Add at least one evidence photo.',
+    faltanPuntos: '{total} items still unmarked.',
+    faltanObservaciones: '{total} items marked NOT OK have no notes.',
+    faltanFotos: '{total} items marked NOT OK have no photo.',
+    guardado: 'Entry saved.',
+    eliminado: 'Entry deleted. You can record it again now.',
+    yaRegistrado: 'The entry for {fecha} has already been recorded.',
+    eliminarRegistro: 'Delete it if you need to record it again.',
+    historial: 'Entries',
+    historialVacio: 'There are no entries for this period yet.',
+    confirmarEliminar: 'Delete the entry for {fecha}?',
+    confirmarEliminarDetalle:
+      'The recorded items and their evidence will be deleted. You will be able ' +
+      'to record that day again afterwards.',
+  },
+
+  platicas: {
+    registrar: 'Record a safety talk',
+    descripcion:
+      'Write the topic, mark the areas where it was given and attach the photo ' +
+      'evidence.',
+    tema: 'Topic',
+    temaPlaceholder: 'What was the talk about?',
+    areas: 'Areas where it was given',
+    primeroTema: 'Write the topic first',
+    faltaTema: 'Write the topic of the talk.',
+    faltaArea: 'Mark at least one area.',
+    faltaFoto: 'Add at least one evidence photo.',
+    listo: 'Ready to confirm: {total} area(s).',
+    guardada: 'Safety talk recorded.',
+    eliminada: 'Safety talk deleted.',
+    historial: 'Recorded talks',
+    historialVacio: 'No talks recorded for this period yet.',
+    confirmarEliminar: 'Delete the talk from {fecha}?',
+    confirmarEliminarDetalle:
+      'The record and its photos will be deleted. This cannot be undone.',
   },
 
   inventario: {

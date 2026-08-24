@@ -35,9 +35,11 @@ import type {
   Mantenimiento,
   Mensaje,
   MetaArea,
+  Platica,
   PuntoLineaTiempo,
   RangoDistribucion,
   RangoRayser,
+  RegistroChecklist,
   RegistroRayser,
   Resumen,
   PreguntaPayload,
@@ -460,9 +462,13 @@ export const listarRayser = (desde: string, hasta: string): Promise<RegistroRays
 export const eliminarRegistroRayser = (id: string): Promise<void> =>
   api.delete<void>(`/controles/rayser/${id}`);
 
-/** URL de la foto de evidencia. La cookie de sesión viaja sola. */
-export const urlFotoRayser = (id: string): string =>
-  `/api/controles/rayser/${id}/foto`;
+/**
+ * URL de una foto de evidencia. La cookie de sesión viaja sola.
+ *
+ * Un solo endpoint para los tres controles: Rayser, las listas de verificación
+ * y las pláticas.
+ */
+export const urlFotoControl = (id: string): string => `/api/controles/fotos/${id}`;
 
 /**
  * Registra la lectura del día.
@@ -471,27 +477,11 @@ export const urlFotoRayser = (id: string): string =>
  * `Content-Type: application/json` rompería el multipart de la foto (mismo
  * motivo que en `importarExcel`).
  */
-export async function registrarRayser(datos: {
-  fecha: string;
-  lecturas: string[];
-  observaciones: string;
-  foto: File | null;
-}): Promise<RegistroRayser> {
-  const cuerpo = new FormData();
-  cuerpo.append('fecha', datos.fecha);
-  datos.lecturas.forEach((lectura, indice) => {
-    cuerpo.append(`manometro_${indice + 1}`, lectura);
-  });
-  cuerpo.append('observaciones', datos.observaciones);
-
-  if (datos.foto) {
-    cuerpo.append('foto', datos.foto);
-  }
-
+async function enviarFormulario<T>(ruta: string, cuerpo: FormData): Promise<T> {
   let respuesta: Response;
 
   try {
-    respuesta = await fetch(`${baseUrl()}/controles/rayser`, {
+    respuesta = await fetch(`${baseUrl()}${ruta}`, {
       method: 'POST',
       body: cuerpo,
       credentials: 'include',
@@ -518,7 +508,24 @@ export async function registrarRayser(datos: {
     throw new ErrorDeApi(respuesta.status, mensaje, errores);
   }
 
-  return (await respuesta.json()) as RegistroRayser;
+  return (await respuesta.json()) as T;
+}
+
+export function registrarRayser(datos: {
+  fecha: string;
+  lecturas: string[];
+  observaciones: string;
+  fotos: File[];
+}): Promise<RegistroRayser> {
+  const cuerpo = new FormData();
+  cuerpo.append('fecha', datos.fecha);
+  datos.lecturas.forEach((lectura, indice) => {
+    cuerpo.append(`manometro_${indice + 1}`, lectura);
+  });
+  cuerpo.append('observaciones', datos.observaciones);
+  datos.fotos.forEach((foto) => cuerpo.append('fotos', foto));
+
+  return enviarFormulario<RegistroRayser>('/controles/rayser', cuerpo);
 }
 
 export const descargarExcelRayser = (desde: string, hasta: string): Promise<void> =>

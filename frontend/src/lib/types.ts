@@ -466,13 +466,18 @@ export interface LecturaManometro {
   semaforo: SemaforoRayser;
 }
 
-/** Registro diario del control de presiones. No incluye la foto. */
+/**
+ * Registro diario del control de presiones.
+ *
+ * No incluye las imágenes: solo los identificadores de sus fotos, que se piden
+ * una por una a `/api/controles/fotos/{id}`.
+ */
 export interface RegistroRayser {
   id: string;
   fecha: string;
   manometros: LecturaManometro[];
   observaciones: string | null;
-  tiene_foto: boolean;
+  fotos: string[];
   fuera_de_rango: boolean;
   responsable: string;
   creado_at: string;
@@ -525,5 +530,65 @@ export interface InspeccionSqpResumen {
   encargado: string;
   responsable: string;
   total_no: number;
+  creado_at: string;
+}
+
+// --- Controles de lista de verificación (OK / NO OK) -----------------------
+
+export type ValorChecklist = 'ok' | 'no_ok';
+
+export interface PuntoControl {
+  orden: number;
+  clave: string;
+  etiqueta: string;
+}
+
+/** Definición de un control: sus puntos y sus límites, servida por la API. */
+export interface CatalogoChecklist {
+  clave: string;
+  titulo: string;
+  subtitulo: string | null;
+  puntos: PuntoControl[];
+  max_fotos: number;
+}
+
+export interface PuntoChecklist {
+  orden: number;
+  clave: string;
+  etiqueta: string;
+  valor: ValorChecklist;
+  observaciones: string | null;
+  fotos: string[];
+}
+
+export interface RegistroChecklist {
+  id: string;
+  fecha: string;
+  puntos: PuntoChecklist[];
+  hay_hallazgos: boolean;
+  responsable: string;
+  creado_at: string;
+}
+
+// --- Pláticas diarias de seguridad -----------------------------------------
+
+/**
+ * Área del formato de pláticas.
+ *
+ * No son las mismas que `Area`: aquellas son las del cuestionario y estas las
+ * columnas de esta hoja, con la abreviatura que usa el personal de piso.
+ */
+export interface AreaPlatica {
+  clave: string;
+  etiqueta: string;
+}
+
+export interface Platica {
+  id: string;
+  fecha: string;
+  tema: string;
+  areas: AreaPlatica[];
+  fotos: string[];
+  responsable: string;
   creado_at: string;
 }

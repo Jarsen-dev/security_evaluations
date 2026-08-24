@@ -32,6 +32,8 @@ export const es = {
     sinAcceso: 'No tienes acceso a esta sección. Pídeselo al administrador del sistema.',
     errorGenerico: 'Ocurrió un error. Intenta de nuevo.',
     obligatorio: 'Este campo es obligatorio.',
+    mes: 'Mes',
+    descargarExcel: 'Descargar en Excel',
     si: 'Sí',
     no: 'No',
   },
@@ -107,24 +109,14 @@ export const es = {
     evidenciaDetalle:
       'Una o más lecturas salieron del rango normal: agrega la foto y anota qué ' +
       'ocurrió.',
-    foto: 'Foto de evidencia',
-    tomarFoto: 'Tomar o elegir foto',
-    cambiarFoto: 'Cambiar foto',
-    quitarFoto: 'Quitar foto',
-    fotoInvalida: 'El archivo debe ser una imagen.',
-    fotoPesada: 'La foto pesa demasiado, incluso después de reducirla.',
     observacionesPlaceholder: '¿Qué se observó y qué se hizo?',
     faltaObservaciones: 'Anota las observaciones de la lectura fuera de rango.',
     faltaFoto: 'Agrega la foto de evidencia.',
     faltanLecturas: 'Captura las cuatro lecturas.',
     historial: 'Registros',
-    historialVacio: 'Todavía no hay registros en este periodo.',
-    mes: 'Mes',
-    dia: 'Día',
     evidencia: 'Evidencia',
-    verEvidencia: 'Ver la foto de evidencia',
-    sinEvidencia: 'Sin evidencia',
-    descargarExcel: 'Descargar en Excel',
+    verEvidencia: 'Ver la evidencia',
+    historialVacio: 'Todavía no hay registros en este periodo.',
     confirmarEliminar: '¿Eliminar el registro del {fecha}?',
     confirmarEliminarDetalle:
       'Se borra la lectura y su evidencia. Después podrás capturar el día otra vez.',
@@ -374,6 +366,66 @@ export const es = {
     incorrectas: 'Respuestas incorrectas',
     porDia: 'Respuestas por día',
     porDiaDetalle: 'Volumen diario y promedio de cada jornada.',
+  },
+
+  fotos: {
+    titulo: 'Fotos de evidencia',
+    contador: '({total} de {maximo})',
+    agregar: 'Tomar o elegir foto',
+    agregarOtra: 'Agregar otra foto',
+    quitar: 'Quitar la foto {numero}',
+    numero: 'Evidencia {numero}',
+    ver: 'Ver la evidencia',
+    invalida: 'El archivo debe ser una imagen.',
+    pesada: 'La foto pesa demasiado, incluso después de reducirla.',
+    tope: 'No se pueden subir más de {total} fotos.',
+  },
+
+  checklist: {
+    registroDelDia: 'Registro del día',
+    descripcion:
+      'Marca cada punto. Un punto en NO OK necesita observaciones y evidencia ' +
+      'fotográfica.',
+    ok: 'OK',
+    noOk: 'NO OK',
+    confirmar: 'Confirmar',
+    observacionesPlaceholder: '¿Qué se encontró y qué se hizo?',
+    faltaFoto: 'Agrega al menos una foto de evidencia.',
+    faltanPuntos: 'Faltan {total} puntos por marcar.',
+    faltanObservaciones: 'Hay {total} puntos en NO OK sin observaciones.',
+    faltanFotos: 'Hay {total} puntos en NO OK sin foto.',
+    guardado: 'Registro guardado.',
+    eliminado: 'Registro eliminado. Ya puedes capturarlo de nuevo.',
+    yaRegistrado: 'El registro del {fecha} ya está capturado.',
+    eliminarRegistro: 'Elimínalo si necesitas capturarlo de nuevo.',
+    historial: 'Registros',
+    historialVacio: 'Todavía no hay registros en este periodo.',
+    confirmarEliminar: '¿Eliminar el registro del {fecha}?',
+    confirmarEliminarDetalle:
+      'Se borran los puntos capturados y sus evidencias. Después podrás ' +
+      'capturar el día otra vez.',
+  },
+
+  platicas: {
+    registrar: 'Registrar plática',
+    descripcion:
+      'Escribe el tema, marca las áreas donde se impartió y agrega la ' +
+      'evidencia fotográfica.',
+    tema: 'Tema',
+    temaPlaceholder: '¿De qué trató la plática?',
+    areas: 'Áreas donde se impartió',
+    primeroTema: 'Escribe primero el tema',
+    faltaTema: 'Escribe el tema de la plática.',
+    faltaArea: 'Marca al menos un área.',
+    faltaFoto: 'Agrega al menos una foto de evidencia.',
+    listo: 'Lista para confirmar: {total} área(s).',
+    guardada: 'Plática registrada.',
+    eliminada: 'Plática eliminada.',
+    historial: 'Pláticas registradas',
+    historialVacio: 'Todavía no hay pláticas registradas en este periodo.',
+    confirmarEliminar: '¿Eliminar la plática del {fecha}?',
+    confirmarEliminarDetalle:
+      'Se borra el registro junto con sus fotos. No se puede deshacer.',
   },
 
   inventario: {

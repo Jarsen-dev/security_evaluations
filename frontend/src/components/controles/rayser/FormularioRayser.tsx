@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react';
 
-import { CampoFoto } from '@/components/controles/rayser/CampoFoto';
+import { CampoFotos } from '@/components/controles/CampoFotos';
 import {
   CLASES_SEMAFORO,
   CLAVES_SEMAFORO,
@@ -22,11 +22,14 @@ interface FormularioRayserProps {
   onGuardar: (datos: {
     lecturas: string[];
     observaciones: string;
-    foto: File | null;
+    fotos: File[];
   }) => Promise<void>;
   guardando: boolean;
   onError: (mensaje: string) => void;
 }
+
+/** Tope de fotos de evidencia; el servidor aplica el mismo. */
+const MAX_FOTOS_RAYSER = 4;
 
 /** Cuántos manómetros trae el equipo; lo dice el backend. */
 function lecturasVacias(total: number): string[] {
@@ -49,7 +52,7 @@ export function FormularioRayser({
     lecturasVacias(rango.manometros),
   );
   const [observaciones, setObservaciones] = useState('');
-  const [foto, setFoto] = useState<File | null>(null);
+  const [fotos, setFotos] = useState<File[]>([]);
 
   const semaforos = useMemo(
     () => lecturas.map((lectura) => clasificar(lectura, minimo, maximo)),
@@ -61,7 +64,7 @@ export function FormularioRayser({
 
   // Una lectura fuera de rango sin evidencia no sirve para dar seguimiento:
   // el servidor la rechaza y aquí se bloquea antes de intentarlo.
-  const faltaEvidencia = hayAlerta && (foto === null || observaciones.trim() === '');
+  const faltaEvidencia = hayAlerta && (fotos.length === 0 || observaciones.trim() === '');
   const puedeGuardar = completas && !faltaEvidencia;
 
   function actualizar(indice: number, valor: string) {
@@ -76,7 +79,7 @@ export function FormularioRayser({
     }
 
     try {
-      await onGuardar({ lecturas, observaciones, foto });
+      await onGuardar({ lecturas, observaciones, fotos });
     } catch {
       // El panel ya avisó del error. No se limpia el formulario: volver a
       // teclear las cuatro lecturas por un fallo del servidor es inaceptable.
@@ -85,7 +88,7 @@ export function FormularioRayser({
 
     setLecturas(lecturasVacias(rango.manometros));
     setObservaciones('');
-    setFoto(null);
+    setFotos([]);
   }
 
   return (
@@ -171,10 +174,12 @@ export function FormularioRayser({
             disabled={guardando}
           />
 
-          <CampoFoto
-            foto={foto}
-            onCambiar={setFoto}
+          <CampoFotos
+            id="fotos-rayser"
+            fotos={fotos}
+            onCambiar={setFotos}
             onError={onError}
+            maximo={MAX_FOTOS_RAYSER}
             deshabilitado={guardando}
           />
         </div>

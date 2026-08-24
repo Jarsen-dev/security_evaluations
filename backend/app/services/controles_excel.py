@@ -8,6 +8,7 @@ así que se respetan los títulos, el orden de las columnas y las notas al pie
 del formato original.
 """
 
+import logging
 from datetime import date, timedelta
 from io import BytesIO
 from typing import Any
@@ -19,11 +20,16 @@ from openpyxl.worksheet.worksheet import Worksheet
 
 from app.core.constants import etiqueta_area
 from app.core.controles_catalogo import (
+    AREAS_PLATICAS,
+    ETIQUETAS_VALOR_CHECKLIST,
     PUNTOS_SQP,
     RAYSER_NORMAL,
     RENGLONES_SUSTANCIAS,
+    TITULO_PLATICAS,
+    DefinicionChecklist,
 )
 from app.models.control import InspeccionSqp
+from app.services.control_service import Evidencia
 from app.services.exportacion_comun import (
     BORDE_FINO,
     FUENTE_ENCABEZADO,
@@ -49,6 +55,8 @@ FUENTES_SEMAFORO: dict[str, Font] = {
 }
 
 RELLENO_SECCION = PatternFill(start_color=GRIS, end_color=GRIS, fill_type="solid")
+
+logger = logging.getLogger(__name__)
 
 # Lado mayor de la evidencia dentro de la hoja, en píxeles. Una foto de celular
 # a tamaño completo ocuparía varias pantallas de alto.
@@ -149,7 +157,8 @@ def _hoja_rayser(
 
         celda_evidencia = hoja.cell(row=fila, column=8)
         if registro is not None:
-            celda_evidencia.value = "Sí" if registro["tiene_foto"] else "—"
+            total_fotos = len(registro["fotos"])
+            celda_evidencia.value = str(total_fotos) if total_fotos else "—"
         celda_evidencia.alignment = Alignment(horizontal="center")
         celda_evidencia.border = BORDE_FINO
 
@@ -171,10 +180,8 @@ def _hoja_rayser(
     hoja.freeze_panes = "A3"
 
 
-def _hoja_evidencias(
-    libro: Workbook, evidencias: list[tuple[date, str, bytes]]
-) -> None:
-    """Hoja con las fotos de los días que salieron del rango.
+def _hoja_evidencias(libro: Workbook, evidencias: list[Evidencia]) -> None:
+    """Hoja con las fotos que acompañan a los registros.
 
     Se anclan como imágenes de la hoja, no como enlaces: el archivo se manda
     por correo y tiene que viajar completo.
@@ -185,15 +192,35 @@ def _hoja_evidencias(
     ajustar_anchos(hoja, [70])
 
     fila = 3
-    for fecha, responsable, contenido in evidencias:
-        encabezado = hoja.cell(
-            row=fila,
-            column=1,
-            value=f"{fecha:%d/%m/%Y} — registró: {responsable}",
-        )
+    for evidencia in evidencias:
+        titulo = f"{evidencia.fecha:%d/%m/%Y}"
+        if evidencia.detalle:
+            titulo += f" — {evidencia.detalle}"
+        titulo += f" — registró: {evidencia.responsable}"
+
+        encabezado = hoja.cell(row=fila, column=1, value=titulo)
         encabezado.font = Font(bold=True)
 
-        imagen = ImagenExcel(BytesIO(contenido))
+        try:
+            imagen = ImagenExcel(BytesIO(evidencia.imagen))
+        except Exception:
+            # Un archivo ilegible (truncado al subirse, por ejemplo) no puede
+            # tumbar el reporte del mes entero: se anota y se sigue.
+            logger.warning(
+                "Evidencia ilegible del %s; se omite en el Excel", evidencia.fecha
+            )
+            nota = hoja.cell(
+                row=fila + 1,
+                column=1,
+                value=(
+                    "No se pudo incrustar esta evidencia: el archivo no es una "
+                    "imagen legible."
+                ),
+            )
+            nota.font = Font(italic=True, color="9C0006")
+            fila += 3
+            continue
+
         # Se conserva la proporción: deformar la foto dificulta leer la carátula
         # del manómetro.
         if imagen.width > ANCHO_EVIDENCIA:
@@ -209,7 +236,7 @@ def _hoja_evidencias(
 
 def generar_excel_rayser(
     registros: list[dict[str, Any]],
-    evidencias: list[tuple[date, str, bytes]],
+    evidencias: list[Evidencia],
     desde: date,
     hasta: date,
     periodo: str,
@@ -397,6 +424,219 @@ def generar_excel_sqp(inspeccion: InspeccionSqp, sustancias: list[str]) -> Bytes
     flujo.seek(0)
     return flujo
 
+
+# --- Listas de verificación (OK / NO OK) -----------------------------------
+
+
+def _observaciones_del_dia(registro: dict[str, Any]) -> str | None:
+    """Junta las observaciones de los puntos en NO OK en una sola celda.
+
+    La hoja en papel tiene una única columna de observaciones por día, así que
+    cada texto se rotula con el punto al que pertenece.
+    """
+    partes = [
+        f"{punto['etiqueta']}: {punto['observaciones']}"
+        for punto in registro["puntos"]
+        if punto["valor"] == "no_ok" and punto["observaciones"]
+    ]
+    return " · ".join(partes) or None
+
+
+def generar_excel_checklist(
+    definicion: DefinicionChecklist,
+    registros: list[dict[str, Any]],
+    evidencias: list[Evidencia],
+    desde: date,
+    hasta: date,
+    periodo: str,
+) -> BytesIO:
+    """Arma la hoja mensual de un control de OK / NO OK.
+
+    Sirve a los tres controles que tienen esta forma: lo único que cambia es la
+    lista de columnas, que sale de la definición del catálogo.
+    """
+    libro = Workbook()
+    hoja = libro.active
+    if hoja is None:  # pragma: no cover
+        hoja = libro.create_sheet()
+    hoja.title = definicion.hoja
+
+    total_columnas = len(definicion.puntos) + 3  # día, observaciones, responsable
+
+    hoja["A1"] = definicion.titulo
+    hoja["A1"].font = FUENTE_TITULO
+    hoja.merge_cells(
+        start_row=1, start_column=1, end_row=1, end_column=max(2, total_columnas - 1)
+    )
+    celda_mes = hoja.cell(row=1, column=total_columnas, value=f"Mes: {periodo}")
+    celda_mes.font = Font(bold=True)
+
+    fila_encabezados = 2
+    if definicion.subtitulo:
+        hoja.cell(row=2, column=1, value=definicion.subtitulo).font = Font(bold=True)
+        hoja.merge_cells(start_row=2, start_column=1, end_row=2, end_column=4)
+        fila_encabezados = 3
+
+    por_dia = _mismo_mes(desde, hasta)
+    encabezados = (
+        ["Día" if por_dia else "Fecha"]
+        + [punto.etiqueta for punto in definicion.puntos]
+        + ["Observaciones", "Responsable"]
+    )
+    escribir_encabezados(hoja, encabezados, fila=fila_encabezados)
+
+    registros_por_fecha = {registro["fecha"]: registro for registro in registros}
+
+    fila = fila_encabezados + 1
+    for dia in _dias_del_rango(desde, hasta):
+        celda_dia = hoja.cell(row=fila, column=1)
+        celda_dia.value = dia.day if por_dia else dia.strftime("%d/%m/%Y")
+        celda_dia.alignment = Alignment(horizontal="center")
+        celda_dia.border = BORDE_FINO
+
+        registro = registros_por_fecha.get(dia)
+        puntos = {punto["orden"]: punto for punto in registro["puntos"]} if registro else {}
+
+        for indice in range(len(definicion.puntos)):
+            celda = hoja.cell(row=fila, column=2 + indice)
+            celda.border = BORDE_FINO
+            celda.alignment = Alignment(horizontal="center")
+
+            punto = puntos.get(indice)
+            if punto is None:
+                continue
+
+            celda.value = ETIQUETAS_VALOR_CHECKLIST[punto["valor"]]
+            color = "verde" if punto["valor"] == "ok" else "rojo"
+            celda.fill = RELLENOS_SEMAFORO[color]
+            celda.font = FUENTES_SEMAFORO[color]
+
+        celda_obs = hoja.cell(row=fila, column=len(definicion.puntos) + 2)
+        celda_obs.value = _observaciones_del_dia(registro) if registro else None
+        celda_obs.alignment = Alignment(wrap_text=True, vertical="top")
+        celda_obs.border = BORDE_FINO
+
+        celda_resp = hoja.cell(row=fila, column=total_columnas)
+        celda_resp.value = registro["responsable"] if registro else None
+        celda_resp.border = BORDE_FINO
+
+        fila += 1
+
+    fila += 2
+    hoja.cell(
+        row=fila, column=1, value="Nombre y firma de quien realiza la inspección:"
+    ).font = Font(bold=True)
+
+    ajustar_anchos(
+        hoja,
+        [12] + [18] * len(definicion.puntos) + [50, 20],
+    )
+    hoja.freeze_panes = hoja.cell(row=fila_encabezados + 1, column=1).coordinate
+
+    if evidencias:
+        _hoja_evidencias(libro, evidencias)
+
+    flujo = BytesIO()
+    libro.save(flujo)
+    flujo.seek(0)
+    return flujo
+
+
+# --- Pláticas diarias de seguridad -----------------------------------------
+
+
+def generar_excel_platicas(
+    platicas: list[dict[str, Any]],
+    evidencias: list[Evidencia],
+    desde: date,
+    hasta: date,
+    periodo: str,
+) -> BytesIO:
+    """Arma la hoja mensual de pláticas.
+
+    Una columna por área, con "X" donde se impartió. Un día con varias
+    pláticas ocupa varios renglones seguidos, uno por tema.
+    """
+    libro = Workbook()
+    hoja = libro.active
+    if hoja is None:  # pragma: no cover
+        hoja = libro.create_sheet()
+    hoja.title = "Platicas ESH"
+
+    total_columnas = len(AREAS_PLATICAS) + 3  # día, tema, responsable
+
+    hoja["A1"] = TITULO_PLATICAS
+    hoja["A1"].font = FUENTE_TITULO
+    hoja.merge_cells(start_row=1, start_column=1, end_row=1, end_column=total_columnas - 1)
+    hoja.cell(row=1, column=total_columnas, value=f"Mes: {periodo}").font = Font(bold=True)
+
+    por_dia = _mismo_mes(desde, hasta)
+    encabezados = (
+        ["Día" if por_dia else "Fecha"]
+        + [area.etiqueta for area in AREAS_PLATICAS]
+        + ["Tema", "Responsable"]
+    )
+    escribir_encabezados(hoja, encabezados, fila=2)
+
+    por_fecha: dict[date, list[dict[str, Any]]] = {}
+    for platica in platicas:
+        por_fecha.setdefault(platica["fecha"], []).append(platica)
+
+    fila = 3
+    for dia in _dias_del_rango(desde, hasta):
+        # Un renglón aunque no haya plática: la hoja impresa lleva los 31 días.
+        # Dentro del día van en el orden en que se capturaron, no al revés como
+        # en el panel: la hoja se lee de arriba abajo.
+        del_dia = sorted(
+            por_fecha.get(dia, []), key=lambda p: p["creado_at"]
+        ) or [None]
+
+        for platica in del_dia:
+            celda_dia = hoja.cell(row=fila, column=1)
+            celda_dia.value = dia.day if por_dia else dia.strftime("%d/%m/%Y")
+            celda_dia.alignment = Alignment(horizontal="center")
+            celda_dia.border = BORDE_FINO
+
+            claves = (
+                {area["clave"] for area in platica["areas"]} if platica else set()
+            )
+
+            for indice, area in enumerate(AREAS_PLATICAS):
+                celda = hoja.cell(row=fila, column=2 + indice)
+                celda.border = BORDE_FINO
+                celda.alignment = Alignment(horizontal="center")
+
+                if area.clave in claves:
+                    celda.value = "X"
+                    celda.font = Font(bold=True)
+                    celda.fill = RELLENOS_SEMAFORO["verde"]
+
+            celda_tema = hoja.cell(row=fila, column=len(AREAS_PLATICAS) + 2)
+            celda_tema.value = platica["tema"] if platica else None
+            celda_tema.alignment = Alignment(wrap_text=True, vertical="top")
+            celda_tema.border = BORDE_FINO
+
+            celda_resp = hoja.cell(row=fila, column=total_columnas)
+            celda_resp.value = platica["responsable"] if platica else None
+            celda_resp.border = BORDE_FINO
+
+            fila += 1
+
+    fila += 2
+    hoja.cell(
+        row=fila, column=1, value="Nombre y firma de quien realiza la inspección:"
+    ).font = Font(bold=True)
+
+    ajustar_anchos(hoja, [12] + [12] * len(AREAS_PLATICAS) + [45, 20])
+    hoja.freeze_panes = "A3"
+
+    if evidencias:
+        _hoja_evidencias(libro, evidencias)
+
+    flujo = BytesIO()
+    libro.save(flujo)
+    flujo.seek(0)
+    return flujo
 
 def titulo_periodo(desde: date, hasta: date) -> str:
     """Describe el periodo para el encabezado "Mes:" de la hoja."""
