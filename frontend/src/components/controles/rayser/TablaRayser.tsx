@@ -14,12 +14,18 @@ interface TablaRayserProps {
   registros: RegistroRayser[];
   onEliminar: (registro: RegistroRayser) => void;
   totalManometros: number;
+  /**
+   * Si el usuario tiene permiso de edición en Controles. Sin él se esconde
+   * Eliminar: la API lo rechazaría con 403. Capturar sí puede.
+   */
+  puedeEditar: boolean;
 }
 
 export function TablaRayser({
   registros,
   onEliminar,
   totalManometros,
+  puedeEditar,
 }: TablaRayserProps) {
   const { t, locale } = useIdioma();
 
@@ -114,13 +120,15 @@ export function TablaRayser({
               </td>
 
               <td className="px-3 py-2 text-right">
-                <Button
-                  variante="fantasma"
-                  tamano="sm"
-                  onClick={() => onEliminar(registro)}
-                >
-                  {t('comun.eliminar')}
-                </Button>
+                {puedeEditar && (
+                  <Button
+                    variante="fantasma"
+                    tamano="sm"
+                    onClick={() => onEliminar(registro)}
+                  >
+                    {t('comun.eliminar')}
+                  </Button>
+                )}
               </td>
             </tr>
           ))}

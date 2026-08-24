@@ -279,11 +279,17 @@ async def obtener_rayser(db: AsyncSession, registro_id: uuid.UUID) -> RegistroRa
     return registro
 
 
-async def eliminar_rayser(db: AsyncSession, registro_id: uuid.UUID) -> None:
-    """Borra un registro mal capturado para poder recapturar el día."""
+async def eliminar_rayser(db: AsyncSession, registro_id: uuid.UUID) -> date:
+    """Borra un registro mal capturado para poder recapturar el día.
+
+    Devuelve la fecha que quedó libre: después del ``DELETE`` ya no hay de
+    dónde leerla, y la bitácora necesita decir qué día se borró.
+    """
     registro = await obtener_rayser(db, registro_id)
+    fecha = registro.fecha
     await db.delete(registro)
     await db.commit()
+    return fecha
 
 
 async def evidencias_rayser(

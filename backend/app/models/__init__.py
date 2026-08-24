@@ -24,6 +24,7 @@ __all__ = [
     "AdminUser",
     "AreaPlatica",
     "Base",
+    "Bitacora",
     "Cuestionario",
     "FotoControl",
     "InspeccionSqp",

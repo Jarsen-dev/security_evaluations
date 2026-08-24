@@ -330,11 +330,17 @@ async def actualizar_cuestionario(
     return await obtener_cuestionario(db, cuestionario_id)
 
 
-async def eliminar_cuestionario(db: AsyncSession, cuestionario_id: uuid.UUID) -> None:
-    """Elimina el cuestionario y, en cascada, sus preguntas e intentos."""
+async def eliminar_cuestionario(db: AsyncSession, cuestionario_id: uuid.UUID) -> str:
+    """Elimina el cuestionario y, en cascada, sus preguntas e intentos.
+
+    Devuelve el nombre de lo que borró: una vez hecho el ``DELETE`` ya no hay
+    de dónde sacarlo, y la bitácora necesita decir *qué* se eliminó.
+    """
     cuestionario = await obtener_cuestionario(db, cuestionario_id)
+    nombre = cuestionario.nombre
     await db.delete(cuestionario)
     await db.commit()
+    return nombre
 
 
 async def agregar_pregunta(

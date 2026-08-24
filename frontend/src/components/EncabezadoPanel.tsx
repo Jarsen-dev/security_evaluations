@@ -2,20 +2,30 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 
 import { SelectorIdioma } from '@/components/SelectorIdioma';
 import { Button } from '@/components/ui/Button';
 import { Logo } from '@/components/ui/Logo';
-import { ErrorDeApi, cerrarSesion, obtenerAdminActual } from '@/lib/api';
+import { cerrarSesion } from '@/lib/api';
 import { useTraduccion, type ClaveTraduccion } from '@/lib/i18n';
+import { useSesion } from '@/lib/sesion';
+import type { Modulo } from '@/lib/types';
 import { cn } from '@/lib/utils';
 
 // Estadísticas ya no es una pestaña principal: vive dentro de Cuestionarios.
-const PESTANAS: ReadonlyArray<{ href: string; clave: ClaveTraduccion }> = [
-  { href: '/cuestionarios', clave: 'encabezado.cuestionarios' },
-  { href: '/controles', clave: 'encabezado.controles' },
-  { href: '/inventario', clave: 'encabezado.inventario' },
+//
+// `modulo` decide quién ve cada pestaña. Administración no tiene módulo
+// porque no se otorga por permisos: es solo del superadministrador.
+const PESTANAS: ReadonlyArray<{
+  href: string;
+  clave: ClaveTraduccion;
+  modulo: Modulo | null;
+}> = [
+  { href: '/cuestionarios', clave: 'encabezado.cuestionarios', modulo: 'cuestionarios' },
+  { href: '/controles', clave: 'encabezado.controles', modulo: 'controles' },
+  { href: '/inventario', clave: 'encabezado.inventario', modulo: 'inventario' },
+  { href: '/administracion', clave: 'encabezado.administracion', modulo: null },
 ];
 
 export function EncabezadoPanel() {
@@ -23,53 +33,14 @@ export function EncabezadoPanel() {
   const router = useRouter();
   const t = useTraduccion();
 
-  const [usuario, setUsuario] = useState<string | null>(null);
+  const { usuario, puede } = useSesion();
   const [saliendo, setSaliendo] = useState(false);
 
-  useEffect(() => {
-    let cancelado = false;
-
-    obtenerAdminActual()
-      .then((admin) => {
-        if (!cancelado) {
-          setUsuario(admin.username);
-        }
-      })
-      .catch(async (error: unknown) => {
-        // El middleware solo comprueba que la cookie exista; la validación
-        // real de la firma ocurre aquí, contra la API.
-        //
-        // Solo se actúa ante un 401. Un fallo de red (ErrorDeApi con status 0)
-        // o un 502 momentáneo no significan que la sesión sea inválida, y
-        // cerrarla dejaría fuera al admin por una caída pasajera.
-        if (cancelado || !(error instanceof ErrorDeApi) || error.status !== 401) {
-          return;
-        }
-
-        // Hay que BORRAR la cookie antes de rebotar al login. Si no, el
-        // middleware vuelve a ver una cookie con contenido, manda de /login a
-        // /cuestionarios, este efecto recibe otro 401 y el panel entra en un
-        // bucle infinito: el navegador se queda cargando para siempre.
-        // `/auth/logout` no exige sesión válida justamente para esto.
-        try {
-          await cerrarSesion();
-        } catch {
-          // Si el borrado falla, se redirige igual: quedarse en el bucle es
-          // peor que aterrizar en el login con la cookie todavía puesta.
-        }
-
-        if (!cancelado) {
-          router.replace('/login');
-          // Obliga al middleware a reevaluar la cookie ya borrada en lugar de
-          // decidir con el estado previo cacheado.
-          router.refresh();
-        }
-      });
-
-    return () => {
-      cancelado = true;
-    };
-  }, [router]);
+  // Se filtra contra los permisos para no ofrecer pestañas que devolverían
+  // 403 en la primera llamada. La autorización real la aplica la API.
+  const visibles = PESTANAS.filter((pestana) =>
+    pestana.modulo === null ? usuario?.es_superadmin === true : puede(pestana.modulo),
+  );
 
   async function manejarCerrarSesion() {
     setSaliendo(true);
@@ -93,7 +64,7 @@ export function EncabezadoPanel() {
         </div>
 
         <nav className="flex gap-1" aria-label={t('encabezado.secciones')}>
-          {PESTANAS.map((pestana) => {
+          {visibles.map((pestana) => {
             const activa = pathname.startsWith(pestana.href);
             return (
               <Link
@@ -116,7 +87,9 @@ export function EncabezadoPanel() {
         <div className="flex items-center gap-3">
           <SelectorIdioma />
           {usuario && (
-            <span className="hidden text-sm text-texto-suave sm:inline">{usuario}</span>
+            <span className="hidden text-sm text-texto-suave sm:inline">
+              {usuario.username}
+            </span>
           )}
           <Button
             variante="fantasma"

@@ -1,0 +1,14 @@
+{
+  "Servers": {
+    "1": {
+      "Name": "Evaluaciones (db)",
+      "Group": "Sistema ESH",
+      "Host": "db",
+      "Port": 5432,
+      "MaintenanceDB": "evaluaciones",
+      "Username": "evaluaciones",
+      "SSLMode": "prefer",
+      "Comment": "Base del Sistema ESH. La contrasena es la de POSTGRES_PASSWORD en el .env; pgAdmin la pide la primera vez que se abre la conexion."
+    }
+  }
+}

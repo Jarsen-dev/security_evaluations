@@ -1,6 +1,7 @@
 """Dependencias compartidas de la capa HTTP."""
 
 import uuid
+from collections.abc import Awaitable, Callable
 
 from fastapi import Depends, HTTPException, Request, status
 from sqlalchemy import select
@@ -15,16 +16,26 @@ NO_AUTENTICADO = HTTPException(
     detail="No has iniciado sesión o tu sesión expiró.",
 )
 
+# Se responde 401, no 403: para el usuario desactivado la sesión dejó de
+# existir, y el panel ya sabe rebotar al login ante un 401.
+CUENTA_DESACTIVADA = HTTPException(
+    status_code=status.HTTP_401_UNAUTHORIZED,
+    detail="Tu cuenta fue desactivada. Habla con el administrador del sistema.",
+)
+
+SIN_PERMISO = "No tienes permiso para realizar esta acción."
+
 
 async def obtener_admin_actual(
     request: Request,
     db: AsyncSession = Depends(get_db),
 ) -> AdminUser:
-    """Devuelve el administrador de la sesión actual.
+    """Devuelve el usuario de la sesión actual.
 
     Lee el JWT de la cookie httpOnly, valida su firma y confirma que el
-    usuario sigue existiendo: si se elimina un admin, sus tokens vigentes
-    dejan de servir de inmediato.
+    usuario sigue existiendo y sigue activo: si se elimina o se desactiva a
+    alguien, sus tokens vigentes dejan de servir de inmediato en vez de
+    esperar a que venzan.
     """
     token = request.cookies.get(COOKIE_SESION)
     if not token:
@@ -50,4 +61,42 @@ async def obtener_admin_actual(
     if admin is None:
         raise NO_AUTENTICADO
 
+    if not admin.activo:
+        raise CUENTA_DESACTIVADA
+
+    return admin
+
+
+def requiere(
+    modulo: str, *, editar: bool = False
+) -> Callable[[AdminUser], Awaitable[AdminUser]]:
+    """Fábrica de dependencias: exige acceso (o edición) sobre un módulo.
+
+    Se cuelga del ``APIRouter`` completo para el acceso de lectura y alta, y
+    se repite por endpoint con ``editar=True`` en los que modifican o
+    eliminan. La decisión la toma ``AdminUser.puede()``; aquí solo se
+    traduce a HTTP.
+
+    El panel esconde las pestañas y los botones que el usuario no puede usar,
+    pero eso es cosmética: quien realmente autoriza es esta dependencia.
+    """
+
+    async def dependencia(
+        admin: AdminUser = Depends(obtener_admin_actual),
+    ) -> AdminUser:
+        if not admin.puede(modulo, editar=editar):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN, detail=SIN_PERMISO
+            )
+        return admin
+
+    return dependencia
+
+
+async def requiere_superadmin(
+    admin: AdminUser = Depends(obtener_admin_actual),
+) -> AdminUser:
+    """Exige el rol de superadministrador (la pestaña de Administración)."""
+    if not admin.es_superadmin:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=SIN_PERMISO)
     return admin

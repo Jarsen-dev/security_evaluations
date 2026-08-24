@@ -3,6 +3,7 @@
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense } from 'react';
 
+import { GuardiaModulo } from '@/components/GuardiaModulo';
 import { EnConstruccion } from '@/components/controles/EnConstruccion';
 import { PanelChecklist } from '@/components/controles/checklist/PanelChecklist';
 import { PanelPlaticas } from '@/components/controles/platicas/PanelPlaticas';
@@ -41,7 +42,9 @@ export default function PaginaControles() {
   return (
     // `useSearchParams` obliga a un límite de Suspense para prerenderizar.
     <Suspense fallback={null}>
-      <ContenidoControles />
+      <GuardiaModulo modulo="controles">
+        <ContenidoControles />
+      </GuardiaModulo>
     </Suspense>
   );
 }

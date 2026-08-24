@@ -1,5 +1,6 @@
 'use client';
 
+import { GuardiaModulo } from '@/components/GuardiaModulo';
 import { useTraduccion } from '@/lib/i18n';
 
 /**
@@ -9,6 +10,14 @@ import { useTraduccion } from '@/lib/i18n';
  * estructura del sistema mientras se definen sus reglas de captura.
  */
 export default function PaginaInventario() {
+  return (
+    <GuardiaModulo modulo="inventario">
+      <ContenidoInventario />
+    </GuardiaModulo>
+  );
+}
+
+function ContenidoInventario() {
   const t = useTraduccion();
 
   return (

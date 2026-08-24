@@ -6,7 +6,7 @@ from datetime import date
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import obtener_admin_actual
+from app.api.deps import requiere
 from app.db.session import get_db
 from app.schemas.estadistica import (
     DetalleIntento,
@@ -24,7 +24,7 @@ from app.services.estadistica_service import Filtros
 
 router = APIRouter(
     tags=["estadisticas"],
-    dependencies=[Depends(obtener_admin_actual)],
+    dependencies=[Depends(requiere("cuestionarios"))],
 )
 
 
@@ -162,6 +162,7 @@ async def listar_metas(db: AsyncSession = Depends(get_db)) -> list[MetaAreaOut]:
 
 @router.put(
     "/metas-area",
+    dependencies=[Depends(requiere("cuestionarios", editar=True))],
     response_model=list[MetaAreaOut],
     summary="Guarda las metas en lote",
 )

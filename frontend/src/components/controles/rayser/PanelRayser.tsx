@@ -16,12 +16,14 @@ import {
   registrarRayser,
 } from '@/lib/api';
 import { useIdioma } from '@/lib/i18n';
+import { useSesion } from '@/lib/sesion';
 import type { RangoRayser, RegistroRayser } from '@/lib/types';
 import { fechaDeHoy, formatearFechaIso, rangoDelMes } from '@/lib/utils';
 
 /** Control de presiones: captura del día e historial del mes. */
 export function PanelRayser() {
   const { t, locale } = useIdioma();
+  const { puede } = useSesion();
   const { mostrarToast } = useToast();
 
   const [rango, setRango] = useState<RangoRayser | null>(null);
@@ -208,6 +210,7 @@ export function PanelRayser() {
             registros={registros}
             onEliminar={setPorEliminar}
             totalManometros={rango?.manometros ?? 4}
+            puedeEditar={puede('controles', 'editar')}
           />
         )}
       </div>

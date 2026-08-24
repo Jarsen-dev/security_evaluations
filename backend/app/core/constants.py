@@ -44,3 +44,24 @@ def etiqueta_area(valor: str) -> str:
     cual en vez de fallar.
     """
     return ETIQUETAS_AREA.get(valor, valor)
+
+
+# --- Usuarios y permisos ---------------------------------------------------
+
+# Módulos sobre los que se otorgan permisos. Coinciden con las pestañas del
+# panel, que es como el administrador razona sobre ellos: "esta persona entra
+# a Controles, esta otra no".
+#
+# Inventario todavía no tiene endpoints propios; se declara desde ahora para
+# que el permiso exista el día que los tenga y no haya que migrar los JSON
+# de los usuarios ya capturados.
+MODULOS_PERMISO: Final[tuple[str, ...]] = (
+    "cuestionarios",
+    "controles",
+    "inventario",
+)
+
+# Longitud mínima de las contraseñas del panel. Vive aquí, y no en `cli.py`
+# ni en los schemas, para que la CLI y el alta desde la interfaz apliquen
+# exactamente la misma regla.
+LONGITUD_MINIMA_CONTRASENA: Final[int] = 8
