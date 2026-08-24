@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
 import { ErrorDeApi, obtenerDetalleIntento } from '@/lib/api';
+import { useIdioma } from '@/lib/i18n';
 import type { DetalleIntento } from '@/lib/types';
 import { cn } from '@/lib/utils';
 
@@ -15,11 +16,11 @@ interface ModalRespuestasProps {
   onCerrar: () => void;
 }
 
-function formatearFecha(iso: string | null): string {
+function formatearFecha(iso: string | null, locale: string, sinFinalizar: string): string {
   if (iso === null) {
-    return 'Sin finalizar';
+    return sinFinalizar;
   }
-  return new Date(iso).toLocaleString('es-MX', {
+  return new Date(iso).toLocaleString(locale, {
     day: '2-digit',
     month: '2-digit',
     year: 'numeric',
@@ -37,6 +38,8 @@ function formatearDuracion(segundos: number | null): string {
 
 /** Muestra lo que contestó una persona, marcando aciertos y errores. */
 export function ModalRespuestas({ intentoId, onCerrar }: ModalRespuestasProps) {
+  const { t, locale } = useIdioma();
+
   const [detalle, setDetalle] = useState<DetalleIntento | null>(null);
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState('');
@@ -62,7 +65,7 @@ export function ModalRespuestas({ intentoId, onCerrar }: ModalRespuestasProps) {
           setError(
             problema instanceof ErrorDeApi
               ? problema.message
-              : 'No se pudieron cargar las respuestas.',
+              : t('respuestas.falloCarga'),
           );
         }
       })
@@ -75,14 +78,14 @@ export function ModalRespuestas({ intentoId, onCerrar }: ModalRespuestasProps) {
     return () => {
       cancelado = true;
     };
-  }, [intentoId]);
+  }, [intentoId, t]);
 
   return (
     <Modal
       abierto={intentoId !== null}
       onCerrar={onCerrar}
       ancho="lg"
-      titulo={detalle ? detalle.nombre : 'Respuestas del intento'}
+      titulo={detalle ? detalle.nombre : t('respuestas.titulo')}
       descripcion={
         detalle
           ? `${detalle.numero_empleado} · ${detalle.area_label} · ${detalle.cuestionario_nombre}`
@@ -90,11 +93,13 @@ export function ModalRespuestas({ intentoId, onCerrar }: ModalRespuestasProps) {
       }
       pie={
         <Button variante="fantasma" onClick={onCerrar}>
-          Cerrar
+          {t('comun.cerrar')}
         </Button>
       }
     >
-      {cargando && <p className="py-8 text-center text-texto-suave">Cargando respuestas…</p>}
+      {cargando && (
+        <p className="py-8 text-center text-texto-suave">{t('comun.cargando')}</p>
+      )}
 
       {error && (
         <p
@@ -110,7 +115,7 @@ export function ModalRespuestas({ intentoId, onCerrar }: ModalRespuestasProps) {
           {/* --- Resumen del intento --- */}
           <div className="grid grid-cols-2 gap-4 rounded-tarjeta border border-borde bg-fondo p-4 sm:grid-cols-4">
             <div>
-              <p className="text-xs text-texto-tenue">Puntaje</p>
+              <p className="text-xs text-texto-tenue">{t('estadisticas.puntaje')}</p>
               <p
                 className={cn(
                   'text-2xl font-semibold',
@@ -124,7 +129,7 @@ export function ModalRespuestas({ intentoId, onCerrar }: ModalRespuestasProps) {
             </div>
 
             <div>
-              <p className="text-xs text-texto-tenue">Aciertos</p>
+              <p className="text-xs text-texto-tenue">{t('respuestas.aciertos')}</p>
               <p className="text-2xl font-semibold text-texto">
                 {detalle.correctas}
                 <span className="text-base text-texto-tenue">
@@ -134,27 +139,35 @@ export function ModalRespuestas({ intentoId, onCerrar }: ModalRespuestasProps) {
             </div>
 
             <div>
-              <p className="text-xs text-texto-tenue">Duración</p>
+              <p className="text-xs text-texto-tenue">{t('estadisticas.duracion')}</p>
               <p className="text-2xl font-semibold text-texto">
                 {formatearDuracion(detalle.duracion_segundos)}
               </p>
             </div>
 
             <div>
-              <p className="text-xs text-texto-tenue">Resultado</p>
+              <p className="text-xs text-texto-tenue">{t('respuestas.resultado')}</p>
               <div className="mt-1.5">
                 <Badge tono={detalle.aprobado ? 'exito' : 'error'}>
-                  {detalle.aprobado ? 'Aprobado' : 'No aprobado'}
+                  {detalle.aprobado
+                    ? t('estadisticas.aprobado')
+                    : t('estadisticas.noAprobado')}
                 </Badge>
               </div>
             </div>
           </div>
 
           <p className="text-sm text-texto-tenue">
-            Contestado el {formatearFecha(detalle.finalizado_at)} · umbral de
-            aprobación {detalle.umbral_aprobacion}%
+            {t('respuestas.contestado', {
+              fecha: formatearFecha(
+                detalle.finalizado_at,
+                locale,
+                t('estadisticas.sinFinalizar'),
+              ),
+              umbral: detalle.umbral_aprobacion,
+            })}
             {detalle.sin_responder > 0 &&
-              ` · ${detalle.sin_responder} pregunta(s) sin responder`}
+              ` · ${t('respuestas.sinResponder', { total: detalle.sin_responder })}`}
           </p>
 
           {/* --- Preguntas --- */}
@@ -180,10 +193,10 @@ export function ModalRespuestas({ intentoId, onCerrar }: ModalRespuestasProps) {
                     }
                   >
                     {pregunta.acerto
-                      ? 'Correcta'
+                      ? t('respuestas.correcta')
                       : pregunta.respondida
-                        ? 'Incorrecta'
-                        : 'Sin responder'}
+                        ? t('respuestas.incorrecta')
+                        : t('respuestas.noRespondida')}
                   </Badge>
                 </div>
 
@@ -215,12 +228,12 @@ export function ModalRespuestas({ intentoId, onCerrar }: ModalRespuestasProps) {
 
                         {opcion.elegida && (
                           <span className="shrink-0 text-xs uppercase tracking-wide">
-                            Su respuesta
+                            {t('respuestas.suRespuesta')}
                           </span>
                         )}
                         {correctaNoElegida && (
                           <span className="shrink-0 text-xs uppercase tracking-wide">
-                            Correcta
+                            {t('respuestas.correcta')}
                           </span>
                         )}
                       </li>

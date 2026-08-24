@@ -1,231 +1,72 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { Suspense } from 'react';
 
-import { DialogoConfirmacion } from '@/components/cuestionarios/DialogoConfirmacion';
-import { ModalCuestionario } from '@/components/cuestionarios/ModalCuestionario';
-import { ModalQR } from '@/components/cuestionarios/ModalQR';
-import { TarjetaCuestionario } from '@/components/cuestionarios/TarjetaCuestionario';
-import { Button } from '@/components/ui/Button';
-import { useToast } from '@/components/ui/Toast';
-import { copiarAlPortapapeles } from '@/lib/navegador';
-import {
-  ErrorDeApi,
-  actualizarCuestionario,
-  descargarCuestionarioPdf,
-  duplicarCuestionario,
-  eliminarCuestionario,
-  listarCuestionarios,
-} from '@/lib/api';
-import type { CuestionarioResumen } from '@/lib/types';
+import { PanelCuestionarios } from '@/components/cuestionarios/PanelCuestionarios';
+import { PanelEstadisticas } from '@/components/estadisticas/PanelEstadisticas';
+import { Pestanas } from '@/components/ui/Pestanas';
+import { useTraduccion } from '@/lib/i18n';
 
+type Vista = 'cuestionarios' | 'estadisticas';
+
+function esVista(valor: string | null): valor is Vista {
+  return valor === 'cuestionarios' || valor === 'estadisticas';
+}
+
+/**
+ * Cuestionarios y Estadísticas, en dos pestañas internas.
+ *
+ * La pestaña activa viaja en la query (`?vista=estadisticas`) y no en el
+ * estado: así la liga se puede compartir y sobrevive a una recarga.
+ */
 export default function PaginaCuestionarios() {
-  const { mostrarToast } = useToast();
+  return (
+    // `useSearchParams` obliga a un límite de Suspense para que Next pueda
+    // prerenderizar la ruta.
+    <Suspense fallback={null}>
+      <ContenidoCuestionarios />
+    </Suspense>
+  );
+}
 
-  const [cuestionarios, setCuestionarios] = useState<CuestionarioResumen[]>([]);
-  const [cargando, setCargando] = useState(true);
-  const [errorCarga, setErrorCarga] = useState('');
+function ContenidoCuestionarios() {
+  const t = useTraduccion();
+  const router = useRouter();
+  const parametros = useSearchParams();
 
-  const [modalAbierto, setModalAbierto] = useState(false);
-  const [editandoId, setEditandoId] = useState<string | null>(null);
-  const [porEliminar, setPorEliminar] = useState<CuestionarioResumen | null>(null);
-  const [eliminando, setEliminando] = useState(false);
-  const [qrDe, setQrDe] = useState<CuestionarioResumen | null>(null);
-  const [imprimiendoId, setImprimiendoId] = useState<string | null>(null);
+  const vistaParametro = parametros.get('vista');
+  const vista: Vista = esVista(vistaParametro) ? vistaParametro : 'cuestionarios';
 
-  const cargar = useCallback(async () => {
-    try {
-      setCuestionarios(await listarCuestionarios());
-      setErrorCarga('');
-    } catch (error) {
-      setErrorCarga(
-        error instanceof ErrorDeApi
-          ? error.message
-          : 'No se pudieron cargar los cuestionarios.',
-      );
-    } finally {
-      setCargando(false);
-    }
-  }, []);
+  function cambiar(clave: string) {
+    const nuevos = new URLSearchParams(parametros.toString());
 
-  useEffect(() => {
-    void cargar();
-  }, [cargar]);
-
-  function abrirCreacion() {
-    setEditandoId(null);
-    setModalAbierto(true);
-  }
-
-  function abrirEdicion(id: string) {
-    setEditandoId(id);
-    setModalAbierto(true);
-  }
-
-  async function duplicar(cuestionario: CuestionarioResumen) {
-    try {
-      await duplicarCuestionario(cuestionario.id);
-      await cargar();
-      mostrarToast('Cuestionario duplicado. La copia queda inactiva.', 'exito');
-    } catch (error) {
-      mostrarToast(
-        error instanceof ErrorDeApi ? error.message : 'No se pudo duplicar.',
-        'error',
-      );
-    }
-  }
-
-  async function alternarActivo(cuestionario: CuestionarioResumen) {
-    try {
-      await actualizarCuestionario(cuestionario.id, { activo: !cuestionario.activo });
-      await cargar();
-      mostrarToast(
-        cuestionario.activo
-          ? 'Cuestionario desactivado. La liga pública deja de aceptar respuestas.'
-          : 'Cuestionario activado.',
-        'exito',
-      );
-    } catch (error) {
-      mostrarToast(
-        error instanceof ErrorDeApi
-          ? error.message
-          : 'No se pudo cambiar el estado.',
-        'error',
-      );
-    }
-  }
-
-  async function copiarLiga(cuestionario: CuestionarioResumen) {
-    const base = (process.env.NEXT_PUBLIC_BASE_URL ?? '').replace(/\/$/, '');
-    const url = `${base}/r/${cuestionario.token_publico}`;
-
-    if (await copiarAlPortapapeles(url)) {
-      mostrarToast('Liga copiada al portapapeles.', 'exito');
+    if (clave === 'cuestionarios') {
+      nuevos.delete('vista');
     } else {
-      mostrarToast(`Copia la liga manualmente: ${url}`, 'error');
+      nuevos.set('vista', clave);
     }
+
+    const consulta = nuevos.toString();
+    // `scroll: false` evita el salto al inicio al cambiar de pestaña.
+    router.replace(consulta ? `/cuestionarios?${consulta}` : '/cuestionarios', {
+      scroll: false,
+    });
   }
-
-  async function imprimir(cuestionario: CuestionarioResumen) {
-    setImprimiendoId(cuestionario.id);
-
-    try {
-      await descargarCuestionarioPdf(cuestionario.id);
-      mostrarToast('PDF descargado. Ábrelo para elegir la impresora.', 'exito');
-    } catch (error) {
-      mostrarToast(
-        error instanceof ErrorDeApi ? error.message : 'No se pudo generar el PDF.',
-        'error',
-      );
-    } finally {
-      setImprimiendoId(null);
-    }
-  }
-
-  async function confirmarEliminacion() {
-    if (porEliminar === null) {
-      return;
-    }
-
-    setEliminando(true);
-
-    try {
-      await eliminarCuestionario(porEliminar.id);
-      await cargar();
-      mostrarToast('Cuestionario eliminado.', 'exito');
-      setPorEliminar(null);
-    } catch (error) {
-      mostrarToast(
-        error instanceof ErrorDeApi ? error.message : 'No se pudo eliminar.',
-        'error',
-      );
-    } finally {
-      setEliminando(false);
-    }
-  }
-
-  const respuestasDelEditado =
-    cuestionarios.find((c) => c.id === editandoId)?.total_respuestas ?? 0;
 
   return (
-    <section>
-      <div className="mb-6 flex items-center justify-between gap-4">
-        <h1 className="text-xl font-semibold text-texto">Cuestionarios</h1>
-        <Button onClick={abrirCreacion}>Nuevo cuestionario</Button>
-      </div>
-
-      {cargando && <p className="text-texto-suave">Cargando cuestionarios…</p>}
-
-      {!cargando && errorCarga && (
-        <p
-          role="alert"
-          className="rounded-tarjeta border border-error bg-error-suave p-4 text-sm text-error"
-        >
-          {errorCarga}
-        </p>
-      )}
-
-      {!cargando && !errorCarga && cuestionarios.length === 0 && (
-        <div className="rounded-tarjeta border border-dashed border-borde p-10 text-center">
-          <p className="text-texto-suave">Todavía no hay cuestionarios.</p>
-          <p className="mt-1 text-sm text-texto-tenue">
-            Crea el primero con el botón “Nuevo cuestionario”.
-          </p>
-        </div>
-      )}
-
-      {!cargando && cuestionarios.length > 0 && (
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          {cuestionarios.map((cuestionario) => (
-            <TarjetaCuestionario
-              key={cuestionario.id}
-              cuestionario={cuestionario}
-              onEditar={() => abrirEdicion(cuestionario.id)}
-              onVerQR={() => setQrDe(cuestionario)}
-              onCopiarLiga={() => void copiarLiga(cuestionario)}
-              onImprimir={() => void imprimir(cuestionario)}
-              imprimiendo={imprimiendoId === cuestionario.id}
-              onDuplicar={() => void duplicar(cuestionario)}
-              onAlternarActivo={() => void alternarActivo(cuestionario)}
-              onEliminar={() => setPorEliminar(cuestionario)}
-            />
-          ))}
-        </div>
-      )}
-
-      <ModalCuestionario
-        abierto={modalAbierto}
-        cuestionarioId={editandoId}
-        totalRespuestas={respuestasDelEditado}
-        onCerrar={() => setModalAbierto(false)}
-        onGuardado={(_, esNuevo) => {
-          setModalAbierto(false);
-          void cargar();
-          mostrarToast(
-            esNuevo ? 'Cuestionario creado.' : 'Cambios guardados.',
-            'exito',
-          );
-        }}
+    <div className="flex flex-col gap-6">
+      <Pestanas
+        etiqueta={t('cuestionarios.pestanas')}
+        activa={vista}
+        onCambiar={cambiar}
+        pestanas={[
+          { clave: 'cuestionarios', etiqueta: t('cuestionarios.pestanaCuestionarios') },
+          { clave: 'estadisticas', etiqueta: t('cuestionarios.pestanaEstadisticas') },
+        ]}
       />
 
-      <ModalQR
-        abierto={qrDe !== null}
-        cuestionario={qrDe}
-        onCerrar={() => setQrDe(null)}
-      />
-
-      <DialogoConfirmacion
-        abierto={porEliminar !== null}
-        titulo="Eliminar cuestionario"
-        mensaje={
-          porEliminar
-            ? `Se eliminará “${porEliminar.nombre}” junto con sus ${porEliminar.total_preguntas} pregunta(s) y ${porEliminar.total_respuestas} respuesta(s). Esta acción no se puede deshacer.`
-            : ''
-        }
-        procesando={eliminando}
-        onConfirmar={() => void confirmarEliminacion()}
-        onCancelar={() => setPorEliminar(null)}
-      />
-    </section>
+      {vista === 'cuestionarios' ? <PanelCuestionarios /> : <PanelEstadisticas />}
+    </div>
   );
 }

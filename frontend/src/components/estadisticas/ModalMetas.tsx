@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
 import { useToast } from '@/components/ui/Toast';
 import { ErrorDeApi, guardarMetas, obtenerMetas } from '@/lib/api';
+import { useTraduccion } from '@/lib/i18n';
 import type { MetaArea } from '@/lib/types';
 
 interface ModalMetasProps {
@@ -21,6 +22,7 @@ interface ModalMetasProps {
  * muestra el conteo absoluto y oculta el porcentaje.
  */
 export function ModalMetas({ abierto, onCerrar, onGuardado }: ModalMetasProps) {
+  const t = useTraduccion();
   const { mostrarToast } = useToast();
 
   const [metas, setMetas] = useState<MetaArea[]>([]);
@@ -56,7 +58,7 @@ export function ModalMetas({ abierto, onCerrar, onGuardado }: ModalMetasProps) {
           setError(
             problema instanceof ErrorDeApi
               ? problema.message
-              : 'No se pudieron cargar las metas.',
+              : t('metas.falloCarga'),
           );
         }
       })
@@ -69,7 +71,7 @@ export function ModalMetas({ abierto, onCerrar, onGuardado }: ModalMetasProps) {
     return () => {
       cancelado = true;
     };
-  }, [abierto]);
+  }, [abierto, t]);
 
   async function guardar() {
     setError('');
@@ -86,21 +88,21 @@ export function ModalMetas({ abierto, onCerrar, onGuardado }: ModalMetasProps) {
     );
 
     if (invalidos.length > 0) {
-      setError('El headcount debe ser un número entero mayor o igual a cero.');
+      setError(t('metas.invalido'));
       setGuardando(false);
       return;
     }
 
     try {
       await guardarMetas(aEnviar);
-      mostrarToast('Metas guardadas.', 'exito');
+      mostrarToast(t('metas.guardadas'), 'exito');
       onGuardado();
       onCerrar();
     } catch (problema) {
       setError(
         problema instanceof ErrorDeApi
           ? problema.message
-          : 'No se pudieron guardar las metas.',
+          : t('metas.falloGuardado'),
       );
       setGuardando(false);
     }
@@ -110,8 +112,8 @@ export function ModalMetas({ abierto, onCerrar, onGuardado }: ModalMetasProps) {
     <Modal
       abierto={abierto}
       onCerrar={onCerrar}
-      titulo="Metas de participación por área"
-      descripcion="Cuántas personas hay en cada área. Es el denominador del nivel de participación."
+      titulo={t('metas.titulo')}
+      descripcion={t('metas.descripcion')}
       pie={
         <>
           {error && (
@@ -120,16 +122,16 @@ export function ModalMetas({ abierto, onCerrar, onGuardado }: ModalMetasProps) {
             </p>
           )}
           <Button variante="fantasma" onClick={onCerrar}>
-            Cancelar
+            {t('comun.cancelar')}
           </Button>
           <Button onClick={() => void guardar()} cargando={guardando}>
-            Guardar metas
+            {t('metas.guardar')}
           </Button>
         </>
       }
     >
       {cargando ? (
-        <p className="py-6 text-center text-texto-suave">Cargando metas…</p>
+        <p className="py-6 text-center text-texto-suave">{t('comun.cargando')}</p>
       ) : (
         <div className="flex flex-col gap-3">
           {metas.map((meta) => (
@@ -152,10 +154,10 @@ export function ModalMetas({ abierto, onCerrar, onGuardado }: ModalMetasProps) {
                     [meta.area]: evento.target.value,
                   }))
                 }
-                placeholder="Sin capturar"
+                placeholder={t('metas.sinCapturar')}
                 className="h-10 w-32 rounded-md border border-borde bg-fondo px-3 text-sm text-texto placeholder:text-texto-tenue focus:border-primario"
               />
-              <span className="text-sm text-texto-tenue">personas</span>
+              <span className="text-sm text-texto-tenue">{t('metas.personas')}</span>
             </div>
           ))}
         </div>

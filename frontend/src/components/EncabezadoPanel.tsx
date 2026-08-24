@@ -4,19 +4,24 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
+import { SelectorIdioma } from '@/components/SelectorIdioma';
 import { Button } from '@/components/ui/Button';
 import { Logo } from '@/components/ui/Logo';
 import { ErrorDeApi, cerrarSesion, obtenerAdminActual } from '@/lib/api';
+import { useTraduccion, type ClaveTraduccion } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
 
-const PESTANAS = [
-  { href: '/cuestionarios', etiqueta: 'Cuestionarios' },
-  { href: '/estadisticas', etiqueta: 'Estadísticas' },
-] as const;
+// Estadísticas ya no es una pestaña principal: vive dentro de Cuestionarios.
+const PESTANAS: ReadonlyArray<{ href: string; clave: ClaveTraduccion }> = [
+  { href: '/cuestionarios', clave: 'encabezado.cuestionarios' },
+  { href: '/controles', clave: 'encabezado.controles' },
+  { href: '/inventario', clave: 'encabezado.inventario' },
+];
 
 export function EncabezadoPanel() {
   const pathname = usePathname();
   const router = useRouter();
+  const t = useTraduccion();
 
   const [usuario, setUsuario] = useState<string | null>(null);
   const [saliendo, setSaliendo] = useState(false);
@@ -83,11 +88,11 @@ export function EncabezadoPanel() {
         <div className="flex items-center gap-3">
           <Logo alto={30} sobreFondoOscuro />
           <span className="hidden text-sm font-semibold text-texto sm:inline">
-            Evaluación de Conocimientos
+            {t('encabezado.titulo')}
           </span>
         </div>
 
-        <nav className="flex gap-1" aria-label="Secciones del panel">
+        <nav className="flex gap-1" aria-label={t('encabezado.secciones')}>
           {PESTANAS.map((pestana) => {
             const activa = pathname.startsWith(pestana.href);
             return (
@@ -102,21 +107,24 @@ export function EncabezadoPanel() {
                     : 'text-texto-suave hover:bg-fondo-sutil hover:text-texto',
                 )}
               >
-                {pestana.etiqueta}
+                {t(pestana.clave)}
               </Link>
             );
           })}
         </nav>
 
         <div className="flex items-center gap-3">
-          {usuario && <span className="text-sm text-texto-suave">{usuario}</span>}
+          <SelectorIdioma />
+          {usuario && (
+            <span className="hidden text-sm text-texto-suave sm:inline">{usuario}</span>
+          )}
           <Button
             variante="fantasma"
             tamano="sm"
             onClick={manejarCerrarSesion}
             cargando={saliendo}
           >
-            Salir
+            {t('encabezado.salir')}
           </Button>
         </div>
       </div>

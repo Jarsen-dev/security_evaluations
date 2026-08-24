@@ -359,3 +359,75 @@ export type ColumnaOrdenable =
   | 'area'
   | 'finalizado_at'
   | 'puntaje';
+
+// --- Controles ESH ---------------------------------------------------------
+
+/** Clasificación de una lectura de manómetro, calculada en el servidor. */
+export type SemaforoRayser = 'verde' | 'rojo' | 'naranja';
+
+export interface LecturaManometro {
+  valor: string;
+  semaforo: SemaforoRayser;
+}
+
+/** Registro diario del control de presiones. No incluye la foto. */
+export interface RegistroRayser {
+  id: string;
+  fecha: string;
+  manometros: LecturaManometro[];
+  observaciones: string | null;
+  tiene_foto: boolean;
+  fuera_de_rango: boolean;
+  responsable: string;
+  creado_at: string;
+}
+
+/** Rango de operación de los manómetros, servido por la API. */
+export interface RangoRayser {
+  minimo: string;
+  maximo: string;
+  normal: string;
+  manometros: number;
+}
+
+/** Respuestas posibles de un punto de la inspección de SQP. */
+export type ValorSqp = 'si' | 'no' | 'na';
+
+export interface PuntoSqp {
+  orden: number;
+  codigo: string;
+  seccion: string;
+  texto: string;
+}
+
+export interface CatalogoSqp {
+  secciones: string[];
+  puntos: PuntoSqp[];
+  renglones_sustancias: number;
+}
+
+export interface RespuestaSqpPayload {
+  orden: number;
+  valor: ValorSqp;
+  observaciones?: string | null;
+}
+
+export interface InspeccionSqpPayload {
+  fecha: string;
+  area: string;
+  encargado: string;
+  cargo?: string | null;
+  sustancias?: string | null;
+  respuestas: RespuestaSqpPayload[];
+}
+
+export interface InspeccionSqpResumen {
+  id: string;
+  fecha: string;
+  area: string;
+  area_label: string;
+  encargado: string;
+  responsable: string;
+  total_no: number;
+  creado_at: string;
+}

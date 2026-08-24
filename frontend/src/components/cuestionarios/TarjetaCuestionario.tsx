@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
+import { useTraduccion } from '@/lib/i18n';
 import type { CuestionarioResumen } from '@/lib/types';
 
 interface TarjetaCuestionarioProps {
@@ -30,6 +31,7 @@ export function TarjetaCuestionario({
   onAlternarActivo,
   onEliminar,
 }: TarjetaCuestionarioProps) {
+  const t = useTraduccion();
   const [menuAbierto, setMenuAbierto] = useState(false);
   const contenedorMenu = useRef<HTMLDivElement>(null);
 
@@ -83,7 +85,7 @@ export function TarjetaCuestionario({
 
         <div className="flex shrink-0 items-center gap-1">
           <Badge tono={cuestionario.activo ? 'exito' : 'neutro'}>
-            {cuestionario.activo ? 'Activo' : 'Inactivo'}
+            {cuestionario.activo ? t('cuestionarios.activo') : t('cuestionarios.inactivo')}
           </Badge>
 
           <div className="relative" ref={contenedorMenu}>
@@ -93,7 +95,7 @@ export function TarjetaCuestionario({
               onClick={() => setMenuAbierto((previo) => !previo)}
               aria-haspopup="menu"
               aria-expanded={menuAbierto}
-              aria-label={`Más acciones para ${cuestionario.nombre}`}
+              aria-label={t('cuestionarios.masAcciones', { nombre: cuestionario.nombre })}
             >
               ⋮
             </Button>
@@ -109,7 +111,7 @@ export function TarjetaCuestionario({
                   onClick={() => ejecutar(onDuplicar)}
                   className="block w-full px-4 py-2 text-left text-sm text-texto hover:bg-fondo-sutil"
                 >
-                  Duplicar
+                  {t('comun.duplicar')}
                 </button>
 
                 <button
@@ -118,7 +120,9 @@ export function TarjetaCuestionario({
                   onClick={() => ejecutar(onAlternarActivo)}
                   className="block w-full px-4 py-2 text-left text-sm text-texto hover:bg-fondo-sutil"
                 >
-                  {cuestionario.activo ? 'Desactivar' : 'Activar'}
+                  {cuestionario.activo
+                    ? t('cuestionarios.desactivar')
+                    : t('cuestionarios.activar')}
                 </button>
 
                 <button
@@ -127,7 +131,7 @@ export function TarjetaCuestionario({
                   onClick={() => ejecutar(onEliminar)}
                   className="block w-full px-4 py-2 text-left text-sm text-error hover:bg-error-suave"
                 >
-                  Eliminar
+                  {t('comun.eliminar')}
                 </button>
               </div>
             )}
@@ -137,18 +141,18 @@ export function TarjetaCuestionario({
 
       <dl className="flex gap-6 text-sm">
         <div>
-          <dt className="text-texto-tenue">Preguntas</dt>
+          <dt className="text-texto-tenue">{t('cuestionarios.preguntas')}</dt>
           <dd className="font-medium text-texto">{cuestionario.total_preguntas}</dd>
         </div>
         <div>
-          <dt className="text-texto-tenue">Respuestas</dt>
+          <dt className="text-texto-tenue">{t('cuestionarios.respuestas')}</dt>
           <dd className="font-medium text-texto">{cuestionario.total_respuestas}</dd>
         </div>
       </dl>
 
       <div className="flex flex-wrap items-center gap-2">
         <Button variante="secundario" tamano="sm" onClick={onEditar}>
-          Editar
+          {t('comun.editar')}
         </Button>
 
         <Button variante="secundario" tamano="sm" onClick={onVerQR}>
@@ -159,9 +163,9 @@ export function TarjetaCuestionario({
           variante="secundario"
           tamano="sm"
           onClick={onCopiarLiga}
-          title="Copia la liga para abrirla desde una PC"
+          title={t('cuestionarios.ligaAyuda')}
         >
-          Liga escritorio
+          {t('cuestionarios.liga')}
         </Button>
 
         <Button
@@ -172,11 +176,11 @@ export function TarjetaCuestionario({
           disabled={cuestionario.total_preguntas === 0}
           title={
             cuestionario.total_preguntas === 0
-              ? 'El cuestionario no tiene preguntas que imprimir'
-              : 'Descarga el PDF para contestarlo en papel'
+              ? t('cuestionarios.sinPreguntasImprimir')
+              : t('cuestionarios.imprimirAyuda')
           }
         >
-          Imprimir
+          {t('cuestionarios.imprimir')}
         </Button>
 
       </div>

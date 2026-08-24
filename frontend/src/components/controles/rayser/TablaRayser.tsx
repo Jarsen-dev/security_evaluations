@@ -1,0 +1,126 @@
+'use client';
+
+import {
+  CLASES_SEMAFORO,
+  CLAVES_SEMAFORO,
+} from '@/components/controles/rayser/semaforo';
+import { Button } from '@/components/ui/Button';
+import { useIdioma } from '@/lib/i18n';
+import { urlFotoRayser } from '@/lib/api';
+import type { RegistroRayser } from '@/lib/types';
+import { cn, formatearFechaIso } from '@/lib/utils';
+
+interface TablaRayserProps {
+  registros: RegistroRayser[];
+  onEliminar: (registro: RegistroRayser) => void;
+  totalManometros: number;
+}
+
+export function TablaRayser({
+  registros,
+  onEliminar,
+  totalManometros,
+}: TablaRayserProps) {
+  const { t, locale } = useIdioma();
+
+  if (registros.length === 0) {
+    return (
+      <p className="rounded-tarjeta border border-borde bg-fondo-elevado px-4 py-8 text-center text-sm text-texto-suave">
+        {t('rayser.historialVacio')}
+      </p>
+    );
+  }
+
+  return (
+    <div className="overflow-x-auto rounded-tarjeta border border-borde">
+      <table className="w-full min-w-[52rem] border-collapse text-sm">
+        <thead className="bg-fondo-sutil text-left text-texto-suave">
+          <tr>
+            <th className="px-3 py-2 font-medium">{t('comun.fecha')}</th>
+            {Array.from({ length: totalManometros }, (unused, indice) => (
+              <th key={indice} className="px-3 py-2 text-center font-medium">
+                {t('rayser.manometro', { numero: indice + 1 })}
+              </th>
+            ))}
+            <th className="px-3 py-2 font-medium">{t('comun.observaciones')}</th>
+            <th className="px-3 py-2 font-medium">{t('comun.responsable')}</th>
+            <th className="px-3 py-2 font-medium">{t('rayser.evidencia')}</th>
+            <th className="px-3 py-2 font-medium">
+              <span className="sr-only">{t('comun.acciones')}</span>
+            </th>
+          </tr>
+        </thead>
+
+        <tbody>
+          {registros.map((registro) => (
+            <tr key={registro.id} className="border-t border-borde align-top">
+              <td className="whitespace-nowrap px-3 py-2 text-texto">
+                {formatearFechaIso(registro.fecha, locale)}
+              </td>
+
+              {registro.manometros.map((lectura, indice) => (
+                <td key={indice} className="px-2 py-2 text-center">
+                  <span
+                    className={cn(
+                      'inline-flex min-w-[4.5rem] flex-col rounded-md border px-2 py-1',
+                      CLASES_SEMAFORO[lectura.semaforo],
+                    )}
+                  >
+                    <span className="font-medium">{lectura.valor}</span>
+                    {/* El color no basta: se rotula si quedó baja o alta. */}
+                    {lectura.semaforo !== 'verde' && (
+                      <span className="text-xs">
+                        {t(CLAVES_SEMAFORO[lectura.semaforo])}
+                      </span>
+                    )}
+                  </span>
+                </td>
+              ))}
+
+              <td className="max-w-xs px-3 py-2 text-texto-suave">
+                {registro.observaciones ?? '—'}
+              </td>
+
+              <td className="whitespace-nowrap px-3 py-2 text-texto-suave">
+                {registro.responsable}
+              </td>
+
+              <td className="px-3 py-2">
+                {registro.tiene_foto ? (
+                  <a
+                    href={urlFotoRayser(registro.id)}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-block overflow-hidden rounded-md border border-borde"
+                    title={t('rayser.verEvidencia')}
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element -- la
+                        imagen la sirve la API con la cookie de sesión; next/image
+                        no puede optimizar una ruta protegida. */}
+                    <img
+                      src={urlFotoRayser(registro.id)}
+                      alt={t('rayser.verEvidencia')}
+                      className="h-12 w-16 object-cover"
+                    />
+                  </a>
+                ) : (
+                  <span className="text-texto-tenue">—</span>
+                )}
+              </td>
+
+              <td className="px-3 py-2 text-right">
+                <Button
+                  variante="fantasma"
+                  tamano="sm"
+                  onClick={() => onEliminar(registro)}
+                >
+                  {t('comun.eliminar')}
+                </Button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}

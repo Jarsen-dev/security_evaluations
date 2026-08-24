@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
 import { useToast } from '@/components/ui/Toast';
 import { ErrorDeApi, obtenerConfigWifi } from '@/lib/api';
+import { useTraduccion } from '@/lib/i18n';
 import { copiarAlPortapapeles } from '@/lib/navegador';
 import type { ConfigWifi, CuestionarioResumen } from '@/lib/types';
 import { contenidoQrWifi } from '@/lib/wifi';
@@ -54,6 +55,7 @@ function descargarLienzo(lienzo: HTMLCanvasElement | null, nombre: string): void
 }
 
 export function ModalQR({ abierto, cuestionario, onCerrar }: ModalQRProps) {
+  const t = useTraduccion();
   const { mostrarToast } = useToast();
 
   const lienzoCuestionario = useRef<HTMLCanvasElement>(null);
@@ -73,9 +75,9 @@ export function ModalQR({ abierto, cuestionario, onCerrar }: ModalQRProps) {
     }
 
     QRCode.toCanvas(lienzoCuestionario.current, url, OPCIONES_QR).catch(() => {
-      setError('No se pudo generar el código QR del cuestionario.');
+      setError(t('qr.falloCuestionario'));
     });
-  }, [abierto, cuestionario, url]);
+  }, [abierto, cuestionario, url, t]);
 
   // --- Configuración de la red ---
   useEffect(() => {
@@ -97,7 +99,7 @@ export function ModalQR({ abierto, cuestionario, onCerrar }: ModalQRProps) {
         if (!cancelado) {
           setWifi(null);
           if (problema instanceof ErrorDeApi && problema.status !== 401) {
-            setError('No se pudo cargar la configuración de la red WiFi.');
+            setError(t('qr.falloWifi'));
           }
         }
       });
@@ -105,7 +107,7 @@ export function ModalQR({ abierto, cuestionario, onCerrar }: ModalQRProps) {
     return () => {
       cancelado = true;
     };
-  }, [abierto]);
+  }, [abierto, t]);
 
   const contenidoWifi = wifi ? contenidoQrWifi(wifi) : null;
 
@@ -116,30 +118,30 @@ export function ModalQR({ abierto, cuestionario, onCerrar }: ModalQRProps) {
     }
 
     QRCode.toCanvas(lienzoWifi.current, contenidoWifi, OPCIONES_QR).catch(() => {
-      setError('No se pudo generar el código QR de la red.');
+      setError(t('qr.falloQrRed'));
     });
-  }, [abierto, contenidoWifi]);
+  }, [abierto, contenidoWifi, t]);
 
   const copiarLiga = useCallback(async () => {
     if (await copiarAlPortapapeles(url)) {
-      mostrarToast('Liga copiada al portapapeles.', 'exito');
+      mostrarToast(t('qr.ligaCopiada'), 'exito');
     } else {
       // La liga ya está visible en el modal, así que se puede seleccionar
       // a mano si hasta el respaldo falla.
-      mostrarToast('No se pudo copiar. Selecciona la liga de arriba.', 'error');
+      mostrarToast(t('qr.falloCopia'), 'error');
     }
-  }, [mostrarToast, url]);
+  }, [mostrarToast, url, t]);
 
   return (
     <Modal
       abierto={abierto}
       onCerrar={onCerrar}
       ancho="md"
-      titulo="Códigos QR"
+      titulo={t('qr.titulo')}
       descripcion={cuestionario?.nombre}
       pie={
         <Button variante="fantasma" onClick={onCerrar}>
-          Cerrar
+          {t('comun.cerrar')}
         </Button>
       }
     >
@@ -149,10 +151,8 @@ export function ModalQR({ abierto, cuestionario, onCerrar }: ModalQRProps) {
             role="alert"
             className="rounded-md border border-alerta bg-alerta-suave px-3 py-2 text-sm text-texto-suave"
           >
-            <span className="font-medium text-alerta">Advertencia: </span>
-            la liga apunta a <code>{BASE_URL}</code>. Este código QR no
-            funcionará desde un celular. Configura <code>NEXT_PUBLIC_BASE_URL</code>{' '}
-            con la IP del servidor en la LAN y reconstruye el frontend.
+            <span className="font-medium text-alerta">{t('qr.advertencia')} </span>
+            {t('qr.baseLocal', { url: BASE_URL })}
           </p>
         )}
 
@@ -166,10 +166,8 @@ export function ModalQR({ abierto, cuestionario, onCerrar }: ModalQRProps) {
           {/* --- Cuestionario --- */}
           <section className="flex flex-col items-center gap-3 rounded-tarjeta border border-borde p-4">
             <div className="text-center">
-              <h3 className="font-medium text-texto">Cuestionario</h3>
-              <p className="text-xs text-texto-tenue">
-                Escanear para contestar
-              </p>
+              <h3 className="font-medium text-texto">{t('qr.cuestionario')}</h3>
+              <p className="text-xs text-texto-tenue">{t('qr.escanearContestar')}</p>
             </div>
 
             <div className="rounded-lg bg-white p-2.5">
@@ -191,10 +189,10 @@ export function ModalQR({ abierto, cuestionario, onCerrar }: ModalQRProps) {
                   )
                 }
               >
-                Descargar PNG
+                {t('qr.descargarPng')}
               </Button>
               <Button tamano="sm" onClick={() => void copiarLiga()}>
-                Copiar liga
+                {t('qr.copiarLiga')}
               </Button>
             </div>
           </section>
@@ -202,10 +200,8 @@ export function ModalQR({ abierto, cuestionario, onCerrar }: ModalQRProps) {
           {/* --- Red WiFi --- */}
           <section className="flex flex-col items-center gap-3 rounded-tarjeta border border-borde p-4">
             <div className="text-center">
-              <h3 className="font-medium text-texto">Red WiFi</h3>
-              <p className="text-xs text-texto-tenue">
-                Escanear para conectarse
-              </p>
+              <h3 className="font-medium text-texto">{t('qr.red')}</h3>
+              <p className="text-xs text-texto-tenue">{t('qr.escanearConectar')}</p>
             </div>
 
             {contenidoWifi !== null && wifi !== null ? (
@@ -229,30 +225,23 @@ export function ModalQR({ abierto, cuestionario, onCerrar }: ModalQRProps) {
                       )
                     }
                   >
-                    Descargar PNG
+                    {t('qr.descargarPng')}
                   </Button>
                 </div>
               </>
             ) : (
               <div className="flex flex-1 items-center">
                 <p className="text-center text-sm text-texto-tenue">
-                  No hay una red configurada.
+                  {t('qr.sinRed')}
                   <br />
-                  <span className="text-xs">
-                    Captura <code>WIFI_SSID</code> y <code>WIFI_PASSWORD</code>{' '}
-                    en el archivo <code>.env</code> del servidor y reinicia el
-                    backend.
-                  </span>
+                  <span className="text-xs">{t('qr.sinRedDetalle')}</span>
                 </p>
               </div>
             )}
           </section>
         </div>
 
-        <p className="text-center text-xs text-texto-tenue">
-          Imprime ambos códigos juntos y pégalos en el área: primero la red,
-          después el cuestionario.
-        </p>
+        <p className="text-center text-xs text-texto-tenue">{t('qr.nota')}</p>
       </div>
     </Modal>
   );

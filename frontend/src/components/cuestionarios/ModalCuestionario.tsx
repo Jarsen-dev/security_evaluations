@@ -7,6 +7,7 @@ import {
   nuevoIdLocal,
   preguntaVacia,
 } from '@/components/cuestionarios/ConstructorPreguntas';
+import { useTraduccion, type ClaveTraduccion } from '@/lib/i18n';
 import type { ErroresPregunta } from '@/components/cuestionarios/TarjetaPregunta';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -73,14 +74,19 @@ function aPayload(preguntas: PreguntaBorrador[]): PreguntaPayload[] {
  * El servidor vuelve a validarlas: esto solo evita un viaje de ida y vuelta
  * y permite señalar el error justo debajo del campo que lo causa.
  */
-function validar(preguntas: PreguntaBorrador[]): Record<string, ErroresPregunta> {
+function validar(
+  preguntas: PreguntaBorrador[],
+  // La validación vive fuera del componente, así que recibe el traductor en
+  // lugar de llamar al hook.
+  t: (clave: ClaveTraduccion, valores?: Record<string, string | number>) => string,
+): Record<string, ErroresPregunta> {
   const errores: Record<string, ErroresPregunta> = {};
 
   for (const pregunta of preguntas) {
     const problemas: ErroresPregunta = {};
 
     if (pregunta.texto.trim().length === 0) {
-      problemas.texto = 'Escribe el texto de la pregunta.';
+      problemas.texto = t('modalCuestionario.faltaTexto');
     }
 
     const conTexto = pregunta.opciones.filter(
@@ -89,11 +95,13 @@ function validar(preguntas: PreguntaBorrador[]): Record<string, ErroresPregunta>
     const correctas = conTexto.filter((opcion) => opcion.es_correcta);
 
     if (conTexto.length < MIN_OPCIONES) {
-      problemas.opciones = `Se requieren mínimo ${MIN_OPCIONES} opciones con texto.`;
+      problemas.opciones = t('modalCuestionario.minimoOpciones', {
+        total: MIN_OPCIONES,
+      });
     } else if (correctas.length === 0) {
-      problemas.opciones = 'Marca cuál es la opción correcta.';
+      problemas.opciones = t('modalCuestionario.faltaCorrecta');
     } else if (correctas.length > 1) {
-      problemas.opciones = 'Solo puede haber una opción correcta.';
+      problemas.opciones = t('modalCuestionario.correctaUnica');
     }
 
     if (problemas.texto || problemas.opciones) {
@@ -111,6 +119,7 @@ export function ModalCuestionario({
   onCerrar,
   onGuardado,
 }: ModalCuestionarioProps) {
+  const t = useTraduccion();
   const esEdicion = cuestionarioId !== null;
 
   const [paso, setPaso] = useState<1 | 2>(1);
@@ -163,7 +172,7 @@ export function ModalCuestionario({
           setErrorGeneral(
             error instanceof ErrorDeApi
               ? error.message
-              : 'No se pudo cargar el cuestionario.',
+              : t('modalCuestionario.falloCarga'),
           );
         }
       })
@@ -176,20 +185,20 @@ export function ModalCuestionario({
     return () => {
       cancelado = true;
     };
-  }, [abierto, cuestionarioId]);
+  }, [abierto, cuestionarioId, t]);
 
   async function guardar() {
     setErrorGeneral('');
 
     if (preguntas.length === 0) {
-      setErrorGeneral('Agrega al menos una pregunta antes de guardar.');
+      setErrorGeneral(t('modalCuestionario.sinPreguntas'));
       return;
     }
 
-    const problemas = validar(preguntas);
+    const problemas = validar(preguntas, t);
     if (Object.keys(problemas).length > 0) {
       setErrores(problemas);
-      setErrorGeneral('Revisa las preguntas marcadas en rojo.');
+      setErrorGeneral(t('modalCuestionario.revisaPreguntas'));
       return;
     }
 
@@ -219,7 +228,7 @@ export function ModalCuestionario({
             : error.message,
         );
       } else {
-        setErrorGeneral('No se pudo guardar el cuestionario.');
+        setErrorGeneral(t('modalCuestionario.falloGuardado'));
       }
       setGuardando(false);
     }
@@ -232,11 +241,11 @@ export function ModalCuestionario({
       abierto={abierto}
       onCerrar={onCerrar}
       ancho="lg"
-      titulo={esEdicion ? 'Editar cuestionario' : 'Nuevo cuestionario'}
+      titulo={
+        esEdicion ? t('modalCuestionario.editar') : t('modalCuestionario.nuevo')
+      }
       descripcion={
-        paso === 1
-          ? 'Paso 1 de 2 — Datos generales'
-          : 'Paso 2 de 2 — Preguntas del cuestionario'
+        paso === 1 ? t('modalCuestionario.paso1') : t('modalCuestionario.paso2')
       }
       pie={
         <>
@@ -249,19 +258,21 @@ export function ModalCuestionario({
           {paso === 1 ? (
             <>
               <Button variante="fantasma" onClick={onCerrar}>
-                Cancelar
+                {t('comun.cancelar')}
               </Button>
               <Button onClick={() => setPaso(2)} disabled={!puedeContinuar}>
-                Continuar
+                {t('modalCuestionario.continuar')}
               </Button>
             </>
           ) : (
             <>
               <Button variante="fantasma" onClick={() => setPaso(1)}>
-                Atrás
+                {t('modalCuestionario.atras')}
               </Button>
               <Button onClick={guardar} cargando={guardando}>
-                {esEdicion ? 'Guardar cambios' : 'Crear cuestionario'}
+                {esEdicion
+                  ? t('modalCuestionario.guardarCambios')
+                  : t('modalCuestionario.crear')}
               </Button>
             </>
           )}
@@ -269,25 +280,25 @@ export function ModalCuestionario({
       }
     >
       {cargando ? (
-        <p className="py-8 text-center text-texto-suave">Cargando cuestionario…</p>
+        <p className="py-8 text-center text-texto-suave">{t('comun.cargando')}</p>
       ) : paso === 1 ? (
         <div className="flex flex-col gap-4">
           <Input
-            etiqueta="Nombre del cuestionario"
+            etiqueta={t('modalCuestionario.nombre')}
             name="nombre"
             value={nombre}
             onChange={(evento) => setNombre(evento.target.value)}
-            placeholder="Ej. Evaluación de seguridad industrial"
+            placeholder={t('modalCuestionario.nombrePlaceholder')}
             autoFocus
             maxLength={200}
           />
 
           <Textarea
-            etiqueta="Descripción (opcional)"
+            etiqueta={t('modalCuestionario.descripcion')}
             name="descripcion"
             value={descripcion}
             onChange={(evento) => setDescripcion(evento.target.value)}
-            placeholder="Contexto o instrucciones para quien responde"
+            placeholder={t('modalCuestionario.descripcionPlaceholder')}
             maxLength={2000}
           />
 
@@ -300,11 +311,10 @@ export function ModalCuestionario({
             />
             <span>
               <span className="block text-sm font-medium text-texto">
-                Permitir varios intentos por empleado
+                {t('modalCuestionario.multiples')}
               </span>
               <span className="block text-sm text-texto-suave">
-                Si se deja apagado, cada número de empleado solo puede responder
-                una vez.
+                {t('modalCuestionario.multiplesDetalle')}
               </span>
             </span>
           </label>
@@ -313,8 +323,7 @@ export function ModalCuestionario({
         <div className="flex flex-col gap-4">
           {esEdicion && totalRespuestas > 0 && (
             <p className="rounded-md border border-alerta bg-alerta-suave px-3 py-2 text-sm text-texto-suave">
-              Este cuestionario ya tiene respuestas. Editar o eliminar preguntas
-              afectará las estadísticas históricas.
+              {t('modalCuestionario.avisoRespuestas')}
             </p>
           )}
 
