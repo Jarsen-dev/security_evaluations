@@ -38,7 +38,7 @@ class Settings(BaseSettings):
     )
 
     # --- Aplicación --------------------------------------------------------
-    APP_NAME: str = "Sistema de Evaluación de Conocimientos"
+    APP_NAME: str = "Sistema ESH"
     ENVIRONMENT: Literal["development", "production"] = "production"
 
     # --- Base de datos -----------------------------------------------------

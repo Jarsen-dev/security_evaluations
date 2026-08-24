@@ -6,7 +6,6 @@ habría que limpiar y que se acumularían en el servidor de planta.
 """
 
 import uuid
-from urllib.parse import quote
 
 from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
@@ -18,6 +17,7 @@ from app.db.session import get_db
 from app.services import cuestionario_service, excel_export, pdf_export, pptx_export
 from app.services.estadistica_service import Filtros
 from app.services.exportacion_comun import (
+    cabecera_descarga,
     nombre_archivo,
     periodo_texto,
     reunir_datos,
@@ -33,21 +33,6 @@ TIPO_EXCEL = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 TIPO_PPTX = (
     "application/vnd.openxmlformats-officedocument.presentationml.presentation"
 )
-
-
-def _cabecera_descarga(nombre: str) -> dict[str, str]:
-    """Arma el Content-Disposition.
-
-    El nombre ya viene sin acentos, pero se agrega la variante ``filename*``
-    por si en el futuro incluye caracteres fuera de ASCII: sin ella, algunos
-    navegadores truncan el nombre del archivo.
-    """
-    return {
-        "Content-Disposition": (
-            f'attachment; filename="{nombre}"; '
-            f"filename*=UTF-8''{quote(nombre)}"
-        )
-    }
 
 
 @router.get(
@@ -71,7 +56,7 @@ async def imprimir_cuestionario(
     return StreamingResponse(
         flujo,
         media_type="application/pdf",
-        headers=_cabecera_descarga(nombre),
+        headers=cabecera_descarga(nombre),
     )
 
 
@@ -94,7 +79,7 @@ async def exportar_excel(
     return StreamingResponse(
         flujo,
         media_type=TIPO_EXCEL,
-        headers=_cabecera_descarga(nombre_archivo(cuestionario, "xlsx")),
+        headers=cabecera_descarga(nombre_archivo(cuestionario, "xlsx")),
     )
 
 
@@ -117,5 +102,5 @@ async def exportar_powerpoint(
     return StreamingResponse(
         flujo,
         media_type=TIPO_PPTX,
-        headers=_cabecera_descarga(nombre_archivo(cuestionario, "pptx")),
+        headers=cabecera_descarga(nombre_archivo(cuestionario, "pptx")),
     )

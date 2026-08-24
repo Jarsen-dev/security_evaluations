@@ -5,43 +5,19 @@ from typing import Any
 
 from openpyxl import Workbook
 from openpyxl.formatting.rule import ColorScaleRule
-from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
+from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.utils import get_column_letter
-from openpyxl.worksheet.worksheet import Worksheet
 
-from app.services.exportacion_comun import DatosReporte, formatear_duracion, sin_zona
-
-AZUL = "1F4E79"
-GRIS = "F2F2F2"
-
-FUENTE_ENCABEZADO = Font(bold=True, color="FFFFFF", size=11)
-RELLENO_ENCABEZADO = PatternFill(start_color=AZUL, end_color=AZUL, fill_type="solid")
-FUENTE_TITULO = Font(bold=True, size=14)
-BORDE_FINO = Border(
-    left=Side(style="thin", color="D9D9D9"),
-    right=Side(style="thin", color="D9D9D9"),
-    top=Side(style="thin", color="D9D9D9"),
-    bottom=Side(style="thin", color="D9D9D9"),
+from app.services.exportacion_comun import (
+    FORMATO_FECHA,
+    FORMATO_PORCENTAJE,
+    GRIS,
+    DatosReporte,
+    ajustar_anchos,
+    escribir_encabezados,
+    formatear_duracion,
+    sin_zona,
 )
-
-FORMATO_FECHA = "dd/mm/yyyy hh:mm"
-FORMATO_PORCENTAJE = "0.00"
-
-
-def _escribir_encabezados(hoja: Worksheet, encabezados: list[str], fila: int = 1) -> None:
-    """Escribe la fila de encabezados con el estilo del reporte."""
-    for columna, texto in enumerate(encabezados, start=1):
-        celda = hoja.cell(row=fila, column=columna, value=texto)
-        celda.fill = RELLENO_ENCABEZADO
-        celda.font = FUENTE_ENCABEZADO
-        celda.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
-        celda.border = BORDE_FINO
-
-
-def _ajustar_anchos(hoja: Worksheet, anchos: list[int]) -> None:
-    """Fija el ancho de cada columna."""
-    for indice, ancho in enumerate(anchos, start=1):
-        hoja.column_dimensions[get_column_letter(indice)].width = ancho
 
 
 def _hoja_resumen(libro: Workbook, datos: DatosReporte, periodo: str) -> None:
@@ -97,7 +73,7 @@ def _hoja_resumen(libro: Workbook, datos: DatosReporte, periodo: str) -> None:
         celda_etiqueta.fill = PatternFill(start_color=GRIS, end_color=GRIS, fill_type="solid")
         hoja.cell(row=indice, column=2, value=valor)
 
-    _ajustar_anchos(hoja, [30, 55])
+    ajustar_anchos(hoja, [30, 55])
 
 
 def _hoja_detalle(libro: Workbook, datos: DatosReporte) -> None:
@@ -120,7 +96,7 @@ def _hoja_detalle(libro: Workbook, datos: DatosReporte) -> None:
         for columna in datos.columnas_preguntas
     ]
 
-    _escribir_encabezados(hoja, encabezados)
+    escribir_encabezados(hoja, encabezados)
 
     for numero, fila in enumerate(datos.filas_intentos, start=2):
         hoja.cell(row=numero, column=1, value=fila["nombre"])
@@ -161,7 +137,7 @@ def _hoja_detalle(libro: Workbook, datos: DatosReporte) -> None:
         f"A1:{get_column_letter(len(encabezados))}{max(2, len(datos.filas_intentos) + 1)}"
     )
 
-    _ajustar_anchos(hoja, [24, 15, 16, 18, 18, 10, 10, 8, 11])
+    ajustar_anchos(hoja, [24, 15, 16, 18, 18, 10, 10, 8, 11])
     for indice in range(len(datos.columnas_preguntas)):
         hoja.column_dimensions[get_column_letter(10 + indice)].width = 28
 
@@ -170,7 +146,7 @@ def _hoja_por_area(libro: Workbook, datos: DatosReporte) -> None:
     """Hoja 3: agregados por área."""
     hoja = libro.create_sheet("Por área")
 
-    _escribir_encabezados(
+    escribir_encabezados(
         hoja,
         [
             "Área",
@@ -214,7 +190,7 @@ def _hoja_por_area(libro: Workbook, datos: DatosReporte) -> None:
             hoja.cell(row=numero, column=9, value="—")
 
     hoja.freeze_panes = "A2"
-    _ajustar_anchos(hoja, [20, 10, 13, 11, 11, 12, 14, 10, 16])
+    ajustar_anchos(hoja, [20, 10, 13, 11, 11, 12, 14, 10, 16])
 
 
 def _hoja_por_pregunta(libro: Workbook, datos: DatosReporte) -> None:
@@ -228,7 +204,7 @@ def _hoja_por_pregunta(libro: Workbook, datos: DatosReporte) -> None:
     encabezados = ["#", "Pregunta", "Respuestas", "Correctas", "% Acierto", "% Error"]
     encabezados += [f"Opción {indice + 1}" for indice in range(max_opciones)]
 
-    _escribir_encabezados(hoja, encabezados)
+    escribir_encabezados(hoja, encabezados)
 
     for numero, pregunta in enumerate(datos.por_pregunta, start=2):
         hoja.cell(row=numero, column=1, value=pregunta["orden"] + 1)
@@ -274,7 +250,7 @@ def _hoja_por_pregunta(libro: Workbook, datos: DatosReporte) -> None:
         )
 
     hoja.freeze_panes = "C2"
-    _ajustar_anchos(hoja, [5, 50, 12, 11, 11, 11])
+    ajustar_anchos(hoja, [5, 50, 12, 11, 11, 11])
     for indice in range(max_opciones):
         hoja.column_dimensions[get_column_letter(7 + indice)].width = 30
 

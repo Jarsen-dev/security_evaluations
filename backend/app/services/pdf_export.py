@@ -317,7 +317,7 @@ def generar_pdf_cuestionario(cuestionario: Cuestionario) -> BytesIO:
         topMargin=MARGEN,
         bottomMargin=MARGEN + 8 * mm,
         title=f"Cuestionario — {cuestionario.nombre}",
-        author="Sistema de Evaluación de Conocimientos",
+        author="Sistema ESH",
     )
 
     def pie_de_pagina(lienzo, doc) -> None:

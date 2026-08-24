@@ -1,1 +1,1 @@
-"""Sistema de Evaluación de Conocimientos — backend."""
+"""Sistema ESH — backend."""

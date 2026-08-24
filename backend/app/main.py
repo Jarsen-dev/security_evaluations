@@ -1,4 +1,4 @@
-"""Punto de entrada de la API del Sistema de Evaluación de Conocimientos."""
+"""Punto de entrada de la API del Sistema ESH."""
 
 import logging
 from collections.abc import AsyncGenerator
@@ -13,6 +13,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.api.routes import (
     auth,
+    controles,
     cuestionarios,
     estadisticas,
     exportacion,
@@ -52,7 +53,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
 app = FastAPI(
     title=settings.APP_NAME,
-    description="API interna para crear cuestionarios y evaluar al personal de planta.",
+    description=(
+        "API interna del departamento de seguridad: evaluaciones de "
+        "conocimientos y controles ESH."
+    ),
     version=sistema.VERSION,
     lifespan=lifespan,
     # Solo en desarrollo: en producción el esquema completo de la API no se
@@ -204,3 +208,4 @@ app.include_router(cuestionarios.router, prefix="/api")
 app.include_router(publico.router, prefix="/api")
 app.include_router(estadisticas.router, prefix="/api")
 app.include_router(exportacion.router, prefix="/api")
+app.include_router(controles.router, prefix="/api")
