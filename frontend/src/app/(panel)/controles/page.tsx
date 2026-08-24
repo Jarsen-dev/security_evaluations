@@ -4,6 +4,8 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense } from 'react';
 
 import { EnConstruccion } from '@/components/controles/EnConstruccion';
+import { PanelChecklist } from '@/components/controles/checklist/PanelChecklist';
+import { PanelPlaticas } from '@/components/controles/platicas/PanelPlaticas';
 import { PanelRayser } from '@/components/controles/rayser/PanelRayser';
 import { PanelSqp } from '@/components/controles/sqp/PanelSqp';
 import { Pestanas } from '@/components/ui/Pestanas';
@@ -12,17 +14,24 @@ import { useTraduccion, type ClaveTraduccion } from '@/lib/i18n';
 /**
  * Controles del departamento de seguridad.
  *
- * Cada pestaña es una hoja del formato en papel. De momento solo capturan
- * Rayser e Inspección de SQP; las demás se muestran para que se vea la forma
- * final del módulo y se irán habilitando conforme se definan sus reglas.
+ * Cada pestaña es una hoja del formato en papel. Las que ya capturan traen su
+ * `control` del backend; las demás se muestran para que se vea la forma final
+ * del módulo y se irán habilitando conforme se definan sus reglas.
+ *
+ * `checklist` es la clave del control en la API: los tres que la traen usan el
+ * mismo panel y solo cambian sus puntos.
  */
-const CONTROLES: ReadonlyArray<{ clave: string; etiqueta: ClaveTraduccion }> = [
+const CONTROLES: ReadonlyArray<{
+  clave: string;
+  etiqueta: ClaveTraduccion;
+  checklist?: string;
+}> = [
   { clave: 'sqp', etiqueta: 'controles.sqp' },
-  { clave: 'almacen-rp', etiqueta: 'controles.almacenRp' },
+  { clave: 'almacen-rp', etiqueta: 'controles.almacenRp', checklist: 'almacen_rp' },
   { clave: 'rayser', etiqueta: 'controles.rayser' },
   { clave: 'platicas', etiqueta: 'controles.platicas' },
-  { clave: 'recorridos', etiqueta: 'controles.recorridos' },
-  { clave: 'muro', etiqueta: 'controles.muro' },
+  { clave: 'recorridos', etiqueta: 'controles.recorridos', checklist: 'recorridos' },
+  { clave: 'muro', etiqueta: 'controles.muro', checklist: 'muro' },
   { clave: 'medicamento', etiqueta: 'controles.medicamento' },
   { clave: 'silos', etiqueta: 'controles.silos' },
   { clave: 'tableros', etiqueta: 'controles.tableros' },
@@ -75,9 +84,17 @@ function ContenidoControles() {
 
       {activa === 'sqp' && <PanelSqp />}
       {activa === 'rayser' && <PanelRayser />}
-      {activa !== 'sqp' && activa !== 'rayser' && actual !== undefined && (
-        <EnConstruccion nombre={t(actual.etiqueta)} />
+      {activa === 'platicas' && <PanelPlaticas />}
+      {actual?.checklist !== undefined && (
+        // La clave va como `key` para que el panel se reinicie al cambiar de
+        // control en vez de arrastrar el estado del anterior.
+        <PanelChecklist key={actual.checklist} control={actual.checklist} />
       )}
+      {actual !== undefined &&
+        actual.checklist === undefined &&
+        !['sqp', 'rayser', 'platicas'].includes(activa) && (
+          <EnConstruccion nombre={t(actual.etiqueta)} />
+        )}
     </div>
   );
 }

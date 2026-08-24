@@ -7,10 +7,12 @@ Sistema web interno del departamento de seguridad. Cubre dos cosas:
   código QR, o desde una PC con la liga directa. **Quien responde no necesita
   cuenta.**
 - **Controles ESH.** Los formatos de inspección que se llenaban en papel:
-  presiones del Rayser e inspección de sustancias químicas peligrosas, con
-  semaforización automática, evidencia fotográfica y descarga en Excel con el
-  mismo formato de la hoja original. Los demás controles del recorrido diario
-  ya aparecen como pestañas y se irán habilitando.
+  presiones del Rayser, inspección de sustancias químicas peligrosas, almacén
+  de residuos peligrosos, pláticas diarias de seguridad, recorridos
+  perimetrales y revisión de muros. Con semaforización automática, evidencia
+  fotográfica y descarga en Excel con el mismo formato de la hoja original.
+  Los tres controles que faltan del recorrido diario ya aparecen como pestañas
+  y se irán habilitando.
 
 El panel se puede leer en **español, inglés y coreano**; se cambia con el
 selector del encabezado. El formulario que contesta el personal de planta va

@@ -10,6 +10,8 @@
 import type {
   Admin,
   Area,
+  AreaPlatica,
+  CatalogoChecklist,
   CatalogoSqp,
   ConfigWifi,
   Credenciales,
@@ -32,14 +34,17 @@ import type {
   IntentosPaginados,
   Mensaje,
   MetaArea,
+  Platica,
   PuntoLineaTiempo,
   RangoDistribucion,
   RangoRayser,
+  RegistroChecklist,
   RegistroRayser,
   Resumen,
   PreguntaPayload,
   ResultadoImportacion,
   ResultadoIntento,
+  ValorChecklist,
 } from './types';
 
 const EN_SERVIDOR = typeof window === 'undefined';
@@ -454,9 +459,13 @@ export const listarRayser = (desde: string, hasta: string): Promise<RegistroRays
 export const eliminarRegistroRayser = (id: string): Promise<void> =>
   api.delete<void>(`/controles/rayser/${id}`);
 
-/** URL de la foto de evidencia. La cookie de sesión viaja sola. */
-export const urlFotoRayser = (id: string): string =>
-  `/api/controles/rayser/${id}/foto`;
+/**
+ * URL de una foto de evidencia. La cookie de sesión viaja sola.
+ *
+ * Un solo endpoint para los tres controles: Rayser, las listas de verificación
+ * y las pláticas.
+ */
+export const urlFotoControl = (id: string): string => `/api/controles/fotos/${id}`;
 
 /**
  * Registra la lectura del día.
@@ -465,27 +474,11 @@ export const urlFotoRayser = (id: string): string =>
  * `Content-Type: application/json` rompería el multipart de la foto (mismo
  * motivo que en `importarExcel`).
  */
-export async function registrarRayser(datos: {
-  fecha: string;
-  lecturas: string[];
-  observaciones: string;
-  foto: File | null;
-}): Promise<RegistroRayser> {
-  const cuerpo = new FormData();
-  cuerpo.append('fecha', datos.fecha);
-  datos.lecturas.forEach((lectura, indice) => {
-    cuerpo.append(`manometro_${indice + 1}`, lectura);
-  });
-  cuerpo.append('observaciones', datos.observaciones);
-
-  if (datos.foto) {
-    cuerpo.append('foto', datos.foto);
-  }
-
+async function enviarFormulario<T>(ruta: string, cuerpo: FormData): Promise<T> {
   let respuesta: Response;
 
   try {
-    respuesta = await fetch(`${baseUrl()}/controles/rayser`, {
+    respuesta = await fetch(`${baseUrl()}${ruta}`, {
       method: 'POST',
       body: cuerpo,
       credentials: 'include',
@@ -512,7 +505,24 @@ export async function registrarRayser(datos: {
     throw new ErrorDeApi(respuesta.status, mensaje, errores);
   }
 
-  return (await respuesta.json()) as RegistroRayser;
+  return (await respuesta.json()) as T;
+}
+
+export function registrarRayser(datos: {
+  fecha: string;
+  lecturas: string[];
+  observaciones: string;
+  fotos: File[];
+}): Promise<RegistroRayser> {
+  const cuerpo = new FormData();
+  cuerpo.append('fecha', datos.fecha);
+  datos.lecturas.forEach((lectura, indice) => {
+    cuerpo.append(`manometro_${indice + 1}`, lectura);
+  });
+  cuerpo.append('observaciones', datos.observaciones);
+  datos.fotos.forEach((foto) => cuerpo.append('fotos', foto));
+
+  return enviarFormulario<RegistroRayser>('/controles/rayser', cuerpo);
 }
 
 export const descargarExcelRayser = (desde: string, hasta: string): Promise<void> =>
@@ -534,3 +544,104 @@ export const registrarInspeccionSqp = (
 
 export const descargarExcelSqp = (id: string): Promise<void> =>
   descargarArchivo(`/controles/sqp/${id}/exportar/excel`, 'inspeccion_sqp.xlsx');
+
+// --- Controles de lista de verificación (OK / NO OK) -----------------------
+
+export const obtenerCatalogoChecklist = (control: string): Promise<CatalogoChecklist> =>
+  api.get<CatalogoChecklist>(`/controles/checklist/${control}/catalogo`);
+
+export const listarChecklist = (
+  control: string,
+  desde: string,
+  hasta: string,
+): Promise<RegistroChecklist[]> =>
+  api.get<RegistroChecklist[]>(
+    `/controles/checklist/${control}?${new URLSearchParams({ desde, hasta }).toString()}`,
+  );
+
+/**
+ * Registra el recorrido del día.
+ *
+ * La parte estructurada viaja como JSON en un campo del multipart y las fotos
+ * en campos `fotos_{orden}`, uno por punto: así el registro y sus evidencias
+ * se guardan en una sola petición, sin quedar a medias si se cae la red.
+ */
+export function registrarChecklist(
+  control: string,
+  datos: {
+    fecha: string;
+    puntos: Array<{ orden: number; valor: ValorChecklist; observaciones: string }>;
+    fotos: Record<number, File[]>;
+  },
+): Promise<RegistroChecklist> {
+  const cuerpo = new FormData();
+  cuerpo.append('fecha', datos.fecha);
+  cuerpo.append(
+    'puntos',
+    JSON.stringify(
+      datos.puntos.map((punto) => ({
+        orden: punto.orden,
+        valor: punto.valor,
+        observaciones: punto.observaciones || null,
+      })),
+    ),
+  );
+
+  for (const [orden, fotos] of Object.entries(datos.fotos)) {
+    fotos.forEach((foto) => cuerpo.append(`fotos_${orden}`, foto));
+  }
+
+  return enviarFormulario<RegistroChecklist>(`/controles/checklist/${control}`, cuerpo);
+}
+
+export const eliminarRegistroChecklist = (
+  control: string,
+  id: string,
+): Promise<void> => api.delete<void>(`/controles/checklist/${control}/${id}`);
+
+export const descargarExcelChecklist = (
+  control: string,
+  desde: string,
+  hasta: string,
+): Promise<void> =>
+  descargarArchivo(
+    `/controles/checklist/${control}/exportar/excel?${new URLSearchParams({
+      desde,
+      hasta,
+    }).toString()}`,
+    `${control}.xlsx`,
+  );
+
+// --- Pláticas diarias de seguridad -----------------------------------------
+
+export const obtenerAreasPlaticas = (): Promise<AreaPlatica[]> =>
+  api.get<AreaPlatica[]>('/controles/platicas/areas');
+
+export const listarPlaticas = (desde: string, hasta: string): Promise<Platica[]> =>
+  api.get<Platica[]>(
+    `/controles/platicas?${new URLSearchParams({ desde, hasta }).toString()}`,
+  );
+
+export function registrarPlatica(datos: {
+  fecha: string;
+  tema: string;
+  areas: string[];
+  fotos: File[];
+}): Promise<Platica> {
+  const cuerpo = new FormData();
+  cuerpo.append('fecha', datos.fecha);
+  cuerpo.append('tema', datos.tema);
+  cuerpo.append('areas', JSON.stringify(datos.areas));
+  datos.fotos.forEach((foto) => cuerpo.append('fotos', foto));
+
+  return enviarFormulario<Platica>('/controles/platicas', cuerpo);
+}
+
+export const eliminarPlatica = (id: string): Promise<void> =>
+  api.delete<void>(`/controles/platicas/${id}`);
+
+export const descargarExcelPlaticas = (desde: string, hasta: string): Promise<void> =>
+  descargarArchivo(
+    `/controles/platicas/exportar/excel?${new URLSearchParams({ desde, hasta }).toString()}`,
+    'platicas_esh.xlsx',
+  );

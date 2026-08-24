@@ -230,15 +230,27 @@ circunstancia (misma lógica que la regla 1).
 
 **Controles ESH** (`api/routes/controles.py`, `services/control_service.py`)
 
-Los formatos de inspección que antes se llenaban en papel. Dos reglas propias:
+Los formatos de inspección que antes se llenaban en papel. Cuatro reglas
+propias:
 
-- Los puntos de la inspección de SQP y el rango de los manómetros viven en
+- Los puntos de cada control y el rango de los manómetros viven en
   `core/controles_catalogo.py` y se sirven por la API, igual que las áreas: el
   frontend nunca los tiene escritos a mano.
 - La semaforización (verde 125–135 psi, rojo abajo, naranja arriba) **se
   calcula en el servidor**. El frontend repite la regla solo para pintar el
   formulario mientras se teclea; lo que se guarda y lo que sale en el Excel lo
   decide el backend.
+- **Los tres controles de OK / NO OK son el mismo código.** Almacén de RP's,
+  recorridos perimetrales y revisión de muros comparten tabla
+  (`registros_checklist`), servicio, rutas (`/api/controles/checklist/{control}`)
+  y generador de Excel; lo único que los distingue es su `DefinicionChecklist`
+  en el catálogo. Un control nuevo con esta forma se agrega ahí, no copiando
+  componentes.
+- **Las fotos viven todas en `controles_fotos`**, con un `CHECK` que obliga a
+  que solo una de sus tres llaves foráneas venga llena (punto, plática o
+  Rayser). Hay un solo endpoint que las sirve, `/api/controles/fotos/{id}`, y
+  los listados **nunca** traen la columna `imagen`: un mes de evidencias son
+  decenas de megabytes.
 
 **Frontend** (`frontend/src/`)
 
@@ -309,6 +321,17 @@ con `<input type="file" accept="image/*" capture="environment">`, que abre la
 cámara del celular sin necesitar contexto seguro, y el reescalado con
 `<canvas>`, que tampoco lo necesita. Ver
 `components/controles/rayser/CampoFoto.tsx`.
+
+**asyncpg no acepta dos sentencias en un mismo `op.execute`.** Las prepara, y
+PostgreSQL responde *"cannot insert multiple commands into a prepared
+statement"*. En las migraciones va una sentencia por llamada; lo único que
+puede llevar varias es un bloque `DO $$ ... $$`, que cuenta como una sola.
+
+**El parser de formularios de Starlette crea SUS `UploadFile`.** No la subclase
+de FastAPI. Al leer campos de archivos a mano con `await request.form()` hay
+que comprobar contra `starlette.datastructures.UploadFile`: con la clase de
+FastAPI, el `isinstance` descarta todas las fotos en silencio y el registro se
+guarda sin evidencia.
 
 **El límite de tasa es por worker.** Con 4 workers de uvicorn, el tope
 efectivo por IP es ~4× el configurado. Es aceptable: el objetivo es contener

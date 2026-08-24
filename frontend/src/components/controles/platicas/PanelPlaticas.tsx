@@ -2,45 +2,43 @@
 
 import { useCallback, useEffect, useState } from 'react';
 
-import { FormularioRayser } from '@/components/controles/rayser/FormularioRayser';
-import { TablaRayser } from '@/components/controles/rayser/TablaRayser';
+import { FormularioPlaticas } from '@/components/controles/platicas/FormularioPlaticas';
+import { TablaPlaticas } from '@/components/controles/platicas/TablaPlaticas';
 import { Button } from '@/components/ui/Button';
 import { DialogoConfirmacion } from '@/components/ui/DialogoConfirmacion';
 import { useToast } from '@/components/ui/Toast';
 import {
   ErrorDeApi,
-  descargarExcelRayser,
-  eliminarRegistroRayser,
-  listarRayser,
-  obtenerRangoRayser,
-  registrarRayser,
+  descargarExcelPlaticas,
+  eliminarPlatica,
+  listarPlaticas,
+  obtenerAreasPlaticas,
+  registrarPlatica,
 } from '@/lib/api';
 import { useIdioma } from '@/lib/i18n';
-import type { RangoRayser, RegistroRayser } from '@/lib/types';
+import type { AreaPlatica, Platica } from '@/lib/types';
 import { fechaDeHoy, formatearFechaIso, rangoDelMes } from '@/lib/utils';
 
-/** Control de presiones: captura del día e historial del mes. */
-export function PanelRayser() {
+/** Pestaña de pláticas diarias de seguridad. */
+export function PanelPlaticas() {
   const { t, locale } = useIdioma();
   const { mostrarToast } = useToast();
 
-  const [rango, setRango] = useState<RangoRayser | null>(null);
-  const [registros, setRegistros] = useState<RegistroRayser[]>([]);
+  const [areas, setAreas] = useState<AreaPlatica[]>([]);
+  const [platicas, setPlaticas] = useState<Platica[]>([]);
   const [mes, setMes] = useState(() => fechaDeHoy().slice(0, 7));
   const [cargando, setCargando] = useState(true);
   const [guardando, setGuardando] = useState(false);
   const [descargando, setDescargando] = useState(false);
   const [errorCarga, setErrorCarga] = useState('');
-  const [porEliminar, setPorEliminar] = useState<RegistroRayser | null>(null);
+  const [porEliminar, setPorEliminar] = useState<Platica | null>(null);
   const [eliminando, setEliminando] = useState(false);
-
-  const hoy = fechaDeHoy();
 
   const cargar = useCallback(async () => {
     const { desde, hasta } = rangoDelMes(`${mes}-01`);
 
     try {
-      setRegistros(await listarRayser(desde, hasta));
+      setPlaticas(await listarPlaticas(desde, hasta));
       setErrorCarga('');
     } catch (error) {
       setErrorCarga(
@@ -54,15 +52,19 @@ export function PanelRayser() {
   useEffect(() => {
     let cancelado = false;
 
-    obtenerRangoRayser()
+    // Las áreas de esta hoja son propias del formato, no las del cuestionario:
+    // por eso vienen de su propio endpoint.
+    obtenerAreasPlaticas()
       .then((datos) => {
         if (!cancelado) {
-          setRango(datos);
+          setAreas(datos);
         }
       })
-      .catch(() => {
+      .catch((error: unknown) => {
         if (!cancelado) {
-          setErrorCarga(t('comun.errorGenerico'));
+          setErrorCarga(
+            error instanceof ErrorDeApi ? error.message : t('comun.errorGenerico'),
+          );
         }
       });
 
@@ -76,23 +78,23 @@ export function PanelRayser() {
   }, [cargar]);
 
   async function guardar(datos: {
-    lecturas: string[];
-    observaciones: string;
+    fecha: string;
+    tema: string;
+    areas: string[];
     fotos: File[];
   }) {
     setGuardando(true);
 
     try {
-      await registrarRayser({ fecha: hoy, ...datos });
+      await registrarPlatica(datos);
       await cargar();
-      mostrarToast(t('rayser.guardado'), 'exito');
+      mostrarToast(t('platicas.guardada'), 'exito');
     } catch (error) {
       mostrarToast(
         error instanceof ErrorDeApi ? error.message : t('comun.errorGenerico'),
         'error',
       );
-      // Se relanza para que el formulario no limpie lo capturado: volver a
-      // teclear cuatro lecturas por un error del servidor es inaceptable.
+      // Se relanza para que el formulario conserve lo capturado.
       throw error;
     } finally {
       setGuardando(false);
@@ -107,9 +109,9 @@ export function PanelRayser() {
     setEliminando(true);
 
     try {
-      await eliminarRegistroRayser(porEliminar.id);
+      await eliminarPlatica(porEliminar.id);
       await cargar();
-      mostrarToast(t('rayser.eliminado'), 'exito');
+      mostrarToast(t('platicas.eliminada'), 'exito');
       setPorEliminar(null);
     } catch (error) {
       mostrarToast(
@@ -126,7 +128,7 @@ export function PanelRayser() {
     setDescargando(true);
 
     try {
-      await descargarExcelRayser(desde, hasta);
+      await descargarExcelPlaticas(desde, hasta);
     } catch (error) {
       mostrarToast(
         error instanceof ErrorDeApi ? error.message : t('comun.errorGenerico'),
@@ -137,14 +139,8 @@ export function PanelRayser() {
     }
   }
 
-  const yaRegistrado = registros.some((registro) => registro.fecha === hoy);
-
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h2 className="text-lg font-semibold text-texto">{t('rayser.titulo')}</h2>
-      </div>
-
       {errorCarga && (
         <p
           role="alert"
@@ -154,33 +150,20 @@ export function PanelRayser() {
         </p>
       )}
 
-      {rango !== null &&
-        (yaRegistrado ? (
-          <div className="rounded-tarjeta border border-borde bg-fondo-elevado px-5 py-6">
-            <p className="text-sm font-medium text-texto">
-              {t('rayser.yaRegistrado', { fecha: formatearFechaIso(hoy, locale) })}
-            </p>
-            <p className="mt-1 text-sm text-texto-suave">
-              {t('rayser.eliminarRegistro')}
-            </p>
-          </div>
-        ) : (
-          <FormularioRayser
-            rango={rango}
-            fecha={formatearFechaIso(hoy, locale)}
-            onGuardar={guardar}
-            guardando={guardando}
-            onError={(mensaje) => mostrarToast(mensaje, 'error')}
-          />
-        ))}
+      <FormularioPlaticas
+        areas={areas}
+        onGuardar={guardar}
+        guardando={guardando}
+        onError={(mensaje) => mostrarToast(mensaje, 'error')}
+      />
 
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div className="flex flex-col gap-1.5">
-          <label htmlFor="mes-rayser" className="text-sm font-medium text-texto">
+          <label htmlFor="mes-platicas" className="text-sm font-medium text-texto">
             {t('comun.mes')}
           </label>
           <input
-            id="mes-rayser"
+            id="mes-platicas"
             type="month"
             value={mes}
             onChange={(evento) => setMes(evento.target.value)}
@@ -192,32 +175,30 @@ export function PanelRayser() {
           variante="secundario"
           onClick={() => void descargar()}
           cargando={descargando}
-          disabled={registros.length === 0}
+          disabled={platicas.length === 0}
         >
           {t('comun.descargarExcel')}
         </Button>
       </div>
 
       <div className="flex flex-col gap-3">
-        <h3 className="text-base font-semibold text-texto">{t('rayser.historial')}</h3>
+        <h3 className="text-base font-semibold text-texto">
+          {t('platicas.historial')}
+        </h3>
 
         {cargando ? (
           <p className="text-sm text-texto-suave">{t('comun.cargando')}</p>
         ) : (
-          <TablaRayser
-            registros={registros}
-            onEliminar={setPorEliminar}
-            totalManometros={rango?.manometros ?? 4}
-          />
+          <TablaPlaticas platicas={platicas} onEliminar={setPorEliminar} />
         )}
       </div>
 
       <DialogoConfirmacion
         abierto={porEliminar !== null}
-        titulo={t('rayser.confirmarEliminar', {
+        titulo={t('platicas.confirmarEliminar', {
           fecha: porEliminar ? formatearFechaIso(porEliminar.fecha, locale) : '',
         })}
-        mensaje={t('rayser.confirmarEliminarDetalle')}
+        mensaje={t('platicas.confirmarEliminarDetalle')}
         procesando={eliminando}
         onConfirmar={() => void eliminar()}
         onCancelar={() => setPorEliminar(null)}
