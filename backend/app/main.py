@@ -21,7 +21,12 @@ from app.api.routes import (
     sistema,
 )
 from app.core.config import DIRECTORIO_ESTATICOS, settings
-from app.core.errors import ConflictoDeNegocio, ErrorDeNegocio, RecursoNoEncontrado
+from app.core.errors import (
+    ConflictoDeNegocio,
+    ErrorDeNegocio,
+    RecursoNoEncontrado,
+    mensaje_de_validacion,
+)
 from app.core.ratelimit import MiddlewareRateLimit
 from app.db.session import engine
 
@@ -104,42 +109,6 @@ async def manejar_error_http(
     )
 
 
-# Pydantic redacta sus mensajes en inglés. Se traducen por tipo de error
-# para que ninguna respuesta de la API mezcle idiomas.
-MENSAJES_VALIDACION: dict[str, str] = {
-    "missing": "Este campo es obligatorio.",
-    "string_too_short": "El texto es demasiado corto.",
-    "string_too_long": "El texto es demasiado largo.",
-    "string_type": "Se esperaba un texto.",
-    "uuid_parsing": "El identificador no tiene un formato válido.",
-    "int_parsing": "Se esperaba un número entero.",
-    "int_type": "Se esperaba un número entero.",
-    "float_parsing": "Se esperaba un número.",
-    "bool_parsing": "Se esperaba un valor verdadero o falso.",
-    "datetime_parsing": "La fecha no tiene un formato válido.",
-    "greater_than_equal": "El valor es menor que el mínimo permitido.",
-    "less_than_equal": "El valor es mayor que el máximo permitido.",
-    "too_short": "Faltan elementos en la lista.",
-    "too_long": "La lista tiene demasiados elementos.",
-    "json_invalid": "El cuerpo de la petición no es JSON válido.",
-    "value_error": "El valor no es válido.",
-}
-
-
-def _mensaje_de_error(error: dict) -> str:
-    """Elige el texto en español para un error de validación de Pydantic.
-
-    Los validadores propios ya lanzan su mensaje en español dentro de un
-    ``ValueError``; ese texto es más específico que cualquier traducción
-    genérica, así que se conserva. Pydantic lo entrega con el prefijo
-    "Value error, ", que se recorta.
-    """
-    if error["type"] == "value_error":
-        return str(error["msg"]).removeprefix("Value error, ")
-
-    return MENSAJES_VALIDACION.get(error["type"], "El valor no es válido.")
-
-
 @app.exception_handler(RequestValidationError)
 async def manejar_error_validacion(
     request: Request, exc: RequestValidationError
@@ -154,7 +123,7 @@ async def manejar_error_validacion(
                     # loc[0] es el origen (body, path, query); se omite porque
                     # al usuario solo le sirve el nombre del campo.
                     "campo": ".".join(str(parte) for parte in error["loc"][1:]),
-                    "mensaje": _mensaje_de_error(error),
+                    "mensaje": mensaje_de_validacion(error),
                 }
                 for error in exc.errors()
             ],

@@ -6,6 +6,8 @@ recorriendo registros en Python.
 """
 
 import uuid
+from collections import defaultdict
+from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal, InvalidOperation
 
@@ -16,16 +18,28 @@ from sqlalchemy.orm import selectinload
 
 from app.core.constants import etiqueta_area
 from app.core.controles_catalogo import (
+    AREAS_PLATICAS,
+    MAX_FOTOS,
     PUNTOS_SQP,
     RAYSER_TOPE,
     TOTAL_PUNTOS_SQP,
+    DefinicionChecklist,
     fuera_de_rango,
     semaforo,
 )
 from app.core.errors import ConflictoDeNegocio, ErrorDeNegocio, RecursoNoEncontrado
 from app.models.admin_user import AdminUser
-from app.models.control import InspeccionSqp, RegistroRayser, RespuestaSqp
-from app.schemas.control import InspeccionSqpCrear
+from app.models.control import (
+    AreaPlatica,
+    FotoControl,
+    InspeccionSqp,
+    PlaticaEsh,
+    PuntoChecklist,
+    RegistroChecklist,
+    RegistroRayser,
+    RespuestaSqp,
+)
+from app.schemas.control import ChecklistCrear, InspeccionSqpCrear, PlaticaCrear
 
 # Tipos de imagen aceptados como evidencia y tope de tamaño. El celular de
 # planta sube fotos de varios MB; el frontend las reescala antes de enviarlas,
@@ -37,6 +51,69 @@ MENSAJE_EVIDENCIA = (
     "Una lectura fuera del rango normal necesita foto de evidencia y "
     "observaciones."
 )
+
+ETIQUETAS_AREA_PLATICA: dict[str, str] = {
+    area.clave: area.etiqueta for area in AREAS_PLATICAS
+}
+
+
+@dataclass
+class Evidencia:
+    """Una foto lista para la hoja de evidencias del Excel."""
+
+    fecha: date
+    # Qué punto la explica; ``None`` cuando el control no tiene puntos.
+    detalle: str | None
+    responsable: str
+    imagen: bytes
+
+
+def _construir_fotos(fotos: list[tuple[bytes, str]]) -> list[FotoControl]:
+    """Arma las filas de ``controles_fotos`` conservando el orden de captura."""
+    return [
+        FotoControl(imagen=contenido, tipo=tipo, orden=orden)
+        for orden, (contenido, tipo) in enumerate(fotos)
+    ]
+
+
+async def _ids_de_fotos(
+    db: AsyncSession, columna, propietarios: list[uuid.UUID]
+) -> dict[uuid.UUID, list[uuid.UUID]]:
+    """Identificadores de las fotos de cada propietario, sin traer las imágenes.
+
+    Una consulta aparte y solo de identificadores: un mes de evidencias son
+    decenas de megabytes y el listado del panel se pide en cada carga.
+    """
+    if not propietarios:
+        return {}
+
+    filas = await db.execute(
+        select(FotoControl.id, columna)
+        .where(columna.in_(propietarios))
+        .order_by(FotoControl.orden)
+    )
+
+    agrupadas: dict[uuid.UUID, list[uuid.UUID]] = defaultdict(list)
+    for foto_id, propietario in filas.all():
+        agrupadas[propietario].append(foto_id)
+
+    return agrupadas
+
+
+async def obtener_foto(db: AsyncSession, foto_id: uuid.UUID) -> FotoControl:
+    """Una foto de evidencia, venga del control que venga."""
+    foto = await db.get(FotoControl, foto_id)
+    if foto is None:
+        raise RecursoNoEncontrado("La foto no existe.")
+    return foto
+
+
+def validar_cantidad_fotos(total: int, etiqueta: str) -> None:
+    """Aplica el tope de fotos por punto o por plática."""
+    if total > MAX_FOTOS:
+        raise ErrorDeNegocio(
+            f"{etiqueta}: no se pueden subir más de {MAX_FOTOS} fotos."
+        )
 
 
 # --- Rayser ----------------------------------------------------------------
@@ -87,8 +164,7 @@ async def registrar_rayser(
     fecha: date,
     lecturas: list[Decimal],
     observaciones: str | None,
-    foto: bytes | None,
-    foto_tipo: str | None,
+    fotos: list[tuple[bytes, str]],
     admin: AdminUser,
 ) -> RegistroRayser:
     """Guarda la lectura del día.
@@ -96,7 +172,7 @@ async def registrar_rayser(
     Una fila por fecha, igual que el formato en papel: un segundo registro del
     mismo día es un error de captura, no una lectura nueva.
     """
-    if fuera_de_rango(lecturas) and (not observaciones or foto is None):
+    if fuera_de_rango(lecturas) and (not observaciones or not fotos):
         raise ErrorDeNegocio(MENSAJE_EVIDENCIA)
 
     registro = RegistroRayser(
@@ -106,10 +182,9 @@ async def registrar_rayser(
         manometro_3=lecturas[2],
         manometro_4=lecturas[3],
         observaciones=observaciones,
-        foto=foto,
-        foto_tipo=foto_tipo if foto is not None else None,
         responsable=admin.username,
         admin_id=admin.id,
+        fotos=_construir_fotos(fotos),
     )
     db.add(registro)
 
@@ -124,8 +199,7 @@ async def registrar_rayser(
             "Elimínalo si necesitas corregirlo."
         ) from exc
 
-    await db.refresh(registro)
-    return registro
+    return await obtener_rayser(db, registro.id)
 
 
 def describir_lecturas(lecturas: list[Decimal]) -> list[dict]:
@@ -157,7 +231,6 @@ async def listar_rayser(db: AsyncSession, desde: date, hasta: date) -> list[dict
             RegistroRayser.manometro_3,
             RegistroRayser.manometro_4,
             RegistroRayser.observaciones,
-            RegistroRayser.foto_tipo,
             RegistroRayser.responsable,
             RegistroRayser.creado_at,
         )
@@ -165,35 +238,44 @@ async def listar_rayser(db: AsyncSession, desde: date, hasta: date) -> list[dict
         .order_by(RegistroRayser.fecha.desc())
     )
 
-    registros: list[dict] = []
-    for fila in filas.all():
+    registros = list(filas.all())
+    fotos = await _ids_de_fotos(db, FotoControl.rayser_id, [f.id for f in registros])
+
+    salida: list[dict] = []
+    for fila in registros:
         lecturas = [
             fila.manometro_1,
             fila.manometro_2,
             fila.manometro_3,
             fila.manometro_4,
         ]
-        registros.append(
+        salida.append(
             {
                 "id": fila.id,
                 "fecha": fila.fecha,
                 "manometros": describir_lecturas(lecturas),
                 "observaciones": fila.observaciones,
-                "tiene_foto": fila.foto_tipo is not None,
+                "fotos": fotos.get(fila.id, []),
                 "fuera_de_rango": fuera_de_rango(lecturas),
                 "responsable": fila.responsable,
                 "creado_at": fila.creado_at,
             }
         )
 
-    return registros
+    return salida
 
 
 async def obtener_rayser(db: AsyncSession, registro_id: uuid.UUID) -> RegistroRayser:
-    """Registro completo, incluida la foto."""
-    registro = await db.get(RegistroRayser, registro_id)
+    """Registro completo, con los identificadores de sus fotos."""
+    registro = await db.scalar(
+        select(RegistroRayser)
+        .where(RegistroRayser.id == registro_id)
+        .options(selectinload(RegistroRayser.fotos).load_only(FotoControl.orden))
+    )
+
     if registro is None:
         raise RecursoNoEncontrado("El registro no existe.")
+
     return registro
 
 
@@ -206,27 +288,27 @@ async def eliminar_rayser(db: AsyncSession, registro_id: uuid.UUID) -> None:
 
 async def evidencias_rayser(
     db: AsyncSession, desde: date, hasta: date
-) -> list[tuple[date, str, bytes]]:
+) -> list[Evidencia]:
     """Fotos del periodo, para la hoja de evidencias del Excel.
 
-    Consulta aparte de ``listar_rayser`` a propósito: la tabla del panel se
-    pide muchas veces y no debe arrastrar las imágenes.
+    Consulta aparte de los listados a propósito: la tabla del panel se pide
+    muchas veces y no debe arrastrar las imágenes.
     """
     filas = await db.execute(
         select(
             RegistroRayser.fecha,
             RegistroRayser.responsable,
-            RegistroRayser.foto,
+            FotoControl.imagen,
         )
-        .where(
-            RegistroRayser.fecha >= desde,
-            RegistroRayser.fecha <= hasta,
-            RegistroRayser.foto.is_not(None),
-        )
-        .order_by(RegistroRayser.fecha)
+        .join(FotoControl, FotoControl.rayser_id == RegistroRayser.id)
+        .where(RegistroRayser.fecha >= desde, RegistroRayser.fecha <= hasta)
+        .order_by(RegistroRayser.fecha, FotoControl.orden)
     )
 
-    return [(fila.fecha, fila.responsable, fila.foto) for fila in filas.all()]
+    return [
+        Evidencia(fecha=fila.fecha, detalle=None, responsable=fila.responsable, imagen=fila.imagen)
+        for fila in filas.all()
+    ]
 
 
 # --- Inspección de SQP -----------------------------------------------------
@@ -342,3 +424,316 @@ def separar_sustancias(texto: str | None) -> list[str]:
     if not texto:
         return []
     return [linea.strip() for linea in texto.splitlines() if linea.strip()]
+
+
+# --- Listas de verificación (OK / NO OK) -----------------------------------
+
+
+async def registrar_checklist(
+    db: AsyncSession,
+    *,
+    definicion: DefinicionChecklist,
+    datos: ChecklistCrear,
+    fotos_por_punto: dict[int, list[tuple[bytes, str]]],
+    admin: AdminUser,
+) -> RegistroChecklist:
+    """Guarda el recorrido del día.
+
+    Se exige el formato completo: una hoja a medias no sirve como evidencia de
+    que el recorrido se hizo. Cada punto en NO OK necesita observaciones (lo
+    valida el schema) y al menos una foto.
+    """
+    ordenes = [punto.orden for punto in datos.puntos]
+    total = len(definicion.puntos)
+
+    if sorted(ordenes) != list(range(total)):
+        raise ErrorDeNegocio(
+            f"Hay que contestar los {total} puntos del control, una sola vez "
+            "cada uno."
+        )
+
+    puntos: list[PuntoChecklist] = []
+
+    for punto in sorted(datos.puntos, key=lambda p: p.orden):
+        etiqueta = definicion.puntos[punto.orden].etiqueta
+        fotos = fotos_por_punto.get(punto.orden, [])
+
+        if punto.valor == "no_ok" and not fotos:
+            raise ErrorDeNegocio(
+                f"{etiqueta}: un punto marcado como NO OK necesita al menos "
+                "una foto de evidencia."
+            )
+
+        # Una foto sobre un punto en OK no explica nada y solo ocupa espacio.
+        if punto.valor == "ok" and fotos:
+            raise ErrorDeNegocio(
+                f"{etiqueta}: solo los puntos marcados como NO OK llevan fotos."
+            )
+
+        validar_cantidad_fotos(len(fotos), etiqueta)
+
+        puntos.append(
+            PuntoChecklist(
+                orden=punto.orden,
+                clave=definicion.puntos[punto.orden].clave,
+                valor=punto.valor,
+                observaciones=punto.observaciones,
+                fotos=_construir_fotos(fotos),
+            )
+        )
+
+    registro = RegistroChecklist(
+        control=definicion.clave,
+        fecha=datos.fecha,
+        responsable=admin.username,
+        admin_id=admin.id,
+        puntos=puntos,
+    )
+    db.add(registro)
+
+    try:
+        await db.commit()
+    except IntegrityError as exc:
+        await db.rollback()
+        # uq_checklist_control_fecha. Se comprueba aquí y no con un SELECT
+        # previo porque dos capturas simultáneas pasarían ambas la prueba.
+        raise ConflictoDeNegocio(
+            f"Ya existe el registro del {datos.fecha:%d/%m/%Y}. "
+            "Elimínalo si necesitas corregirlo."
+        ) from exc
+
+    return registro
+
+
+async def listar_checklist(
+    db: AsyncSession, definicion: DefinicionChecklist, desde: date, hasta: date
+) -> list[dict]:
+    """Registros del periodo, del más reciente al más antiguo.
+
+    Las etiquetas de cada punto se resuelven desde el catálogo, no desde la
+    base: corregir una redacción no debe obligar a tocar el histórico.
+    """
+    if desde > hasta:
+        raise ErrorDeNegocio("La fecha inicial no puede ser mayor que la final.")
+
+    registros = list(
+        await db.scalars(
+            select(RegistroChecklist)
+            .where(
+                RegistroChecklist.control == definicion.clave,
+                RegistroChecklist.fecha >= desde,
+                RegistroChecklist.fecha <= hasta,
+            )
+            .options(selectinload(RegistroChecklist.puntos))
+            .order_by(RegistroChecklist.fecha.desc())
+        )
+    )
+
+    puntos = [punto for registro in registros for punto in registro.puntos]
+    fotos = await _ids_de_fotos(db, FotoControl.punto_id, [p.id for p in puntos])
+
+    return [
+        {
+            "id": registro.id,
+            "fecha": registro.fecha,
+            "responsable": registro.responsable,
+            "creado_at": registro.creado_at,
+            "hay_hallazgos": any(p.valor == "no_ok" for p in registro.puntos),
+            "puntos": [
+                {
+                    "orden": punto.orden,
+                    "clave": punto.clave,
+                    "etiqueta": _etiqueta_punto(definicion, punto),
+                    "valor": punto.valor,
+                    "observaciones": punto.observaciones,
+                    "fotos": fotos.get(punto.id, []),
+                }
+                for punto in registro.puntos
+            ],
+        }
+        for registro in registros
+    ]
+
+
+def _etiqueta_punto(definicion: DefinicionChecklist, punto: PuntoChecklist) -> str:
+    """Texto del punto según el catálogo.
+
+    Si el catálogo cambió y el punto guardado ya no existe, se muestra su clave
+    en lugar de fallar: el histórico tiene que poder leerse igual.
+    """
+    if 0 <= punto.orden < len(definicion.puntos):
+        return definicion.puntos[punto.orden].etiqueta
+    return punto.clave
+
+
+async def eliminar_checklist(
+    db: AsyncSession, definicion: DefinicionChecklist, registro_id: uuid.UUID
+) -> None:
+    """Borra un registro mal capturado para poder recapturar el día."""
+    registro = await db.get(RegistroChecklist, registro_id)
+
+    # Se comprueba el control además del id: una liga de otra pestaña no debe
+    # poder borrar el registro de esta.
+    if registro is None or registro.control != definicion.clave:
+        raise RecursoNoEncontrado("El registro no existe.")
+
+    await db.delete(registro)
+    await db.commit()
+
+
+async def evidencias_checklist(
+    db: AsyncSession, definicion: DefinicionChecklist, desde: date, hasta: date
+) -> list[Evidencia]:
+    """Fotos del periodo, para la hoja de evidencias del Excel."""
+    filas = await db.execute(
+        select(
+            RegistroChecklist.fecha,
+            RegistroChecklist.responsable,
+            PuntoChecklist.orden,
+            PuntoChecklist.clave,
+            FotoControl.imagen,
+        )
+        .join(PuntoChecklist, PuntoChecklist.registro_id == RegistroChecklist.id)
+        .join(FotoControl, FotoControl.punto_id == PuntoChecklist.id)
+        .where(
+            RegistroChecklist.control == definicion.clave,
+            RegistroChecklist.fecha >= desde,
+            RegistroChecklist.fecha <= hasta,
+        )
+        .order_by(RegistroChecklist.fecha, PuntoChecklist.orden, FotoControl.orden)
+    )
+
+    etiquetas = {punto.clave: punto.etiqueta for punto in definicion.puntos}
+
+    return [
+        Evidencia(
+            fecha=fila.fecha,
+            detalle=etiquetas.get(fila.clave, fila.clave),
+            responsable=fila.responsable,
+            imagen=fila.imagen,
+        )
+        for fila in filas.all()
+    ]
+
+
+# --- Pláticas diarias de seguridad -----------------------------------------
+
+
+async def registrar_platica(
+    db: AsyncSession,
+    *,
+    datos: PlaticaCrear,
+    fotos: list[tuple[bytes, str]],
+    admin: AdminUser,
+) -> PlaticaEsh:
+    """Guarda una plática impartida.
+
+    La foto es obligatoria: es lo único que prueba ante una auditoría que la
+    plática se dio. No hay unicidad por fecha, así que un mismo día admite
+    varias pláticas con distinto tema.
+    """
+    if not fotos:
+        raise ErrorDeNegocio("La plática necesita al menos una foto de evidencia.")
+
+    validar_cantidad_fotos(len(fotos), "Evidencia de la plática")
+
+    platica = PlaticaEsh(
+        fecha=datos.fecha,
+        tema=datos.tema,
+        responsable=admin.username,
+        admin_id=admin.id,
+        areas=[AreaPlatica(clave=clave) for clave in datos.areas],
+        fotos=_construir_fotos(fotos),
+    )
+    db.add(platica)
+    await db.commit()
+
+    return platica
+
+
+async def listar_platicas(db: AsyncSession, desde: date, hasta: date) -> list[dict]:
+    """Pláticas del periodo, de la más reciente a la más antigua."""
+    if desde > hasta:
+        raise ErrorDeNegocio("La fecha inicial no puede ser mayor que la final.")
+
+    platicas = list(
+        await db.scalars(
+            select(PlaticaEsh)
+            .where(PlaticaEsh.fecha >= desde, PlaticaEsh.fecha <= hasta)
+            .options(selectinload(PlaticaEsh.areas))
+            .order_by(PlaticaEsh.fecha.desc(), PlaticaEsh.creado_at.desc())
+        )
+    )
+
+    fotos = await _ids_de_fotos(
+        db, FotoControl.platica_id, [platica.id for platica in platicas]
+    )
+
+    return [
+        {
+            "id": platica.id,
+            "fecha": platica.fecha,
+            "tema": platica.tema,
+            "responsable": platica.responsable,
+            "creado_at": platica.creado_at,
+            "areas": [
+                {
+                    "clave": area.clave,
+                    "etiqueta": ETIQUETAS_AREA_PLATICA.get(area.clave, area.clave),
+                }
+                # El orden lo fija el catálogo, no el de captura: así las
+                # columnas del Excel y las etiquetas del panel coinciden.
+                for area in sorted(
+                    platica.areas,
+                    key=lambda a: _orden_area(a.clave),
+                )
+            ],
+            "fotos": fotos.get(platica.id, []),
+        }
+        for platica in platicas
+    ]
+
+
+def _orden_area(clave: str) -> int:
+    """Posición del área dentro del catálogo."""
+    for indice, area in enumerate(AREAS_PLATICAS):
+        if area.clave == clave:
+            return indice
+    return len(AREAS_PLATICAS)
+
+
+async def eliminar_platica(db: AsyncSession, platica_id: uuid.UUID) -> None:
+    """Borra una plática mal capturada."""
+    platica = await db.get(PlaticaEsh, platica_id)
+    if platica is None:
+        raise RecursoNoEncontrado("La plática no existe.")
+
+    await db.delete(platica)
+    await db.commit()
+
+
+async def evidencias_platicas(
+    db: AsyncSession, desde: date, hasta: date
+) -> list[Evidencia]:
+    """Fotos del periodo, para la hoja de evidencias del Excel."""
+    filas = await db.execute(
+        select(
+            PlaticaEsh.fecha,
+            PlaticaEsh.tema,
+            PlaticaEsh.responsable,
+            FotoControl.imagen,
+        )
+        .join(FotoControl, FotoControl.platica_id == PlaticaEsh.id)
+        .where(PlaticaEsh.fecha >= desde, PlaticaEsh.fecha <= hasta)
+        .order_by(PlaticaEsh.fecha, PlaticaEsh.creado_at, FotoControl.orden)
+    )
+
+    return [
+        Evidencia(
+            fecha=fila.fecha,
+            detalle=fila.tema,
+            responsable=fila.responsable,
+            imagen=fila.imagen,
+        )
+        for fila in filas.all()
+    ]

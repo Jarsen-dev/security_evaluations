@@ -1,7 +1,8 @@
 """Catálogo de los controles ESH: puntos de inspección y rangos de operación.
 
 Mismo criterio que ``AREAS`` en ``constants.py``: los textos viven aquí y en
-ningún otro lado. El frontend los obtiene por ``GET /api/controles/sqp/catalogo``
+ningún otro lado. El frontend los obtiene por la API
+(``/api/controles/sqp/catalogo``, ``/api/controles/checklist/{control}/catalogo``)
 para que nunca queden escritos a mano en dos lugares.
 
 Las preguntas se transcriben del formato en papel (hoja "Inspeccion de SQP" del
@@ -198,3 +199,114 @@ ETIQUETAS_VALOR_SQP: Final[dict[str, str]] = {
     "no": "NO",
     "na": "N/A",
 }
+
+
+# --- Controles de lista de verificación (OK / NO OK) -----------------------
+#
+# Tres hojas del libro de inspecciones tienen exactamente la misma forma: una
+# fila por día del mes y una columna por punto, que se palomea o se marca. Solo
+# cambian el título y la lista de puntos, así que se describen aquí y el
+# formulario, la tabla y el Excel se escriben una sola vez.
+
+
+class PuntoControl(NamedTuple):
+    """Un punto de una lista de verificación."""
+
+    clave: str
+    etiqueta: str
+
+
+class DefinicionChecklist(NamedTuple):
+    """Una hoja de lista de verificación completa."""
+
+    clave: str
+    titulo: str
+    # Nombre de la pestaña dentro del Excel: Excel corta a 31 caracteres y no
+    # admite : \\ / ? * [ ], así que se escribe a mano en vez de recortar el
+    # título.
+    hoja: str
+    # Solo la revisión de muros lleva una pregunta bajo el título; en las otras
+    # dos hojas el título ya dice todo.
+    subtitulo: str | None
+    puntos: tuple[PuntoControl, ...]
+
+
+CONTROLES_CHECKLIST: Final[dict[str, DefinicionChecklist]] = {
+    "almacen_rp": DefinicionChecklist(
+        clave="almacen_rp",
+        titulo="CONTROL DE ALMACEN DE RESIDUOS PELIGROSOS",
+        hoja="Almacen de RP",
+        subtitulo=None,
+        puntos=(
+            PuntoControl("derrames", "Derrames de residuos"),
+            PuntoControl("extintor", "Extintor en buenas condiciones"),
+            PuntoControl("kit_derrames", "Kit de control de derrames"),
+            PuntoControl("senalizacion", "Señalización"),
+            PuntoControl("charolas", "Charolas"),
+            PuntoControl("tierras", "Tierras físicas"),
+        ),
+    ),
+    "recorridos": DefinicionChecklist(
+        clave="recorridos",
+        titulo="CONTROL DE RECORRIDO",
+        hoja="Recorridos",
+        subtitulo=None,
+        puntos=(
+            PuntoControl("frente", "Frente"),
+            PuntoControl("oeste", "Lado oeste"),
+            PuntoControl("trasera", "Parte trasera"),
+            PuntoControl("este", "Lado este"),
+        ),
+    ),
+    "muro": DefinicionChecklist(
+        clave="muro",
+        titulo="REVISION DE MUROS ALMACEN-EPS",
+        hoja="Revision muro",
+        subtitulo="¿Muro sin daño o fisura?",
+        puntos=(
+            PuntoControl("zona_1", "Zona 1"),
+            PuntoControl("zona_2", "Zona 2"),
+            PuntoControl("zona_3", "Zona 3"),
+            PuntoControl("zona_4", "Zona 4"),
+        ),
+    ),
+}
+
+VALORES_CHECKLIST: Final[frozenset[str]] = frozenset({"ok", "no_ok"})
+
+# Cómo se rotula cada valor en la hoja de Excel.
+ETIQUETAS_VALOR_CHECKLIST: Final[dict[str, str]] = {
+    "ok": "OK",
+    "no_ok": "NO OK",
+}
+
+
+def definicion_checklist(clave: str) -> DefinicionChecklist | None:
+    """Devuelve la definición de un control, o ``None`` si no existe."""
+    return CONTROLES_CHECKLIST.get(clave)
+
+
+# --- Pláticas diarias de seguridad -----------------------------------------
+#
+# Las áreas de esta hoja NO son las de ``core/constants.py``: aquellas son las
+# del cuestionario y estas son las columnas del formato de pláticas, con la
+# abreviatura que usa el personal de piso. Se mantienen separadas a propósito.
+
+AREAS_PLATICAS: Final[tuple[PuntoControl, ...]] = (
+    PuntoControl("assy", "ASSY"),
+    PuntoControl("eps", "EPS"),
+    PuntoControl("almacen", "ALMACEN"),
+    PuntoControl("mtto", "MTTO"),
+    PuntoControl("embarque", "EMBARQUE"),
+    PuntoControl("ventas", "VENTAS"),
+)
+
+CLAVES_AREAS_PLATICAS: Final[frozenset[str]] = frozenset(
+    area.clave for area in AREAS_PLATICAS
+)
+
+TITULO_PLATICAS: Final[str] = "PLATICAS DIARIAS DE SEGURIDAD"
+
+# Cuántas fotos de evidencia admite un punto en NO OK o una plática. El tope
+# existe para que una petición con varias fotos no crezca sin control.
+MAX_FOTOS: Final[int] = 4

@@ -11,6 +11,7 @@ from datetime import date, datetime
 from decimal import Decimal
 
 from sqlalchemy import (
+    CheckConstraint,
     Date,
     DateTime,
     ForeignKey,
@@ -34,8 +35,8 @@ class RegistroRayser(Base):
     """Lectura diaria de los cuatro manómetros del Rayser.
 
     Una fila por día, igual que el formato mensual en papel: por eso ``fecha``
-    es única. La foto de evidencia vive aquí como ``bytea`` para que entre en
-    el respaldo de la base junto con el registro que la explica.
+    es única. Las fotos de evidencia viven en ``controles_fotos``, la misma
+    tabla que usan los demás controles.
     """
 
     __tablename__ = "registros_rayser"
@@ -60,8 +61,6 @@ class RegistroRayser(Base):
     # exige, no la base: un registro dentro de rango puede llevar observaciones
     # opcionales.
     observaciones: Mapped[str | None] = mapped_column(Text, nullable=True)
-    foto: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)
-    foto_tipo: Mapped[str | None] = mapped_column(String(60), nullable=True)
 
     responsable: Mapped[str] = mapped_column(String(150), nullable=False)
     admin_id: Mapped[uuid.UUID | None] = mapped_column(
@@ -74,6 +73,13 @@ class RegistroRayser(Base):
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
 
+    fotos: Mapped[list["FotoControl"]] = relationship(
+        back_populates="rayser",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+        order_by="FotoControl.orden",
+    )
+
     @property
     def lecturas(self) -> list[Decimal]:
         """Las cuatro lecturas en orden, para clasificarlas de una pasada."""
@@ -83,11 +89,6 @@ class RegistroRayser(Base):
             self.manometro_3,
             self.manometro_4,
         ]
-
-    @property
-    def tiene_foto(self) -> bool:
-        """Si el registro trae evidencia fotográfica cargada."""
-        return self.foto_tipo is not None
 
     def __repr__(self) -> str:
         return f"<RegistroRayser {self.fecha}>"
@@ -172,3 +173,220 @@ class RespuestaSqp(Base):
 
     def __repr__(self) -> str:
         return f"<RespuestaSqp {self.codigo}={self.valor}>"
+
+
+class RegistroChecklist(Base):
+    """Un día de una hoja de lista de verificación (OK / NO OK).
+
+    Las tres hojas que tienen esta forma —almacén de residuos peligrosos,
+    recorridos perimetrales y revisión de muros— comparten tabla y se
+    distinguen por ``control``. Sus puntos viven en
+    ``app/core/controles_catalogo.py``, no en la base: cambiar la redacción de
+    un punto no debe obligar a tocar el histórico.
+    """
+
+    __tablename__ = "registros_checklist"
+    __table_args__ = (
+        # Una hoja por día y por control, igual que el formato en papel.
+        UniqueConstraint("control", "fecha", name="uq_checklist_control_fecha"),
+        Index("ix_registros_checklist_control_fecha", "control", "fecha"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        primary_key=True,
+        server_default=text("gen_random_uuid()"),
+    )
+    control: Mapped[str] = mapped_column(String(30), nullable=False)
+    fecha: Mapped[date] = mapped_column(Date, nullable=False)
+
+    responsable: Mapped[str] = mapped_column(String(150), nullable=False)
+    admin_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("admin_users.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    creado_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+    puntos: Mapped[list["PuntoChecklist"]] = relationship(
+        back_populates="registro",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+        order_by="PuntoChecklist.orden",
+    )
+
+    def __repr__(self) -> str:
+        return f"<RegistroChecklist {self.control} {self.fecha}>"
+
+
+class PuntoChecklist(Base):
+    """Cómo salió un punto concreto del recorrido de ese día."""
+
+    __tablename__ = "registros_checklist_puntos"
+    __table_args__ = (
+        UniqueConstraint("registro_id", "orden", name="uq_checklist_punto_orden"),
+        Index("ix_checklist_puntos_registro", "registro_id"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        primary_key=True,
+        server_default=text("gen_random_uuid()"),
+    )
+    registro_id: Mapped[uuid.UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("registros_checklist.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    orden: Mapped[int] = mapped_column(Integer, nullable=False)
+    clave: Mapped[str] = mapped_column(String(40), nullable=False)
+    # 'ok' | 'no_ok'
+    valor: Mapped[str] = mapped_column(String(6), nullable=False)
+    # Obligatorias cuando el valor es 'no_ok'.
+    observaciones: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    registro: Mapped["RegistroChecklist"] = relationship(back_populates="puntos")
+    fotos: Mapped[list["FotoControl"]] = relationship(
+        back_populates="punto",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+        order_by="FotoControl.orden",
+    )
+
+    def __repr__(self) -> str:
+        return f"<PuntoChecklist {self.clave}={self.valor}>"
+
+
+class PlaticaEsh(Base):
+    """Una plática diaria de seguridad impartida en una o varias áreas.
+
+    Sin restricción de unicidad por fecha: en un día puede haber más de una
+    plática, cada una con su tema.
+    """
+
+    __tablename__ = "platicas_esh"
+    __table_args__ = (Index("ix_platicas_esh_fecha", "fecha"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        primary_key=True,
+        server_default=text("gen_random_uuid()"),
+    )
+    fecha: Mapped[date] = mapped_column(Date, nullable=False)
+    tema: Mapped[str] = mapped_column(String(300), nullable=False)
+
+    responsable: Mapped[str] = mapped_column(String(150), nullable=False)
+    admin_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("admin_users.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    creado_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+    areas: Mapped[list["AreaPlatica"]] = relationship(
+        back_populates="platica",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+    fotos: Mapped[list["FotoControl"]] = relationship(
+        back_populates="platica",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+        order_by="FotoControl.orden",
+    )
+
+    def __repr__(self) -> str:
+        return f"<PlaticaEsh {self.fecha} {self.tema[:30]}>"
+
+
+class AreaPlatica(Base):
+    """Área donde se impartió una plática.
+
+    Una fila por área en lugar de seis columnas booleanas: así se puede contar
+    con GROUP BY cuántas pláticas recibió cada área.
+    """
+
+    __tablename__ = "platicas_esh_areas"
+    __table_args__ = (
+        UniqueConstraint("platica_id", "clave", name="uq_platica_area"),
+        Index("ix_platicas_areas_platica", "platica_id"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        primary_key=True,
+        server_default=text("gen_random_uuid()"),
+    )
+    platica_id: Mapped[uuid.UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("platicas_esh.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    clave: Mapped[str] = mapped_column(String(20), nullable=False)
+
+    platica: Mapped["PlaticaEsh"] = relationship(back_populates="areas")
+
+    def __repr__(self) -> str:
+        return f"<AreaPlatica {self.clave}>"
+
+
+class FotoControl(Base):
+    """Evidencia fotográfica de cualquier control.
+
+    Una sola tabla para las tres procedencias posibles, con un ``CHECK`` que
+    obliga a que exactamente una llave foránea venga llena. Así hay un único
+    endpoint que sirve las imágenes y una sola forma de guardarlas.
+
+    Las imágenes viven en la base para que entren en el respaldo junto con el
+    registro que explican; el servicio nunca las trae en los listados.
+    """
+
+    __tablename__ = "controles_fotos"
+    __table_args__ = (
+        CheckConstraint(
+            "num_nonnulls(punto_id, platica_id, rayser_id) = 1",
+            name="ck_foto_un_solo_dueno",
+        ),
+        Index("ix_controles_fotos_punto", "punto_id"),
+        Index("ix_controles_fotos_platica", "platica_id"),
+        Index("ix_controles_fotos_rayser", "rayser_id"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        primary_key=True,
+        server_default=text("gen_random_uuid()"),
+    )
+    punto_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("registros_checklist_puntos.id", ondelete="CASCADE"),
+        nullable=True,
+    )
+    platica_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("platicas_esh.id", ondelete="CASCADE"),
+        nullable=True,
+    )
+    rayser_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("registros_rayser.id", ondelete="CASCADE"),
+        nullable=True,
+    )
+
+    imagen: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
+    tipo: Mapped[str] = mapped_column(String(60), nullable=False)
+    orden: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
+    creado_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+    punto: Mapped["PuntoChecklist | None"] = relationship(back_populates="fotos")
+    platica: Mapped["PlaticaEsh | None"] = relationship(back_populates="fotos")
+    rayser: Mapped["RegistroRayser | None"] = relationship(back_populates="fotos")
+
+    def __repr__(self) -> str:
+        return f"<FotoControl {self.id}>"
