@@ -71,6 +71,16 @@ services:
       RATE_LIMIT_LOGIN_INTENTOS: ${RATE_LIMIT_LOGIN_INTENTOS:-5}
       RATE_LIMIT_LOGIN_VENTANA_SEGUNDOS: ${RATE_LIMIT_LOGIN_VENTANA_SEGUNDOS:-300}
       NEXT_PUBLIC_BASE_URL: ${NEXT_PUBLIC_BASE_URL}
+      # Zona de la planta: la bitácora se guarda en UTC pero se filtra por la
+      # hora del reloj de la nave.
+      ZONA_HORARIA: ${ZONA_HORARIA:-America/Monterrey}
+      # Accesos de la pestaña de Mantenimiento. Sin prefijo NEXT_PUBLIC_:
+      # la contraseña la sirve la API con sesión de superadministrador, no
+      # se incrusta en el bundle que descarga cualquiera.
+      PGADMIN_URL_LOCAL: ${PGADMIN_URL_LOCAL:-}
+      PGADMIN_URL_PRODUCCION: ${PGADMIN_URL_PRODUCCION:-}
+      PGADMIN_EMAIL: ${PGADMIN_EMAIL:-}
+      PGADMIN_PASSWORD: ${PGADMIN_PASSWORD:-}
       # Las comillas son obligatorias: docker-compose v2.24 serializa los
       # enteros de YAML sin comillas como `%!s(int=4)` al fusionar varios
       # archivos, y uvicorn lee UVICORN_WORKERS automáticamente (prefijo
@@ -107,6 +117,40 @@ services:
     networks:
       - evaluaciones_net
 
+  pgadmin:
+    image: dpage/pgadmin4:8
+    container_name: evaluaciones_pgadmin
+    restart: unless-stopped
+    logging: *logging
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      # Estas credenciales son las que la pestaña de Mantenimiento copia
+      # al portapapeles.
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD}
+      # SERVER_MODE se queda en su valor por omisión (True) A PROPÓSITO: el
+      # modo escritorio entra sin pedir nada, y como este puerto sí se
+      # publica en la LAN, cualquiera de la planta tendría la base entera
+      # abierta con solo teclear la IP.
+      #
+      # Entre comillas a propósito (ver la nota de UVICORN_WORKERS arriba).
+      PGADMIN_CONFIG_LOGIN_BANNER: "\"Sistema ESH — acceso restringido\""
+    volumes:
+      - evaluaciones_pgadmin:/var/lib/pgadmin
+      # Precarga la conexión a `db` para no teclear el host cada vez.
+      - ./pgadmin/servers.json:/pgadmin4/servers.json:ro
+    ports:
+      # A DIFERENCIA del resto del stack, este puerto SÍ se publica en
+      # producción: es la única forma de que el botón de Mantenimiento
+      # llegue a pgAdmin. Queda alcanzable solo desde la LAN de la planta —
+      # el túnel de Cloudflare apunta a nginx:80 y no lo publica, y el
+      # puerto NO debe abrirse en ufw hacia fuera (ver SEGURIDAD.md).
+      - "${PGADMIN_PORT:-5150}:80"
+    networks:
+      - evaluaciones_net
+
   nginx:
     image: nginx:1.27-alpine
     container_name: evaluaciones_nginx
@@ -140,6 +184,8 @@ services:
 volumes:
   evaluaciones_pgdata:
     name: evaluaciones_pgdata
+  evaluaciones_pgadmin:
+    name: evaluaciones_pgadmin
 
 networks:
   evaluaciones_net:

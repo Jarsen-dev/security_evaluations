@@ -28,7 +28,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 # clase o el `isinstance` descarta todos los archivos en silencio.
 from starlette.datastructures import UploadFile as ArchivoSubido
 
-from app.api.deps import obtener_admin_actual
+from app.api.deps import obtener_admin_actual, requiere
+from app.core.bitacora import anotar
 from app.core.constants import AREAS_VALIDAS, etiqueta_area
 from app.core.controles_catalogo import (
     AREAS_PLATICAS,
@@ -79,7 +80,7 @@ from app.services.exportacion_comun import cabecera_descarga
 router = APIRouter(
     prefix="/controles",
     tags=["controles"],
-    dependencies=[Depends(obtener_admin_actual)],
+    dependencies=[Depends(requiere("controles"))],
 )
 
 TIPO_EXCEL = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
@@ -211,6 +212,7 @@ async def listar_rayser(
     summary="Registra la lectura diaria de los cuatro manómetros",
 )
 async def registrar_rayser(
+    request: Request,
     fecha: date = Form(),
     manometro_1: str = Form(),
     manometro_2: str = Form(),
@@ -243,6 +245,7 @@ async def registrar_rayser(
         fotos=imagenes,
         admin=admin,
     )
+    anotar(request, detalle=f"{registro.fecha:%Y-%m-%d}")
 
     return RegistroRayserOut(
         id=registro.id,
@@ -258,15 +261,18 @@ async def registrar_rayser(
 
 @router.delete(
     "/rayser/{registro_id}",
+    dependencies=[Depends(requiere("controles", editar=True))],
     status_code=status.HTTP_204_NO_CONTENT,
     summary="Elimina un registro mal capturado",
 )
 async def eliminar_rayser(
     registro_id: uuid.UUID,
+    request: Request,
     db: AsyncSession = Depends(get_db),
 ) -> None:
     """Permite recapturar el día: solo puede existir un registro por fecha."""
-    await control_service.eliminar_rayser(db, registro_id)
+    fecha_borrada = await control_service.eliminar_rayser(db, registro_id)
+    anotar(request, detalle=f"{fecha_borrada:%Y-%m-%d}")
 
 
 # --- Inspección de SQP -----------------------------------------------------
@@ -353,11 +359,16 @@ async def listar_sqp(
 )
 async def registrar_sqp(
     datos: InspeccionSqpCrear,
+    request: Request,
     db: AsyncSession = Depends(get_db),
     admin: AdminUser = Depends(obtener_admin_actual),
 ) -> InspeccionSqpDetalle:
     """Exige el formato entero: los 23 puntos y observaciones en cada NO."""
     inspeccion = await control_service.registrar_sqp(db, datos, admin)
+    anotar(
+        request,
+        detalle=f"{etiqueta_area(inspeccion.area)}, {inspeccion.fecha:%Y-%m-%d}",
+    )
     return _detalle(inspeccion)
 
 

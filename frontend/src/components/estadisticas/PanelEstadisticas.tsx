@@ -16,6 +16,7 @@ import { TarjetaKPI } from '@/components/estadisticas/TarjetaKPI';
 import { Button } from '@/components/ui/Button';
 import { useToast } from '@/components/ui/Toast';
 import { useTraduccion } from '@/lib/i18n';
+import { useSesion } from '@/lib/sesion';
 import {
   ErrorDeApi,
   descargarReporte,
@@ -50,6 +51,11 @@ const TAMANO_PAGINA = 15;
 export function PanelEstadisticas() {
   const t = useTraduccion();
   const { mostrarToast } = useToast();
+  const { puede } = useSesion();
+
+  // Capturar las metas por área modifica datos existentes: pide el mismo
+  // permiso de edición que el resto de Cuestionarios.
+  const puedeEditar = puede('cuestionarios', 'editar');
 
   const [cuestionarios, setCuestionarios] = useState<CuestionarioResumen[]>([]);
   const [areas, setAreas] = useState<Area[]>([]);
@@ -277,9 +283,11 @@ export function PanelEstadisticas() {
         </h1>
 
         <div className="flex flex-wrap items-center gap-2">
-          <Button variante="fantasma" onClick={() => setMetasAbierto(true)}>
-            {t('estadisticas.configurarMetas')}
-          </Button>
+          {puedeEditar && (
+            <Button variante="fantasma" onClick={() => setMetasAbierto(true)}>
+              {t('estadisticas.configurarMetas')}
+            </Button>
+          )}
 
           {/* Las descargas respetan los filtros activos del dashboard. */}
           <Button

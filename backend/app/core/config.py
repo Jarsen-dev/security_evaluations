@@ -89,6 +89,37 @@ class Settings(BaseSettings):
         """El QR de red solo tiene sentido si al menos hay nombre de red."""
         return bool(self.WIFI_SSID.strip())
 
+    # --- pgAdmin (pestaña de Mantenimiento) --------------------------------
+    # Los dos botones de acceso rápido del panel. Deliberadamente SIN el
+    # prefijo NEXT_PUBLIC_: la contraseña se sirve por un endpoint que exige
+    # sesión de superadministrador, no se incrusta en el bundle de Next.
+    #
+    # pgAdmin escucha solo en la LAN; el túnel de Cloudflare apunta a
+    # nginx:80 y no lo publica. Por eso la URL de "producción" es la IP del
+    # servidor dentro de la planta, no el dominio.
+    PGADMIN_URL_LOCAL: str = ""
+    PGADMIN_URL_PRODUCCION: str = ""
+    PGADMIN_EMAIL: str = ""
+    PGADMIN_PASSWORD: str = ""
+
+    @property
+    def pgadmin_configurado(self) -> bool:
+        """Si hay al menos una instancia de pgAdmin a la que apuntar.
+
+        Sin esto la pantalla de Mantenimiento mostraría botones que no
+        llevan a ningún lado; con esto muestra un aviso de qué falta
+        capturar en el `.env`.
+        """
+        return bool(
+            self.PGADMIN_URL_LOCAL.strip() or self.PGADMIN_URL_PRODUCCION.strip()
+        )
+
+    # --- Zona horaria ------------------------------------------------------
+    # La bitácora se guarda en TIMESTAMPTZ (UTC), pero se consulta con
+    # filtros de "hora desde" y "hora hasta" que la gente teclea pensando en
+    # el reloj de la planta. La conversión se hace en SQL con esta zona.
+    ZONA_HORARIA: str = "America/Monterrey"
+
     # --- Reglas de negocio -------------------------------------------------
     UMBRAL_APROBACION: int = Field(
         default=70,

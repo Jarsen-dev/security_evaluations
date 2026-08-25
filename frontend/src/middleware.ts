@@ -8,12 +8,21 @@ import { NextResponse, type NextRequest } from 'next/server';
  * La autorización real la aplica la API en cada endpoint; este middleware
  * únicamente evita el parpadeo de cargar el panel para luego rebotar al
  * login. Un token vencido o falsificado pasa de aquí, pero recibe 401 en la
- * primera llamada a la API y `EncabezadoPanel` redirige al login.
+ * primera llamada a la API y `ProveedorSesion` redirige al login.
+ *
+ * Tampoco comprueba PERMISOS, por lo mismo: no puede leer el contenido del
+ * token. Quien entre a /administracion sin ser superadministrador verá la
+ * pantalla pedir los datos y recibir un 403 de la API.
  */
 
 const COOKIE_SESION = 'evaluaciones_sesion';
 
-const RUTAS_PROTEGIDAS = ['/cuestionarios', '/controles', '/inventario'];
+const RUTAS_PROTEGIDAS = [
+  '/cuestionarios',
+  '/controles',
+  '/inventario',
+  '/administracion',
+];
 
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;

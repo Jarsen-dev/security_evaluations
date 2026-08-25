@@ -18,6 +18,13 @@ interface TarjetaCuestionarioProps {
   onDuplicar: () => void;
   onAlternarActivo: () => void;
   onEliminar: () => void;
+  /**
+   * Si el usuario tiene permiso de edición en Cuestionarios. Sin él se
+   * esconden Editar, Activar/Desactivar y Eliminar: la API los rechazaría
+   * con 403 y ofrecerlos solo confunde. Duplicar se queda, porque crear sí
+   * lo puede hacer cualquiera con acceso a la pestaña.
+   */
+  puedeEditar: boolean;
 }
 
 export function TarjetaCuestionario({
@@ -30,6 +37,7 @@ export function TarjetaCuestionario({
   onDuplicar,
   onAlternarActivo,
   onEliminar,
+  puedeEditar,
 }: TarjetaCuestionarioProps) {
   const t = useTraduccion();
   const [menuAbierto, setMenuAbierto] = useState(false);
@@ -114,25 +122,29 @@ export function TarjetaCuestionario({
                   {t('comun.duplicar')}
                 </button>
 
-                <button
-                  type="button"
-                  role="menuitem"
-                  onClick={() => ejecutar(onAlternarActivo)}
-                  className="block w-full px-4 py-2 text-left text-sm text-texto hover:bg-fondo-sutil"
-                >
-                  {cuestionario.activo
-                    ? t('cuestionarios.desactivar')
-                    : t('cuestionarios.activar')}
-                </button>
+                {puedeEditar && (
+                  <>
+                    <button
+                      type="button"
+                      role="menuitem"
+                      onClick={() => ejecutar(onAlternarActivo)}
+                      className="block w-full px-4 py-2 text-left text-sm text-texto hover:bg-fondo-sutil"
+                    >
+                      {cuestionario.activo
+                        ? t('cuestionarios.desactivar')
+                        : t('cuestionarios.activar')}
+                    </button>
 
-                <button
-                  type="button"
-                  role="menuitem"
-                  onClick={() => ejecutar(onEliminar)}
-                  className="block w-full px-4 py-2 text-left text-sm text-error hover:bg-error-suave"
-                >
-                  {t('comun.eliminar')}
-                </button>
+                    <button
+                      type="button"
+                      role="menuitem"
+                      onClick={() => ejecutar(onEliminar)}
+                      className="block w-full px-4 py-2 text-left text-sm text-error hover:bg-error-suave"
+                    >
+                      {t('comun.eliminar')}
+                    </button>
+                  </>
+                )}
               </div>
             )}
           </div>
@@ -151,9 +163,11 @@ export function TarjetaCuestionario({
       </dl>
 
       <div className="flex flex-wrap items-center gap-2">
-        <Button variante="secundario" tamano="sm" onClick={onEditar}>
-          {t('comun.editar')}
-        </Button>
+        {puedeEditar && (
+          <Button variante="secundario" tamano="sm" onClick={onEditar}>
+            {t('comun.editar')}
+          </Button>
+        )}
 
         <Button variante="secundario" tamano="sm" onClick={onVerQR}>
           QR

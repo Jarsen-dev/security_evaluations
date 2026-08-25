@@ -1,15 +1,18 @@
 """Endpoints de administración de cuestionarios, preguntas y opciones.
 
-Todo el router exige sesión de administrador.
+Todo el router exige acceso al módulo de cuestionarios. Crear y leer basta
+con el acceso; modificar y eliminar piden además el permiso de edición, que
+se agrega endpoint por endpoint.
 """
 
 import uuid
 
-from fastapi import APIRouter, Depends, File, Response, UploadFile, status
+from fastapi import APIRouter, Depends, File, Request, Response, UploadFile, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import obtener_admin_actual
+from app.api.deps import requiere
+from app.core.bitacora import anotar
 from app.core.errors import ErrorDeNegocio
 from app.db.session import get_db
 from app.schemas.cuestionario import (
@@ -27,7 +30,7 @@ from app.services import cuestionario_service, excel_import
 
 router = APIRouter(
     tags=["cuestionarios"],
-    dependencies=[Depends(obtener_admin_actual)],
+    dependencies=[Depends(requiere("cuestionarios"))],
 )
 
 # Nginx ya corta en 10 MB; este límite es la segunda barrera, por si el
@@ -56,10 +59,11 @@ async def listar(db: AsyncSession = Depends(get_db)) -> list[CuestionarioResumen
     summary="Crea un cuestionario con sus preguntas",
 )
 async def crear(
-    datos: CuestionarioCrear, db: AsyncSession = Depends(get_db)
+    datos: CuestionarioCrear, request: Request, db: AsyncSession = Depends(get_db)
 ) -> CuestionarioOut:
     """Crea el cuestionario y genera su token público."""
     cuestionario = await cuestionario_service.crear_cuestionario(db, datos)
+    anotar(request, detalle=cuestionario.nombre)
     return CuestionarioOut.model_validate(cuestionario)
 
 
@@ -147,31 +151,36 @@ async def detalle(
 
 @router.put(
     "/cuestionarios/{cuestionario_id}",
+    dependencies=[Depends(requiere("cuestionarios", editar=True))],
     response_model=CuestionarioOut,
     summary="Actualiza el cuestionario",
 )
 async def actualizar(
     cuestionario_id: uuid.UUID,
     datos: CuestionarioActualizar,
+    request: Request,
     db: AsyncSession = Depends(get_db),
 ) -> CuestionarioOut:
     """Actualiza metadatos y, si se envían, el conjunto de preguntas."""
     cuestionario = await cuestionario_service.actualizar_cuestionario(
         db, cuestionario_id, datos
     )
+    anotar(request, detalle=cuestionario.nombre)
     return CuestionarioOut.model_validate(cuestionario)
 
 
 @router.delete(
     "/cuestionarios/{cuestionario_id}",
+    dependencies=[Depends(requiere("cuestionarios", editar=True))],
     status_code=status.HTTP_204_NO_CONTENT,
     summary="Elimina el cuestionario y todo su contenido",
 )
 async def eliminar(
-    cuestionario_id: uuid.UUID, db: AsyncSession = Depends(get_db)
+    cuestionario_id: uuid.UUID, request: Request, db: AsyncSession = Depends(get_db)
 ) -> Response:
     """Borra en cascada preguntas, opciones, intentos y respuestas."""
-    await cuestionario_service.eliminar_cuestionario(db, cuestionario_id)
+    nombre = await cuestionario_service.eliminar_cuestionario(db, cuestionario_id)
+    anotar(request, detalle=nombre)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
@@ -182,10 +191,11 @@ async def eliminar(
     summary="Clona el cuestionario sin sus respuestas",
 )
 async def duplicar(
-    cuestionario_id: uuid.UUID, db: AsyncSession = Depends(get_db)
+    cuestionario_id: uuid.UUID, request: Request, db: AsyncSession = Depends(get_db)
 ) -> CuestionarioOut:
     """La copia nace inactiva y con un token público propio."""
     copia = await cuestionario_service.duplicar_cuestionario(db, cuestionario_id)
+    anotar(request, detalle=copia.nombre)
     return CuestionarioOut.model_validate(copia)
 
 
@@ -210,6 +220,7 @@ async def agregar_pregunta(
 
 @router.put(
     "/preguntas/{pregunta_id}",
+    dependencies=[Depends(requiere("cuestionarios", editar=True))],
     response_model=PreguntaOut,
     summary="Actualiza una pregunta y sus opciones",
 )
@@ -223,6 +234,7 @@ async def actualizar_pregunta(
 
 @router.delete(
     "/preguntas/{pregunta_id}",
+    dependencies=[Depends(requiere("cuestionarios", editar=True))],
     status_code=status.HTTP_204_NO_CONTENT,
     summary="Elimina una pregunta",
 )
@@ -236,6 +248,7 @@ async def eliminar_pregunta(
 
 @router.put(
     "/cuestionarios/{cuestionario_id}/preguntas/orden",
+    dependencies=[Depends(requiere("cuestionarios", editar=True))],
     response_model=CuestionarioOut,
     summary="Reordena las preguntas en lote",
 )
