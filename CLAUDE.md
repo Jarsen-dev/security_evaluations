@@ -240,12 +240,29 @@ propias:
   calcula en el servidor**. El frontend repite la regla solo para pintar el
   formulario mientras se teclea; lo que se guarda y lo que sale en el Excel lo
   decide el backend.
-- **Los tres controles de OK / NO OK son el mismo código.** Almacén de RP's,
-  recorridos perimetrales y revisión de muros comparten tabla
-  (`registros_checklist`), servicio, rutas (`/api/controles/checklist/{control}`)
-  y generador de Excel; lo único que los distingue es su `DefinicionChecklist`
-  en el catálogo. Un control nuevo con esta forma se agrega ahí, no copiando
-  componentes.
+- **Los controles de lista de verificación son el mismo código.** Cinco hojas
+  comparten tabla (`registros_checklist`), servicio, rutas
+  (`/api/controles/checklist/{control}`), formulario y generador de Excel; lo
+  único que las distingue es su `DefinicionChecklist` en el catálogo. Un
+  control nuevo con esta forma se agrega ahí, no copiando componentes.
+
+  Hay dos variantes, y lo que decide cuál es si la definición trae
+  `encabezado`:
+
+  | | Rejilla mensual | Formato por inspección |
+  |---|---|---|
+  | Hojas | Almacén de RP's, recorridos, muro | Silos EPS, tableros eléctricos |
+  | Excel | Uno por mes, una fila por día | Uno por inspección, con la maqueta de la hoja |
+  | Por día | Una sola | Varias: una por turno, o por tablero y turno |
+  | Extras | — | Encabezado, categorías, mediciones y bloques al pie |
+
+- **`discriminador` es lo que permite varias inspecciones el mismo día.** Lo
+  arma el servicio con los campos que el catálogo marca en `clave_unicidad`
+  (el turno en silos; el tablero y el turno en tableros) y queda vacío en las
+  rejillas, así que la restricción `UNIQUE (control, fecha, discriminador)`
+  significa "una hoja por día" para ellas sin que la base tenga que conocer
+  ninguna clave de control. El encabezado y los bloques del pie van en dos
+  columnas `JSONB` que valida el catálogo, no la base.
 - **Las fotos viven todas en `controles_fotos`**, con un `CHECK` que obliga a
   que solo una de sus tres llaves foráneas venga llena (punto, plática o
   Rayser). Hay un solo endpoint que las sirve, `/api/controles/fotos/{id}`, y

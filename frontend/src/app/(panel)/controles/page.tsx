@@ -33,8 +33,8 @@ const CONTROLES: ReadonlyArray<{
   { clave: 'recorridos', etiqueta: 'controles.recorridos', checklist: 'recorridos' },
   { clave: 'muro', etiqueta: 'controles.muro', checklist: 'muro' },
   { clave: 'medicamento', etiqueta: 'controles.medicamento' },
-  { clave: 'silos', etiqueta: 'controles.silos' },
-  { clave: 'tableros', etiqueta: 'controles.tableros' },
+  { clave: 'silos', etiqueta: 'controles.silos', checklist: 'silos' },
+  { clave: 'tableros', etiqueta: 'controles.tableros', checklist: 'tableros' },
 ];
 
 export default function PaginaControles() {

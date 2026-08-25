@@ -382,11 +382,22 @@ export const en: Diccionario = {
 
   checklist: {
     registroDelDia: "Today's entry",
+    listaVerificacion: 'Checklist',
+    descripcionSiNo:
+      'Mark every item. An item marked NO needs notes and photo evidence.',
     descripcion:
       'Mark every item. An item marked NO OK needs notes and photo evidence.',
     ok: 'OK',
     noOk: 'NOT OK',
     confirmar: 'Confirm',
+    si: 'YES',
+    no: 'NO',
+    encabezado: 'Inspection details',
+    hallazgos: 'Findings',
+    hallazgosDetalle: '{total} marked NO',
+    faltanEncabezado: '{total} inspection details are missing.',
+    faltanMediciones: '{total} readings are missing.',
+    faltanSecciones: '{total} fields are missing at the foot of the form.',
     observacionesPlaceholder: 'What was found and what was done?',
     faltaFoto: 'Add at least one evidence photo.',
     faltanPuntos: '{total} items still unmarked.',
