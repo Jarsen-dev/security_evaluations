@@ -47,6 +47,8 @@ export const en: Diccionario = {
     cuestionarios: 'Questionnaires',
     controles: 'Controls',
     inventario: 'Inventory',
+    catalogo: 'Catalog',
+    rondines: 'Rounds',
     administracion: 'Administration',
     salir: 'Sign out',
     idioma: 'Language',
@@ -516,6 +518,8 @@ export const en: Diccionario = {
     cuestionarios: 'Questionnaires',
     controles: 'Controls',
     inventario: 'Inventory',
+    catalogo: 'Catalog',
+    rondines: 'Rounds',
     accesoA: 'Grant access to {modulo}',
     editarEn: 'Allow editing and deleting in {modulo}',
     superadminTodo: 'The super administrator has full access to the whole panel.',
@@ -563,5 +567,148 @@ export const en: Diccionario = {
     aviso:
       'pgAdmin does not allow signing in from an external link, so the button ' +
       'opens the tab with the credentials already on the clipboard.',
+  },
+
+  catalogo: {
+    titulo: 'Supplies catalog',
+    descripcion:
+      "The plant's safety supplies: medicine, PPE, signage and fire " +
+      'extinguishers, with their stock and inventory limits.',
+    nuevo: 'New supply',
+    nombre: 'Name',
+    nombreAyuda: 'Identifies the supply. It cannot be repeated.',
+    descripcionCampo: 'Description',
+    categoria: 'Category',
+    proveedor: 'Supplier',
+    ubicacion: 'Location',
+    cantidad: 'Quantity',
+    minimo: 'Min. inventory',
+    maximo: 'Max. inventory',
+    rango: 'Min. / Max.',
+    estado: 'Status',
+    crear: 'New supply',
+    editar: 'Edit supply',
+    registros: '{total} supplies',
+    pagina: 'Page {pagina} of {total}',
+    anterior: 'Previous',
+    siguiente: 'Next',
+    todasLasCategorias: 'All categories',
+    todosLosEstados: 'All statuses',
+    limpiar: 'Clear filters',
+    buscarAyuda: 'Search by name, description, supplier or location…',
+    vacio: 'There are no supplies in the catalog yet.',
+    vacioAyuda: 'Add the first one, or load several from an Excel file.',
+    sinCoincidencias: 'No supply matches the filters.',
+    falloCarga: 'The catalog could not be loaded.',
+    creado: 'Supply added.',
+    actualizado: 'Supply updated.',
+    eliminado: 'Supply deleted.',
+    falloGuardar: 'The supply could not be saved.',
+    falloEliminar: 'The supply could not be deleted.',
+    confirmarEliminar: 'Delete supply',
+    confirmarEliminarDetalle:
+      '"{nombre}" will be removed from the catalog. This cannot be undone.',
+    faltaNombre: 'Enter the name of the supply.',
+    faltaCategoria: 'Choose a category.',
+    numeroInvalido: 'Enter a whole number of 0 or more.',
+    rangoInvertido: 'The maximum cannot be lower than the minimum.',
+  },
+
+  semaforoInsumo: {
+    bajo: 'Below minimum',
+    normal: 'Normal',
+    excedido: 'Over maximum',
+    ayuda:
+      'Below minimum when the stock does not reach the minimum; over maximum ' +
+      'when it goes past the maximum.',
+  },
+
+  importarCatalogo: {
+    boton: 'Import from Excel',
+    importando: 'Importing…',
+    plantilla: 'Download template',
+    nota:
+      'New supplies are added and existing ones are skipped, so uploading a file ' +
+      'again never overwrites what was captured.',
+    resultado: '{creados} new supplies; {omitidos} already existed.',
+    fallo: 'The file could not be imported.',
+    filasConProblemas:
+      '{total} row(s) with problems — fix them in your Excel and import again:',
+    fila: 'Row {numero}:',
+  },
+
+  rondines: {
+    titulo: 'Security rounds',
+    descripcion:
+      'Tracking of the rounds per shift: which checkpoint was visited, in ' +
+      'which round and at what time.',
+    tablero: 'Dashboard',
+    puntos: 'Checkpoints',
+    secciones: 'Rounds sections',
+    turno: 'Shift',
+    turnoDia: 'Day',
+    turnoNoche: 'Night',
+    dia: 'Start day',
+    rango: '{inicio} → {fin}',
+    ayudaTurno:
+      'The day you pick is the one the shift STARTS. For the night of the 25th ' +
+      'to the 26th, pick the 25th with the Night shift.',
+    cumplimiento: 'Overall compliance',
+    visitas: 'Visits this shift',
+    rondinEnCurso: 'Current round',
+    fueraDeTurno: 'Shift closed',
+    avance: 'Round progress',
+    rondin: 'Round {numero}',
+    punto: 'Checkpoint',
+    porRondin: 'Compliance per round',
+    visitados: 'Visited',
+    sinVisita: 'Not visited',
+    descargar: 'Download Excel',
+    enviarCorreo: 'Send by email',
+    correoDestino: 'Recipient email',
+    correoEnviado: 'Report sent successfully.',
+    falloCorreo: 'The report could not be sent.',
+    sinPuntos: 'There are no checkpoints yet.',
+    sinPuntosAyuda: 'Add the checkpoints so the dashboard has something to show.',
+    falloCarga: 'The dashboard could not be loaded.',
+    actualizado: 'Updated at {hora}',
+  },
+
+  puntosRondin: {
+    titulo: 'Checkpoints',
+    descripcion:
+      'Each checkpoint has its own QR code. Print them, cut them out and stick ' +
+      'them in place on the plant floor.',
+    nuevo: 'New checkpoint',
+    imprimir: 'Print QR codes',
+    numero: 'Number',
+    numeroAyuda: 'This is what gets printed on the label. It cannot be repeated.',
+    nombre: 'Name',
+    ubicacion: 'Location',
+    estado: 'Status',
+    activo: 'Active',
+    inactivo: 'Retired',
+    codigo: 'QR code',
+    verCodigo: 'View code',
+    crear: 'New checkpoint',
+    editar: 'Edit checkpoint',
+    vacio: 'There are no checkpoints yet.',
+    vacioAyuda: 'Add the first one to start recording rounds.',
+    falloCarga: 'The checkpoints could not be loaded.',
+    creado: 'Checkpoint added.',
+    actualizadoOk: 'Checkpoint updated.',
+    eliminado: 'Checkpoint deleted.',
+    falloGuardar: 'The checkpoint could not be saved.',
+    falloEliminar: 'The checkpoint could not be deleted.',
+    confirmarEliminar: 'Delete checkpoint',
+    confirmarEliminarDetalle:
+      'Checkpoint {nombre} will be removed and its QR code will stop working. ' +
+      'Previous rounds keep the number but will no longer be counted. ' +
+      'Retiring it is almost always better than deleting it.',
+    faltaNumero: 'Enter the checkpoint number.',
+    faltaNombre: 'Enter the checkpoint name.',
+    descargarQr: 'Download PNG',
+    ligaCopiada: 'Link copied.',
+    falloCopiar: 'It could not be copied. Copy it by hand: {liga}',
   },
 };

@@ -1,8 +1,9 @@
 """Punto de entrada de la API del Sistema ESH."""
 
+import asyncio
 import logging
 from collections.abc import AsyncGenerator
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 
 from fastapi import FastAPI, Request, status
 from fastapi.exceptions import RequestValidationError
@@ -14,11 +15,13 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from app.api.routes import (
     administracion,
     auth,
+    catalogo,
     controles,
     cuestionarios,
     estadisticas,
     exportacion,
     publico,
+    rondines,
     sistema,
 )
 from app.core.bitacora import MiddlewareBitacora
@@ -31,6 +34,7 @@ from app.core.errors import (
 )
 from app.core.ratelimit import MiddlewareRateLimit
 from app.db.session import engine
+from app.services import reporte_automatico
 
 logging.basicConfig(
     level=logging.INFO,
@@ -52,7 +56,24 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             settings.NEXT_PUBLIC_BASE_URL,
         )
 
+    # Reporte automático de rondines al cambio de turno. Corre en CADA
+    # worker de uvicorn; el candado de `envios_reporte_rondin` es lo que evita
+    # que salgan cuatro correos iguales (ver services/reporte_automatico.py).
+    tarea_reporte: asyncio.Task[None] | None = None
+    arrancar, motivo = reporte_automatico.debe_arrancar()
+    if arrancar:
+        tarea_reporte = asyncio.create_task(reporte_automatico.ejecutar())
+    else:
+        logger.info("Reporte automático de rondines apagado: %s", motivo)
+
     yield
+
+    if tarea_reporte is not None:
+        tarea_reporte.cancel()
+        # Se espera a que termine de verdad: sin esto, el bucle podría quedar
+        # a medio ciclo con una sesión de base de datos abierta.
+        with suppress(asyncio.CancelledError):
+            await tarea_reporte
 
     logger.info("Cerrando conexiones a la base de datos")
     await engine.dispose()
@@ -186,3 +207,5 @@ app.include_router(estadisticas.router, prefix="/api")
 app.include_router(exportacion.router, prefix="/api")
 app.include_router(controles.router, prefix="/api")
 app.include_router(administracion.router, prefix="/api")
+app.include_router(catalogo.router, prefix="/api")
+app.include_router(rondines.router, prefix="/api")

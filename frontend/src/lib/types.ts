@@ -27,7 +27,12 @@ export interface ConfigWifi {
 // --- Usuarios y permisos ---------------------------------------------------
 
 /** Módulos del panel sobre los que se otorgan permisos. */
-export type Modulo = 'cuestionarios' | 'controles' | 'inventario';
+export type Modulo =
+  | 'cuestionarios'
+  | 'controles'
+  | 'inventario'
+  | 'catalogo'
+  | 'rondines';
 
 /** Lo que puede hacer un usuario dentro de un módulo. */
 export interface PermisoModulo {
@@ -635,4 +640,125 @@ export interface Platica {
   fotos: string[];
   responsable: string;
   creado_at: string;
+}
+
+// --- Catálogo de insumos ---------------------------------------------------
+
+/** Semáforo de la existencia contra su rango. Lo decide el backend. */
+export type EstadoInsumo = 'bajo' | 'normal' | 'excedido';
+
+/** Un renglón del catálogo de insumos de seguridad. */
+export interface Insumo {
+  id: string;
+  nombre: string;
+  descripcion: string | null;
+  categoria: string;
+  proveedor: string | null;
+  ubicacion: string | null;
+  cantidad: number;
+  minimo: number;
+  maximo: number;
+  estado: EstadoInsumo;
+  creado_at: string;
+  actualizado_at: string | null;
+}
+
+/** Alta y edición de un insumo (los dos mandan lo mismo). */
+export interface InsumoPayload {
+  nombre: string;
+  descripcion: string | null;
+  categoria: string;
+  proveedor: string | null;
+  ubicacion: string | null;
+  cantidad: number;
+  minimo: number;
+  maximo: number;
+}
+
+/** Página del catálogo. */
+export interface InsumosPaginados {
+  total: number;
+  page: number;
+  size: number;
+  items: Insumo[];
+}
+
+/** Filtros de la pantalla de catálogo. */
+export interface FiltrosCatalogo {
+  busqueda?: string;
+  categoria?: string;
+  /** Solo se filtra por los dos estados que piden acción. */
+  estado?: 'bajo' | 'excedido';
+}
+
+/** Resumen de una carga masiva desde Excel. */
+export interface ResultadoImportacionInsumos {
+  creados: number;
+  omitidos: number;
+  errores: ErrorImportacion[];
+}
+
+// --- Rondines de seguridad -------------------------------------------------
+
+export type TurnoRondin = 'dia' | 'noche';
+
+/** Punto de control con su código QR. */
+export interface PuntoRondin {
+  id: string;
+  numero: number;
+  nombre: string;
+  ubicacion: string | null;
+  /** Lo que va en el QR. Solo llega con sesión: es la credencial del punto. */
+  token_publico: string;
+  activo: boolean;
+  creado_at: string;
+  actualizado_at: string | null;
+}
+
+/** Alta y edición de un punto. */
+export interface PuntoRondinPayload {
+  numero: number;
+  nombre: string;
+  ubicacion: string | null;
+  activo?: boolean;
+}
+
+/** Un punto con sus seis celdas del turno. */
+export interface FilaTablero {
+  numero: number;
+  nombre: string;
+  ubicacion: string | null;
+  /** Hora del escaneo por rondín, o `null` si no se visitó. */
+  rondines: Array<string | null>;
+  visitados: number;
+}
+
+/**
+ * El tablero completo, ya resuelto en el servidor.
+ *
+ * El frontend no recalcula nada: solo pinta.
+ */
+export interface Tablero {
+  fecha: string;
+  turno: TurnoRondin;
+  inicio: string;
+  fin: string;
+  puntos_activos: number;
+  rondines: number;
+  filas: FilaTablero[];
+  visitados: number;
+  total: number;
+  cumplimiento: number;
+  por_rondin: number[];
+  /** Índice del rondín en curso, o `null` si el turno no está vivo. */
+  rondin_actual: number | null;
+  avance_actual: number | null;
+}
+
+/** Confirmación de un escaneo (`POST /api/publico/rondin/{token}`). */
+export interface EscaneoRegistrado {
+  numero: number;
+  nombre: string;
+  ubicacion: string | null;
+  escaneado_at: string;
 }

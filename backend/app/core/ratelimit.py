@@ -164,6 +164,21 @@ class MiddlewareRateLimit(BaseHTTPMiddleware):
                 ),
                 solo_fallos=True,
             ),
+            # Un guardia escanea a ráfagas: cuarenta y tantos puntos en un
+            # recorrido de dos horas, a veces varios seguidos en la misma zona.
+            # Con la cuota del formulario (pensada para quien contesta una
+            # evaluación) recibiría 429 a media ronda.
+            ReglaDeTasa(
+                prefijo="/api/publico/rondin",
+                limitador=LimitadorDeTasa(
+                    settings.RATE_LIMIT_RONDIN_ESCANEOS,
+                    settings.RATE_LIMIT_RONDIN_VENTANA_SEGUNDOS,
+                ),
+                mensaje=(
+                    "Estás escaneando demasiado rápido. "
+                    "Espera {espera} segundos e intenta de nuevo."
+                ),
+            ),
             ReglaDeTasa(
                 prefijo="/api/publico",
                 limitador=LimitadorDeTasa(),

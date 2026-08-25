@@ -25,6 +25,8 @@ const PESTANAS: ReadonlyArray<{
   { href: '/cuestionarios', clave: 'encabezado.cuestionarios', modulo: 'cuestionarios' },
   { href: '/controles', clave: 'encabezado.controles', modulo: 'controles' },
   { href: '/inventario', clave: 'encabezado.inventario', modulo: 'inventario' },
+  { href: '/catalogo', clave: 'encabezado.catalogo', modulo: 'catalogo' },
+  { href: '/rondines', clave: 'encabezado.rondines', modulo: 'rondines' },
   { href: '/administracion', clave: 'encabezado.administracion', modulo: null },
 ];
 

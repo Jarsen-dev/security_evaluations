@@ -260,6 +260,65 @@ docker compose exec backend python -m app.cli create-admin --username otro
 docker compose exec backend python -m app.cli create-admin --username admin --reestablecer
 ```
 
+### Catálogo de insumos
+
+La pestaña **Catálogo** guarda los insumos de seguridad de la planta:
+medicamento, EPP, señalización y extintores. De cada uno se registra su
+proveedor, su ubicación, la existencia actual y los topes de inventario.
+
+El color de la columna Estado sale del servidor, no del navegador:
+
+| Color | Significa |
+|---|---|
+| Verde — Normal | La existencia está entre el mínimo y el máximo |
+| Rojo — Bajo mínimo | Falta reponer |
+| Naranja — Excedido | Hay más de lo que se planeó almacenar |
+
+El filtro de estado sirve para armar la lista de compra de un vistazo.
+
+Para cargar varios de golpe, **Descargar plantilla**, llenarla y **Importar
+desde Excel**. Los insumos nuevos se dan de alta y los que ya existen se
+omiten, así que volver a subir un archivo nunca pisa lo capturado; las filas
+con problemas se reportan con su número para corregirlas en el origen.
+
+Es un catálogo, no un almacén: la existencia se corrige a mano tras el conteo.
+El sistema de recepciones y salidas se construirá encima más adelante.
+
+### Rondines de seguridad
+
+La pestaña **Rondines** sustituye al panel de Streamlit que leía un Google
+Sheets. Ahora los códigos QR los genera y los recibe el propio sistema.
+
+**Puesta en marcha.** En *Rondines → Puntos de control* se da de alta cada
+punto con su número, nombre y ubicación. El botón **Imprimir códigos QR**
+descarga un PDF con una etiqueta por punto: se imprime, se recorta y se pega en
+su lugar. El guardia escanea con la cámara del celular; se abre una página que
+registra la visita y muestra el punto y la hora. No hay nada que teclear ni que
+instalar.
+
+**El tablero.** El día que se elige es el de **inicio** del turno, no el del
+calendario:
+
+| Turno | Horario |
+|---|---|
+| Día | 07:30 → 19:30 del mismo día |
+| Noche | 19:30 → 07:30 del día siguiente |
+
+Para ver la noche del 25 al 26, se elige el **25** con turno **Noche**.
+
+Cada turno tiene seis rondines de dos horas. Un recorrido se corta cuando pasan
+más de 30 minutos sin escanear, y se asigna completo al rondín donde cayó la
+mayoría de sus puntos: así un recorrido que cruza las 09:30 no se parte en dos
+columnas. El tablero se refresca solo cada minuto mientras se está mirando.
+
+**Reportes.** Se descarga el Excel del turno, o se manda por correo. Si se
+capturan las variables `SMTP_*` y `RONDINES_REPORTE_AUTOMATICO=true` en el
+`.env`, el sistema envía el reporte solo al cambio de turno.
+
+**Retirar un punto.** Conviene desactivarlo en vez de borrarlo: desactivado
+sale del tablero y su QR deja de servir, pero los turnos pasados siguen
+contando bien.
+
 ### Actividad del sistema
 
 **Administración → Logs** lista todo lo que se crea, edita o elimina, más los

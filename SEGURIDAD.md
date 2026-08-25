@@ -25,8 +25,11 @@ a internet igual que el formulario.
 | `/api/publico/*` | Igual que la anterior: lo consume el formulario |
 | `/api/health`, `/api/areas`, `/api/static/*` | Público (sin datos sensibles) |
 | `/login`, `/cuestionarios`, `/controles`, `/inventario` | Solo usuarios del panel |
+| `/catalogo`, `/rondines` | Solo usuarios del panel, según sus permisos |
+| `/p/<token>`, `/api/publico/rondin/*` | Cualquiera con el QR. El token **es** la credencial |
 | `/administracion` | Solo el superadministrador |
 | `/api/auth/*`, `/api/cuestionarios/*`, `/api/preguntas/*`, `/api/estadisticas/*`, `/api/metas-area`, `/api/wifi`, `/api/controles/*` | Solo usuarios del panel, según sus permisos |
+| `/api/catalogo/*`, `/api/rondines/*` | Solo usuarios del panel, según sus permisos |
 | `/api/administracion/*` | Solo el superadministrador |
 
 `/api/wifi` devuelve la contraseña de la red en claro; exige sesión por eso.
@@ -43,7 +46,9 @@ vigilar el tamaño del volumen, no solo el de la base.
 ### Permisos: quién puede qué
 
 Tener sesión ya no da acceso total. Cada usuario lleva en `admin_users.permisos`
-un JSON por módulo (`cuestionarios`, `controles`, `inventario`): **estar
+un JSON por módulo (`cuestionarios`, `controles`, `inventario`, `catalogo`,
+`rondines`):
+**estar
 presente** es el acceso de ver y crear, y `editar` agrega modificar y eliminar.
 El superadministrador (`es_superadmin`) puede todo y es el único que ve
 `/administracion`.
@@ -93,13 +98,19 @@ una aplicación **Self-hosted** por cada ruta del panel:
 | API — metas | `evaluaciones.chwon.it.com` | `api/metas-area` |
 | API — wifi | `evaluaciones.chwon.it.com` | `api/wifi` |
 | API — controles | `evaluaciones.chwon.it.com` | `api/controles` |
+| Panel — catálogo | `evaluaciones.chwon.it.com` | `catalogo` |
+| Panel — rondines | `evaluaciones.chwon.it.com` | `rondines` |
 | Panel — administración | `evaluaciones.chwon.it.com` | `administracion` |
+| API — catálogo | `evaluaciones.chwon.it.com` | `api/catalogo` |
+| API — rondines | `evaluaciones.chwon.it.com` | `api/rondines` |
 | API — administración | `evaluaciones.chwon.it.com` | `api/administracion` |
 
-> **Pendiente.** Cinco aplicaciones son nuevas y **todavía no están dadas de
-> alta**: `controles`, `inventario`, `api/controles`, `administracion` y
-> `api/administracion`. Mientras no se creen, esas rutas quedan fuera de Access
-> y lo único que las defiende es la cookie de sesión más la comprobación de
+> **Pendiente.** Siete aplicaciones son nuevas y **todavía no están dadas de
+> alta**: `controles`, `inventario`, `api/controles`, `administracion`,
+> `api/administracion`, `catalogo`, `api/catalogo`, `rondines` y
+> `api/rondines`. Mientras no se creen, esas
+> rutas quedan fuera de Access y lo único que las defiende es la cookie de
+> sesión más la comprobación de
 > permisos: la pantalla de login del panel no aparece, pero la ruta sí es
 > alcanzable desde internet. Las dos de administración son las más sensibles de
 > la lista, porque desde ahí se dan de alta usuarios.
@@ -122,7 +133,8 @@ contestar:
 
 ```
 /r/            → el formulario
-/api/publico/  → lo que el formulario consume
+/p/            → la página que abre el QR de un punto de rondín
+/api/publico/  → lo que el formulario y el escaneo consumen
 /api/health    → lo usa el healthcheck del contenedor
 /api/areas     → lo pide el formulario para el selector de área
 /api/static/   → el logo
@@ -227,7 +239,7 @@ Lista corta:
 - [ ] Contraseña de `admin` cambiada.
 - [ ] Aplicaciones de Access creadas y verificadas con los `curl` de arriba,
       **incluidas las nuevas** de `controles`, `inventario`, `api/controles`,
-      `administracion` y `api/administracion`.
+      `administracion`, `api/administracion`, `catalogo` y `api/catalogo`.
 - [ ] `/r/<token>` abre sin pedir nada desde una red externa.
 - [ ] `NEXT_PUBLIC_BASE_URL` es el dominio y el frontend se reconstruyó después
       de cambiarlo (Next incrusta esa variable en el build, no la lee en
@@ -245,6 +257,11 @@ sirviendo para lo que la bitácora no cubre.
 ```bash
 # Intentos de acceso fallidos (también salen en la bitácora, como sesion.fallida)
 docker compose logs backend | grep -E "Contraseña incorrecta|usuario inexistente|cuenta desactivada"
+
+# Puntos de rondín escaneados en el turno en curso
+docker compose exec db psql -U evaluaciones -d evaluaciones -c \
+  "SELECT punto_numero, escaneado_at AT TIME ZONE 'America/Monterrey' AS hora
+     FROM escaneos_rondin ORDER BY escaneado_at DESC LIMIT 30;"
 
 # Quién cambió qué, sin abrir el panel
 docker compose exec db psql -U evaluaciones -d evaluaciones -c \
@@ -292,6 +309,14 @@ siempre nace con `es_superadmin = false`. El rol solo se otorga con
 privilegios desde la interfaz. El reverso es que el sistema puede quedarse sin
 administrador si se pierde esa cuenta: por eso el backend impide eliminar o
 desactivar al último superadministrador activo, y que uno se quite a sí mismo.
+
+**El código QR del punto es la credencial.** Igual que la liga del
+cuestionario: quien fotografíe o copie la etiqueta de un punto puede registrar
+visitas sin haber estado ahí. El escaneo tampoco identifica al guardia, así que
+la bitácora no puede decir quién fue. Es el mismo trato que daba el panel de
+Streamlit al que sustituye, y el control real sigue siendo de supervisión, no
+técnico. Si algún día importa, la salida es pedir identidad en la página del
+escaneo.
 
 **La liga del cuestionario es la credencial.** Quien tenga el token puede
 contestar, y puede pasárselo a alguien de fuera. No hay forma de distinguirlos:

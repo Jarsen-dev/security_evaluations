@@ -185,6 +185,68 @@ CATALOGO: Final[tuple[EntradaCatalogo, ...]] = (
         "controles",
         "Registró una inspección de sustancias químicas peligrosas",
     ),
+    # --- Catálogo de insumos -----------------------------------------------
+    # La de importar va ANTES del POST a secas, o el patrón general se la
+    # tragaría: `_buscar_en_catalogo` toma la primera coincidencia.
+    EntradaCatalogo(
+        "POST",
+        _ruta("/api/catalogo/importar-excel"),
+        "insumo.importar",
+        "catalogo",
+        "Importó insumos desde Excel",
+    ),
+    EntradaCatalogo(
+        "POST",
+        _ruta("/api/catalogo"),
+        "insumo.crear",
+        "catalogo",
+        "Dio de alta un insumo",
+    ),
+    EntradaCatalogo(
+        "PUT",
+        _ruta("/api/catalogo/{}"),
+        "insumo.editar",
+        "catalogo",
+        "Editó un insumo",
+    ),
+    EntradaCatalogo(
+        "DELETE",
+        _ruta("/api/catalogo/{}"),
+        "insumo.eliminar",
+        "catalogo",
+        "Eliminó un insumo",
+    ),
+    # --- Rondines de seguridad ---------------------------------------------
+    # El ESCANEO no se registra: cae bajo /api/publico, excluido a propósito,
+    # y ya deja su propio rastro en `escaneos_rondin`.
+    EntradaCatalogo(
+        "POST",
+        _ruta("/api/rondines/reporte/enviar"),
+        "rondin.reporte",
+        "rondines",
+        "Envió el reporte de rondines por correo",
+    ),
+    EntradaCatalogo(
+        "POST",
+        _ruta("/api/rondines/puntos"),
+        "punto.crear",
+        "rondines",
+        "Dio de alta un punto de control",
+    ),
+    EntradaCatalogo(
+        "PUT",
+        _ruta("/api/rondines/puntos/{}"),
+        "punto.editar",
+        "rondines",
+        "Editó un punto de control",
+    ),
+    EntradaCatalogo(
+        "DELETE",
+        _ruta("/api/rondines/puntos/{}"),
+        "punto.eliminar",
+        "rondines",
+        "Eliminó un punto de control",
+    ),
     # --- Administración ----------------------------------------------------
     EntradaCatalogo(
         "POST",

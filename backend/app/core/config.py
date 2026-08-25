@@ -73,6 +73,13 @@ class Settings(BaseSettings):
     RATE_LIMIT_LOGIN_INTENTOS: int = Field(default=5, ge=1)
     RATE_LIMIT_LOGIN_VENTANA_SEGUNDOS: int = Field(default=300, ge=1)
 
+    # --- Límite de tasa del escaneo de rondines ---------------------------
+    # Más holgado que el del formulario: un recorrido son decenas de escaneos
+    # en pocos minutos, y todos los guardias comparten la IP del NAT de la
+    # WiFi de planta.
+    RATE_LIMIT_RONDIN_ESCANEOS: int = Field(default=120, ge=1)
+    RATE_LIMIT_RONDIN_VENTANA_SEGUNDOS: int = Field(default=60, ge=1)
+
     # --- Red WiFi de planta ------------------------------------------------
     # Se usan para generar un código QR de acceso a la red, junto al QR del
     # cuestionario. Deliberadamente SIN el prefijo NEXT_PUBLIC_: esas
@@ -119,6 +126,42 @@ class Settings(BaseSettings):
     # filtros de "hora desde" y "hora hasta" que la gente teclea pensando en
     # el reloj de la planta. La conversión se hace en SQL con esta zona.
     ZONA_HORARIA: str = "America/Monterrey"
+
+    # --- Correo saliente ---------------------------------------------------
+    # Se usa para los reportes de rondines. La contraseña NO lleva el prefijo
+    # NEXT_PUBLIC_ por la misma razón que la del WiFi: Next incrustaría esa
+    # variable en el bundle que descarga cualquiera.
+    SMTP_HOST: str = ""
+    SMTP_PUERTO: int = Field(default=465, ge=1, le=65535)
+    SMTP_USUARIO: str = ""
+    SMTP_PASSWORD: str = ""
+    SMTP_DESDE: str = ""
+    #: True para SMTPS directo (puerto 465); False para STARTTLS (587).
+    SMTP_SSL: bool = True
+
+    @property
+    def correo_configurado(self) -> bool:
+        """Si hay servidor y remitente para poder enviar."""
+        return bool(self.SMTP_HOST.strip() and self.remitente)
+
+    @property
+    def remitente(self) -> str:
+        """Dirección del remitente; cae al usuario si no se capturó aparte."""
+        return (self.SMTP_DESDE or self.SMTP_USUARIO).strip()
+
+    # --- Reporte automático de rondines ------------------------------------
+    RONDINES_REPORTE_AUTOMATICO: bool = False
+    #: Correos separados por comas.
+    RONDINES_DESTINATARIOS: str = ""
+
+    @property
+    def rondines_destinatarios(self) -> list[str]:
+        """Lista de destinatarios del reporte automático."""
+        return [
+            correo.strip()
+            for correo in self.RONDINES_DESTINATARIOS.split(",")
+            if correo.strip()
+        ]
 
     # --- Reglas de negocio -------------------------------------------------
     UMBRAL_APROBACION: int = Field(

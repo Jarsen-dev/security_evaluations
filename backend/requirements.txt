@@ -30,3 +30,13 @@ reportlab==4.2.5
 # si Pillow está presente. Llegaba de rebote como dependencia de python-pptx;
 # se fija explícito porque ahora hay código que depende de él.
 Pillow==11.0.0
+
+# --- Rondines de seguridad -------------------------------------------------
+# Códigos QR de los puntos de control, para la hoja imprimible. segno es
+# Python puro: no arrastra dependencias del sistema al contenedor.
+segno==1.6.1
+
+# --- Correo ----------------------------------------------------------------
+# El smtplib de la biblioteca estándar es bloqueante: mientras habla con el
+# servidor de correo detendría el bucle de eventos y con él toda la API.
+aiosmtplib==3.0.2

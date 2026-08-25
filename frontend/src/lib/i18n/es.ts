@@ -44,6 +44,8 @@ export const es = {
     cuestionarios: 'Cuestionarios',
     controles: 'Controles',
     inventario: 'Inventario',
+    catalogo: 'Catálogo',
+    rondines: 'Rondines',
     administracion: 'Administración',
     salir: 'Salir',
     idioma: 'Idioma',
@@ -518,6 +520,8 @@ export const es = {
     cuestionarios: 'Cuestionarios',
     controles: 'Controles',
     inventario: 'Inventario',
+    catalogo: 'Catálogo',
+    rondines: 'Rondines',
     accesoA: 'Dar acceso a {modulo}',
     editarEn: 'Permitir editar y eliminar en {modulo}',
     superadminTodo: 'El superadministrador tiene acceso completo a todo el panel.',
@@ -566,6 +570,149 @@ export const es = {
     aviso:
       'pgAdmin no permite iniciar sesión desde una liga externa, así que el ' +
       'botón abre la pestaña con las credenciales ya en el portapapeles.',
+  },
+
+  catalogo: {
+    titulo: 'Catálogo de insumos',
+    descripcion:
+      'Los insumos de seguridad de la planta: medicamento, EPP, señalización y ' +
+      'extintores, con su existencia y sus topes de inventario.',
+    nuevo: 'Nuevo insumo',
+    nombre: 'Nombre',
+    nombreAyuda: 'Identifica al insumo. No puede repetirse.',
+    descripcionCampo: 'Descripción',
+    categoria: 'Categoría',
+    proveedor: 'Proveedor',
+    ubicacion: 'Ubicación',
+    cantidad: 'Cantidad',
+    minimo: 'Mín. inventario',
+    maximo: 'Máx. inventario',
+    rango: 'Mín. / Máx.',
+    estado: 'Estado',
+    crear: 'Nuevo insumo',
+    editar: 'Editar insumo',
+    registros: '{total} insumo(s)',
+    pagina: 'Página {pagina} de {total}',
+    anterior: 'Anterior',
+    siguiente: 'Siguiente',
+    todasLasCategorias: 'Todas las categorías',
+    todosLosEstados: 'Todos los estados',
+    limpiar: 'Limpiar filtros',
+    buscarAyuda: 'Buscar por nombre, descripción, proveedor o ubicación…',
+    vacio: 'Todavía no hay insumos en el catálogo.',
+    vacioAyuda: 'Da de alta el primero, o carga varios desde un Excel.',
+    sinCoincidencias: 'Ningún insumo coincide con los filtros.',
+    falloCarga: 'No se pudo cargar el catálogo.',
+    creado: 'Insumo dado de alta.',
+    actualizado: 'Insumo actualizado.',
+    eliminado: 'Insumo eliminado.',
+    falloGuardar: 'No se pudo guardar el insumo.',
+    falloEliminar: 'No se pudo eliminar el insumo.',
+    confirmarEliminar: 'Eliminar insumo',
+    confirmarEliminarDetalle:
+      '«{nombre}» se borrará del catálogo. Esta acción no se puede deshacer.',
+    faltaNombre: 'Escribe el nombre del insumo.',
+    faltaCategoria: 'Elige una categoría.',
+    numeroInvalido: 'Escribe un número entero de 0 o más.',
+    rangoInvertido: 'El máximo no puede ser menor que el mínimo.',
+  },
+
+  semaforoInsumo: {
+    bajo: 'Bajo mínimo',
+    normal: 'Normal',
+    excedido: 'Excedido',
+    ayuda:
+      'Bajo mínimo cuando la existencia no alcanza el mínimo; excedido cuando ' +
+      'pasa del máximo.',
+  },
+
+  importarCatalogo: {
+    boton: 'Importar desde Excel',
+    importando: 'Importando…',
+    plantilla: 'Descargar plantilla',
+    nota:
+      'Los insumos nuevos se dan de alta y los que ya existen se omiten, así que ' +
+      'volver a subir un archivo no pisa lo capturado.',
+    resultado: '{creados} insumo(s) nuevo(s); {omitidos} ya existían.',
+    fallo: 'No se pudo importar el archivo.',
+    filasConProblemas:
+      '{total} fila(s) con problemas — corrígelas en tu Excel y vuelve a importar:',
+    fila: 'Fila {numero}:',
+  },
+
+  rondines: {
+    titulo: 'Rondines de seguridad',
+    descripcion:
+      'Seguimiento de los recorridos por turno: qué punto se visitó, en qué ' +
+      'rondín y a qué hora.',
+    tablero: 'Tablero',
+    puntos: 'Puntos de control',
+    secciones: 'Secciones de rondines',
+    turno: 'Turno',
+    turnoDia: 'Día',
+    turnoNoche: 'Noche',
+    dia: 'Día de inicio',
+    rango: '{inicio} → {fin}',
+    ayudaTurno:
+      'El día que eliges es el de INICIO del turno. Para la noche del 25 al 26, ' +
+      'elige el 25 con turno Noche.',
+    cumplimiento: 'Cumplimiento general',
+    visitas: 'Visitas del turno',
+    rondinEnCurso: 'Rondín en curso',
+    fueraDeTurno: 'Turno cerrado',
+    avance: 'Avance del rondín',
+    rondin: 'Rondín {numero}',
+    punto: 'Punto',
+    porRondin: 'Cumplimiento por rondín',
+    visitados: 'Visitados',
+    sinVisita: 'Sin visita',
+    descargar: 'Descargar Excel',
+    enviarCorreo: 'Enviar por correo',
+    correoDestino: 'Correo del destinatario',
+    correoEnviado: 'Reporte enviado correctamente.',
+    falloCorreo: 'No se pudo enviar el reporte.',
+    sinPuntos: 'Todavía no hay puntos de control.',
+    sinPuntosAyuda: 'Da de alta los puntos para que el tablero tenga qué mostrar.',
+    falloCarga: 'No se pudo cargar el tablero.',
+    actualizado: 'Actualizado a las {hora}',
+  },
+
+  puntosRondin: {
+    titulo: 'Puntos de control',
+    descripcion:
+      'Cada punto tiene su código QR. Imprímelos, recórtalos y pégalos en su ' +
+      'lugar de la planta.',
+    nuevo: 'Nuevo punto',
+    imprimir: 'Imprimir códigos QR',
+    numero: 'Número',
+    numeroAyuda: 'Es lo que se imprime en la etiqueta. No puede repetirse.',
+    nombre: 'Nombre',
+    ubicacion: 'Ubicación',
+    estado: 'Estado',
+    activo: 'Activo',
+    inactivo: 'Retirado',
+    codigo: 'Código QR',
+    verCodigo: 'Ver código',
+    crear: 'Nuevo punto de control',
+    editar: 'Editar punto de control',
+    vacio: 'Todavía no hay puntos de control.',
+    vacioAyuda: 'Da de alta el primero para empezar a registrar recorridos.',
+    falloCarga: 'No se pudieron cargar los puntos.',
+    creado: 'Punto dado de alta.',
+    actualizadoOk: 'Punto actualizado.',
+    eliminado: 'Punto eliminado.',
+    falloGuardar: 'No se pudo guardar el punto.',
+    falloEliminar: 'No se pudo eliminar el punto.',
+    confirmarEliminar: 'Eliminar punto de control',
+    confirmarEliminarDetalle:
+      'El punto {nombre} se borrará y su código QR dejará de servir. Los ' +
+      'recorridos anteriores conservan el número, pero dejarán de contarse. ' +
+      'Casi siempre conviene retirarlo en vez de borrarlo.',
+    faltaNumero: 'Escribe el número del punto.',
+    faltaNombre: 'Escribe el nombre del punto.',
+    descargarQr: 'Descargar PNG',
+    ligaCopiada: 'Liga copiada.',
+    falloCopiar: 'No se pudo copiar. Cópiala a mano: {liga}',
   },
 };
 

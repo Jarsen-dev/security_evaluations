@@ -21,6 +21,8 @@ const RUTAS_PROTEGIDAS = [
   '/cuestionarios',
   '/controles',
   '/inventario',
+  '/catalogo',
+  '/rondines',
   '/administracion',
 ];
 
@@ -64,5 +66,5 @@ export const config = {
    * Se excluyen los recursos estáticos y, sobre todo, `/r/` y `/api/`:
    * el formulario público no lleva sesión y jamás debe redirigirse al login.
    */
-  matcher: ['/((?!api|_next/static|_next/image|favicon.ico|r/).*)'],
+  matcher: ['/((?!api|_next/static|_next/image|favicon.ico|r/|p/).*)'],
 };
