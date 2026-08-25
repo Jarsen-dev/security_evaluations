@@ -22,10 +22,12 @@ from app.core.constants import etiqueta_area
 from app.core.controles_catalogo import (
     AREAS_PLATICAS,
     ETIQUETAS_VALOR_CHECKLIST,
+    ETIQUETAS_VALOR_SI_NO,
     PUNTOS_SQP,
     RAYSER_NORMAL,
     RENGLONES_SUSTANCIAS,
     TITULO_PLATICAS,
+    CampoFormato,
     DefinicionChecklist,
 )
 from app.models.control import InspeccionSqp
@@ -532,6 +534,232 @@ def generar_excel_checklist(
         [12] + [18] * len(definicion.puntos) + [50, 20],
     )
     hoja.freeze_panes = hoja.cell(row=fila_encabezados + 1, column=1).coordinate
+
+    if evidencias:
+        _hoja_evidencias(libro, evidencias)
+
+    flujo = BytesIO()
+    libro.save(flujo)
+    flujo.seek(0)
+    return flujo
+
+
+
+# --- Formatos por inspección (silos, tableros) -----------------------------
+
+
+def _texto_bilingue(espanol: str, coreano: str | None) -> str:
+    """Las dos líneas del formato original, una debajo de la otra."""
+    return f"{coreano}\n{espanol}" if coreano else espanol
+
+
+def _fila_titulo(hoja: Worksheet, fila: int, texto: str, ancho: int) -> int:
+    """Título de bloque, en gris y a lo ancho de la tabla."""
+    celda = hoja.cell(row=fila, column=1, value=texto)
+    celda.font = Font(bold=True)
+    celda.fill = RELLENO_SECCION
+    celda.alignment = Alignment(vertical="center", wrap_text=True)
+    hoja.merge_cells(start_row=fila, start_column=1, end_row=fila, end_column=ancho)
+    return fila + 1
+
+
+def _bloque_campos(
+    hoja: Worksheet,
+    fila: int,
+    campos: tuple[CampoFormato, ...],
+    valores: dict[str, str],
+    ancho: int,
+) -> int:
+    """Escribe pares etiqueta/valor, dos por renglón cuando caben."""
+    columna = 1
+
+    for campo in campos:
+        etiqueta = _texto_bilingue(campo.etiqueta, campo.etiqueta_ko)
+        valor = valores.get(campo.clave, "")
+        if valor and campo.unidad:
+            valor = f"{valor} {campo.unidad}"
+
+        celda_etiqueta = hoja.cell(row=fila, column=columna, value=etiqueta)
+        celda_etiqueta.font = Font(bold=True)
+        celda_etiqueta.alignment = Alignment(vertical="top", wrap_text=True)
+        celda_etiqueta.border = BORDE_FINO
+
+        celda_valor = hoja.cell(row=fila, column=columna + 1, value=valor or "—")
+        celda_valor.alignment = Alignment(vertical="top", wrap_text=True)
+        celda_valor.border = BORDE_FINO
+
+        # Los campos largos ocupan el renglón completo; el resto va de dos en
+        # dos, como el encabezado de la hoja impresa.
+        if campo.tipo == "texto_largo":
+            hoja.merge_cells(
+                start_row=fila, start_column=columna + 1, end_row=fila, end_column=ancho
+            )
+            fila += 1
+            columna = 1
+        elif columna == 1 and ancho >= 4:
+            columna = 3
+        else:
+            fila += 1
+            columna = 1
+
+    return fila + 1 if columna != 1 else fila
+
+
+def generar_excel_formato(
+    definicion: DefinicionChecklist,
+    registro: dict[str, Any],
+    evidencias: list[Evidencia],
+) -> BytesIO:
+    """Reproduce la hoja de una inspección: encabezado, puntos y bloques.
+
+    A diferencia de los controles de rejilla, aquí cada registro **es** una
+    hoja: así se imprime y así se archiva.
+    """
+    libro = Workbook()
+    hoja = libro.active
+    if hoja is None:  # pragma: no cover
+        hoja = libro.create_sheet()
+    hoja.title = definicion.hoja[:31]
+
+    # La tabla de puntos define el ancho de todo el documento.
+    con_categoria = any(punto.categoria for punto in definicion.puntos)
+    con_medicion = any(punto.medicion for punto in definicion.puntos)
+    columnas = ["No."]
+    if con_categoria:
+        columnas.append("구분 / Categoría")
+    columnas.append("점검 항목 / Punto de inspección")
+    if con_medicion:
+        columnas.append("측정값 / Medición")
+    columnas += ["판정 / Resultado", "비고 / Observaciones"]
+    ancho = len(columnas)
+
+    celda_titulo = hoja.cell(
+        row=1, column=1, value=_texto_bilingue(definicion.titulo, definicion.titulo_ko)
+    )
+    celda_titulo.font = FUENTE_TITULO
+    celda_titulo.alignment = Alignment(vertical="center", wrap_text=True)
+    hoja.merge_cells(start_row=1, start_column=1, end_row=1, end_column=ancho)
+    hoja.row_dimensions[1].height = 34
+
+    fila = _bloque_campos(
+        hoja,
+        3,
+        (CampoFormato(clave="fecha", etiqueta="Fecha", etiqueta_ko="점검일"),)
+        + definicion.encabezado,
+        {"fecha": f"{registro['fecha']:%d/%m/%Y}", **registro["encabezado"]},
+        ancho,
+    )
+
+    fila += 1
+    fila = _fila_titulo(hoja, fila, "1) 체크 리스트 / Lista de Verificación", ancho)
+    escribir_encabezados(hoja, columnas, fila=fila)
+    fila += 1
+
+    etiquetas = ETIQUETAS_VALOR_SI_NO if definicion.estilo_valores == "si_no" else ETIQUETAS_VALOR_CHECKLIST
+
+    for punto in registro["puntos"]:
+        columna = 1
+        celda_numero = hoja.cell(row=fila, column=columna, value=punto["orden"] + 1)
+        celda_numero.alignment = Alignment(horizontal="center", vertical="top")
+        celda_numero.border = BORDE_FINO
+        columna += 1
+
+        if con_categoria:
+            celda_categoria = hoja.cell(
+                row=fila, column=columna, value=punto.get("categoria")
+            )
+            celda_categoria.alignment = Alignment(vertical="top", wrap_text=True)
+            celda_categoria.border = BORDE_FINO
+            columna += 1
+
+        celda_texto = hoja.cell(
+            row=fila,
+            column=columna,
+            value=_texto_bilingue(punto["etiqueta"], punto.get("etiqueta_ko")),
+        )
+        celda_texto.alignment = Alignment(vertical="top", wrap_text=True)
+        celda_texto.border = BORDE_FINO
+        columna += 1
+
+        if con_medicion:
+            del_catalogo = definicion.puntos[punto["orden"]]
+            medicion = punto.get("medicion")
+            celda_medicion = hoja.cell(
+                row=fila,
+                column=columna,
+                value=(
+                    f"{medicion} {del_catalogo.medicion}"
+                    if medicion and del_catalogo.medicion
+                    else medicion
+                ),
+            )
+            celda_medicion.alignment = Alignment(horizontal="center", vertical="top")
+            celda_medicion.border = BORDE_FINO
+            columna += 1
+
+        celda_valor = hoja.cell(row=fila, column=columna, value=etiquetas[punto["valor"]])
+        celda_valor.alignment = Alignment(horizontal="center", vertical="center")
+        celda_valor.border = BORDE_FINO
+        color = "verde" if punto["valor"] == "ok" else "rojo"
+        celda_valor.fill = RELLENOS_SEMAFORO[color]
+        celda_valor.font = FUENTES_SEMAFORO[color]
+        columna += 1
+
+        celda_obs = hoja.cell(row=fila, column=columna, value=punto.get("observaciones"))
+        celda_obs.alignment = Alignment(vertical="top", wrap_text=True)
+        celda_obs.border = BORDE_FINO
+
+        fila += 1
+
+    # --- Bloques del pie ---------------------------------------------------
+    for indice, seccion in enumerate(definicion.secciones, start=2):
+        valores = registro["secciones"].get(seccion.clave)
+        if valores is None:
+            # El bloque de anomalía no se llenó porque no hubo hallazgos.
+            continue
+
+        fila += 1
+        fila = _fila_titulo(
+            hoja,
+            fila,
+            f"{indice}) {_texto_bilingue(seccion.titulo, seccion.titulo_ko)}",
+            ancho,
+        )
+        fila = _bloque_campos(hoja, fila, seccion.campos, valores, ancho)
+
+    fila += 1
+    hoja.cell(
+        row=fila, column=1, value="점검자 서명 / Firma del inspector:"
+    ).font = Font(bold=True)
+    hoja.cell(
+        row=fila + 1, column=1, value="확인자 서명 / Firma del supervisor:"
+    ).font = Font(bold=True)
+
+    fila += 3
+    hoja.cell(
+        row=fila,
+        column=1,
+        value=f"Capturó en el sistema: {registro['responsable']}",
+    ).font = Font(italic=True)
+
+    if definicion.nota:
+        fila += 2
+        celda_nota = hoja.cell(
+            row=fila, column=1, value=_texto_bilingue(definicion.nota, definicion.nota_ko)
+        )
+        celda_nota.font = Font(bold=True, color="9C0006")
+        celda_nota.alignment = Alignment(vertical="top", wrap_text=True)
+        hoja.merge_cells(start_row=fila, start_column=1, end_row=fila, end_column=ancho)
+        hoja.row_dimensions[fila].height = 46
+
+    anchos = [6]
+    if con_categoria:
+        anchos.append(22)
+    anchos.append(70)
+    if con_medicion:
+        anchos.append(14)
+    anchos += [14, 40]
+    ajustar_anchos(hoja, anchos)
 
     if evidencias:
         _hoja_evidencias(libro, evidencias)

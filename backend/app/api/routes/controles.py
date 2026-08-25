@@ -36,6 +36,7 @@ from app.core.controles_catalogo import (
     CONTROLES_CHECKLIST,
     MAX_FOTOS,
     PUNTOS_SQP,
+    CampoFormato,
     DefinicionChecklist,
     definicion_checklist,
     fuera_de_rango,
@@ -56,6 +57,7 @@ from app.models.admin_user import AdminUser
 from app.models.control import InspeccionSqp
 from app.schemas.control import (
     AreaPlaticaOut,
+    CampoFormatoOut,
     CatalogoChecklist,
     CatalogoSqp,
     ChecklistCrear,
@@ -66,6 +68,7 @@ from app.schemas.control import (
     PlaticaOut,
     PuntoControlOut,
     PuntoSqpOut,
+    SeccionFormatoOut,
     RespuestaSqpOut,
     RangoRayser,
     RegistroChecklistOut,
@@ -118,6 +121,19 @@ def _primer_error(exc: ValidationError | json.JSONDecodeError) -> str:
             return mensaje_de_validacion(errores[0])
 
     return "El cuerpo de la petición no es JSON válido."
+
+
+def _campo(campo: CampoFormato) -> CampoFormatoOut:
+    """Traduce un campo del catálogo a su forma de salida."""
+    return CampoFormatoOut(
+        clave=campo.clave,
+        etiqueta=campo.etiqueta,
+        etiqueta_ko=campo.etiqueta_ko,
+        tipo=campo.tipo,
+        opciones=list(campo.opciones),
+        unidad=campo.unidad,
+        obligatorio=campo.obligatorio,
+    )
 
 
 def _definicion(control: str) -> DefinicionChecklist:
@@ -432,12 +448,37 @@ async def catalogo_checklist(control: str) -> CatalogoChecklist:
     return CatalogoChecklist(
         clave=definicion.clave,
         titulo=definicion.titulo,
+        titulo_ko=definicion.titulo_ko,
         subtitulo=definicion.subtitulo,
         puntos=[
-            PuntoControlOut(orden=orden, clave=punto.clave, etiqueta=punto.etiqueta)
+            PuntoControlOut(
+                orden=orden,
+                clave=punto.clave,
+                etiqueta=punto.etiqueta,
+                etiqueta_ko=punto.etiqueta_ko,
+                categoria=punto.categoria,
+                medicion=punto.medicion,
+            )
             for orden, punto in enumerate(definicion.puntos)
         ],
         max_fotos=MAX_FOTOS,
+        estilo_valores=definicion.estilo_valores,
+        encabezado=[_campo(campo) for campo in definicion.encabezado],
+        secciones=[
+            SeccionFormatoOut(
+                clave=seccion.clave,
+                titulo=seccion.titulo,
+                titulo_ko=seccion.titulo_ko,
+                campos=[_campo(campo) for campo in seccion.campos],
+                solo_con_hallazgos=seccion.solo_con_hallazgos,
+            )
+            for seccion in definicion.secciones
+        ],
+        nota=definicion.nota,
+        nota_ko=definicion.nota_ko,
+        # Lo que decide la forma del control: con encabezado es un formato por
+        # inspección y admite varios registros el mismo día.
+        por_inspeccion=bool(definicion.encabezado),
     )
 
 
@@ -501,6 +542,8 @@ async def registrar_checklist(
     request: Request,
     fecha: date = Form(),
     puntos: str = Form(description="JSON con la respuesta de cada punto."),
+    encabezado: str = Form(default="{}", description="JSON del encabezado."),
+    secciones: str = Form(default="{}", description="JSON de los bloques del pie."),
     db: AsyncSession = Depends(get_db),
     admin: AdminUser = Depends(obtener_admin_actual),
 ) -> RegistroChecklistOut:
@@ -515,7 +558,12 @@ async def registrar_checklist(
 
     try:
         datos = ChecklistCrear.model_validate(
-            {"fecha": fecha, "puntos": json.loads(puntos)}
+            {
+                "fecha": fecha,
+                "puntos": json.loads(puntos),
+                "encabezado": json.loads(encabezado),
+                "secciones": json.loads(secciones),
+            }
         )
     except (ValidationError, json.JSONDecodeError) as exc:
         raise ErrorDeNegocio(_primer_error(exc)) from exc
@@ -542,15 +590,39 @@ async def registrar_checklist(
     )
 
     # Se relee para devolver los identificadores de las fotos ya guardadas.
-    guardados = await control_service.listar_checklist(
-        db, definicion, registro.fecha, registro.fecha
+    # Por id y no por fecha: un formato por inspección admite varios registros
+    # el mismo día y el primero de la lista podría ser otro.
+    guardado = await control_service.obtener_checklist(db, definicion, registro.id)
+    return RegistroChecklistOut(**guardado)
+
+
+@router.get(
+    "/checklist/{control}/{registro_id}/exportar/excel",
+    summary="Descarga una inspección en Excel",
+)
+async def exportar_inspeccion(
+    control: str,
+    registro_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+) -> StreamingResponse:
+    """Reproduce la hoja del formato con lo capturado en esa inspección."""
+    definicion = _definicion(control)
+
+    registro = await control_service.obtener_checklist(db, definicion, registro_id)
+    evidencias = await control_service.evidencias_registro(db, definicion, registro_id)
+
+    flujo = controles_excel.generar_excel_formato(definicion, registro, evidencias)
+    nombre = f"{definicion.clave}_{registro['fecha']:%Y%m%d}_{str(registro_id)[:8]}.xlsx"
+
+    return StreamingResponse(
+        flujo, media_type=TIPO_EXCEL, headers=cabecera_descarga(nombre)
     )
-    return RegistroChecklistOut(**guardados[0])
 
 
 @router.delete(
     "/checklist/{control}/{registro_id}",
     status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[Depends(requiere("controles", editar=True))],
     summary="Elimina un registro mal capturado",
 )
 async def eliminar_checklist(
@@ -658,6 +730,7 @@ async def registrar_platica(
 @router.delete(
     "/platicas/{platica_id}",
     status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[Depends(requiere("controles", editar=True))],
     summary="Elimina una plática mal capturada",
 )
 async def eliminar_platica(

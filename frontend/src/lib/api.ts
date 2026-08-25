@@ -10,7 +10,9 @@
 import type {
   Admin,
   Area,
+  AreaPlatica,
   BitacoraPaginada,
+  CatalogoChecklist,
   CatalogoSqp,
   ConfigWifi,
   Credenciales,
@@ -48,6 +50,7 @@ import type {
   Usuario,
   UsuarioActualizarPayload,
   UsuarioCrearPayload,
+  ValorChecklist,
 } from './types';
 
 const EN_SERVIDOR = typeof window === 'undefined';
@@ -547,6 +550,129 @@ export const registrarInspeccionSqp = (
 
 export const descargarExcelSqp = (id: string): Promise<void> =>
   descargarArchivo(`/controles/sqp/${id}/exportar/excel`, 'inspeccion_sqp.xlsx');
+
+// --- Controles de lista de verificación (OK / NO OK) -----------------------
+
+export const obtenerCatalogoChecklist = (control: string): Promise<CatalogoChecklist> =>
+  api.get<CatalogoChecklist>(`/controles/checklist/${control}/catalogo`);
+
+export const listarChecklist = (
+  control: string,
+  desde: string,
+  hasta: string,
+): Promise<RegistroChecklist[]> =>
+  api.get<RegistroChecklist[]>(
+    `/controles/checklist/${control}?${new URLSearchParams({ desde, hasta }).toString()}`,
+  );
+
+/**
+ * Registra el recorrido del día.
+ *
+ * La parte estructurada viaja como JSON en un campo del multipart y las fotos
+ * en campos `fotos_{orden}`, uno por punto: así el registro y sus evidencias
+ * se guardan en una sola petición, sin quedar a medias si se cae la red.
+ */
+export function registrarChecklist(
+  control: string,
+  datos: {
+    fecha: string;
+    puntos: Array<{
+      orden: number;
+      valor: ValorChecklist;
+      observaciones: string;
+      medicion?: string;
+    }>;
+    fotos: Record<number, File[]>;
+    /** Solo los formatos por inspección los usan. */
+    encabezado?: Record<string, string>;
+    secciones?: Record<string, Record<string, string>>;
+  },
+): Promise<RegistroChecklist> {
+  const cuerpo = new FormData();
+  cuerpo.append('fecha', datos.fecha);
+  cuerpo.append(
+    'puntos',
+    JSON.stringify(
+      datos.puntos.map((punto) => ({
+        orden: punto.orden,
+        valor: punto.valor,
+        observaciones: punto.observaciones || null,
+        medicion: punto.medicion || null,
+      })),
+    ),
+  );
+  cuerpo.append('encabezado', JSON.stringify(datos.encabezado ?? {}));
+  cuerpo.append('secciones', JSON.stringify(datos.secciones ?? {}));
+
+  for (const [orden, fotos] of Object.entries(datos.fotos)) {
+    fotos.forEach((foto) => cuerpo.append(`fotos_${orden}`, foto));
+  }
+
+  return enviarFormulario<RegistroChecklist>(`/controles/checklist/${control}`, cuerpo);
+}
+
+/** Excel de una inspección suelta, con el formato de su hoja. */
+export const descargarExcelInspeccion = (
+  control: string,
+  id: string,
+): Promise<void> =>
+  descargarArchivo(
+    `/controles/checklist/${control}/${id}/exportar/excel`,
+    `${control}.xlsx`,
+  );
+
+export const eliminarRegistroChecklist = (
+  control: string,
+  id: string,
+): Promise<void> => api.delete<void>(`/controles/checklist/${control}/${id}`);
+
+export const descargarExcelChecklist = (
+  control: string,
+  desde: string,
+  hasta: string,
+): Promise<void> =>
+  descargarArchivo(
+    `/controles/checklist/${control}/exportar/excel?${new URLSearchParams({
+      desde,
+      hasta,
+    }).toString()}`,
+    `${control}.xlsx`,
+  );
+
+// --- Pláticas diarias de seguridad -----------------------------------------
+
+export const obtenerAreasPlaticas = (): Promise<AreaPlatica[]> =>
+  api.get<AreaPlatica[]>('/controles/platicas/areas');
+
+export const listarPlaticas = (desde: string, hasta: string): Promise<Platica[]> =>
+  api.get<Platica[]>(
+    `/controles/platicas?${new URLSearchParams({ desde, hasta }).toString()}`,
+  );
+
+export function registrarPlatica(datos: {
+  fecha: string;
+  tema: string;
+  areas: string[];
+  fotos: File[];
+}): Promise<Platica> {
+  const cuerpo = new FormData();
+  cuerpo.append('fecha', datos.fecha);
+  cuerpo.append('tema', datos.tema);
+  cuerpo.append('areas', JSON.stringify(datos.areas));
+  datos.fotos.forEach((foto) => cuerpo.append('fotos', foto));
+
+  return enviarFormulario<Platica>('/controles/platicas', cuerpo);
+}
+
+export const eliminarPlatica = (id: string): Promise<void> =>
+  api.delete<void>(`/controles/platicas/${id}`);
+
+export const descargarExcelPlaticas = (desde: string, hasta: string): Promise<void> =>
+  descargarArchivo(
+    `/controles/platicas/exportar/excel?${new URLSearchParams({ desde, hasta }).toString()}`,
+    'platicas_esh.xlsx',
+  );
+
 
 // --- Administración: usuarios ----------------------------------------------
 

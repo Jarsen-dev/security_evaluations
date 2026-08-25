@@ -10,6 +10,7 @@ import { useToast } from '@/components/ui/Toast';
 import {
   ErrorDeApi,
   descargarExcelChecklist,
+  descargarExcelInspeccion,
   eliminarRegistroChecklist,
   listarChecklist,
   obtenerCatalogoChecklist,
@@ -38,6 +39,7 @@ export function PanelChecklist({ control }: { control: string }) {
   const [errorCarga, setErrorCarga] = useState('');
   const [porEliminar, setPorEliminar] = useState<RegistroChecklist | null>(null);
   const [eliminando, setEliminando] = useState(false);
+  const [descargandoId, setDescargandoId] = useState<string | null>(null);
 
   const hoy = fechaDeHoy();
 
@@ -86,8 +88,15 @@ export function PanelChecklist({ control }: { control: string }) {
   }, [cargar]);
 
   async function guardar(datos: {
-    puntos: Array<{ orden: number; valor: ValorChecklist; observaciones: string }>;
+    puntos: Array<{
+      orden: number;
+      valor: ValorChecklist;
+      observaciones: string;
+      medicion?: string;
+    }>;
     fotos: Record<number, File[]>;
+    encabezado: Record<string, string>;
+    secciones: Record<string, Record<string, string>>;
   }) {
     setGuardando(true);
 
@@ -129,6 +138,22 @@ export function PanelChecklist({ control }: { control: string }) {
     }
   }
 
+  /** Excel de una inspección suelta, con el formato de su hoja. */
+  async function descargarInspeccion(registro: RegistroChecklist) {
+    setDescargandoId(registro.id);
+
+    try {
+      await descargarExcelInspeccion(control, registro.id);
+    } catch (error) {
+      mostrarToast(
+        error instanceof ErrorDeApi ? error.message : t('comun.errorGenerico'),
+        'error',
+      );
+    } finally {
+      setDescargandoId(null);
+    }
+  }
+
   async function descargar() {
     const { desde, hasta } = rangoDelMes(`${mes}-01`);
     setDescargando(true);
@@ -145,7 +170,12 @@ export function PanelChecklist({ control }: { control: string }) {
     }
   }
 
-  const yaRegistrado = registros.some((registro) => registro.fecha === hoy);
+  // En los formatos por inspección un día admite varias hojas —una por turno,
+  // o una por tablero—, así que el aviso de "ya capturado" no aplica.
+  const yaRegistrado =
+    catalogo !== null &&
+    !catalogo.por_inspeccion &&
+    registros.some((registro) => registro.fecha === hoy);
 
   return (
     <div className="flex flex-col gap-6">
@@ -195,14 +225,18 @@ export function PanelChecklist({ control }: { control: string }) {
           />
         </div>
 
-        <Button
-          variante="secundario"
-          onClick={() => void descargar()}
-          cargando={descargando}
-          disabled={registros.length === 0}
-        >
-          {t('comun.descargarExcel')}
-        </Button>
+        {/* El resumen mensual solo tiene sentido en las rejillas; los
+            formatos por inspección se descargan hoja por hoja. */}
+        {catalogo !== null && !catalogo.por_inspeccion && (
+          <Button
+            variante="secundario"
+            onClick={() => void descargar()}
+            cargando={descargando}
+            disabled={registros.length === 0}
+          >
+            {t('comun.descargarExcel')}
+          </Button>
+        )}
       </div>
 
       <div className="flex flex-col gap-3">
@@ -217,6 +251,12 @@ export function PanelChecklist({ control }: { control: string }) {
             catalogo={catalogo}
             registros={registros}
             onEliminar={setPorEliminar}
+            onDescargar={
+              catalogo.por_inspeccion
+                ? (registro) => void descargarInspeccion(registro)
+                : undefined
+            }
+            descargandoId={descargandoId}
           />
         )}
       </div>

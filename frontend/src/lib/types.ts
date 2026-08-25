@@ -541,23 +541,65 @@ export interface PuntoControl {
   orden: number;
   clave: string;
   etiqueta: string;
+  /** Texto coreano del formato bilingüe; solo lo traen silos y tableros. */
+  etiqueta_ko: string | null;
+  categoria: string | null;
+  /** Unidad de la lectura que pide el punto ("°C"); null si no pide ninguna. */
+  medicion: string | null;
+}
+
+export type TipoCampo = 'texto' | 'texto_largo' | 'hora' | 'numero' | 'opcion';
+
+/** Campo del encabezado o de un bloque del formato. */
+export interface CampoFormato {
+  clave: string;
+  etiqueta: string;
+  etiqueta_ko: string | null;
+  tipo: TipoCampo;
+  opciones: string[];
+  unidad: string | null;
+  obligatorio: boolean;
+}
+
+export interface SeccionFormato {
+  clave: string;
+  titulo: string;
+  titulo_ko: string | null;
+  campos: CampoFormato[];
+  /** El bloque de anomalía solo aplica cuando hay algún punto en NO. */
+  solo_con_hallazgos: boolean;
 }
 
 /** Definición de un control: sus puntos y sus límites, servida por la API. */
 export interface CatalogoChecklist {
   clave: string;
   titulo: string;
+  titulo_ko: string | null;
   subtitulo: string | null;
   puntos: PuntoControl[];
   max_fotos: number;
+  /** Cómo se rotulan las dos respuestas: OK/NO OK o SÍ/NO. */
+  estilo_valores: 'ok_no_ok' | 'si_no';
+  encabezado: CampoFormato[];
+  secciones: SeccionFormato[];
+  nota: string | null;
+  nota_ko: string | null;
+  /**
+   * Formato por inspección: lleva encabezado, admite varios registros el mismo
+   * día y su Excel se descarga por registro, no por mes.
+   */
+  por_inspeccion: boolean;
 }
 
 export interface PuntoChecklist {
   orden: number;
   clave: string;
   etiqueta: string;
+  etiqueta_ko: string | null;
+  categoria: string | null;
   valor: ValorChecklist;
   observaciones: string | null;
+  medicion: string | null;
   fotos: string[];
 }
 
@@ -566,6 +608,8 @@ export interface RegistroChecklist {
   fecha: string;
   puntos: PuntoChecklist[];
   hay_hallazgos: boolean;
+  encabezado: Record<string, string>;
+  secciones: Record<string, Record<string, string>>;
   responsable: string;
   creado_at: string;
 }

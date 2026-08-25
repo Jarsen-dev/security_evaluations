@@ -383,12 +383,24 @@ export const es = {
 
   checklist: {
     registroDelDia: 'Registro del día',
+    listaVerificacion: 'Lista de verificación',
+    descripcionSiNo:
+      'Marca cada punto. Un punto en NO necesita observaciones y evidencia ' +
+      'fotográfica.',
     descripcion:
       'Marca cada punto. Un punto en NO OK necesita observaciones y evidencia ' +
       'fotográfica.',
     ok: 'OK',
     noOk: 'NO OK',
     confirmar: 'Confirmar',
+    si: 'SÍ',
+    no: 'NO',
+    encabezado: 'Datos de la inspección',
+    hallazgos: 'Hallazgos',
+    hallazgosDetalle: '{total} en NO',
+    faltanEncabezado: 'Faltan {total} datos de la inspección.',
+    faltanMediciones: 'Faltan {total} mediciones.',
+    faltanSecciones: 'Faltan {total} datos por capturar al pie del formato.',
     observacionesPlaceholder: '¿Qué se encontró y qué se hizo?',
     faltaFoto: 'Agrega al menos una foto de evidencia.',
     faltanPuntos: 'Faltan {total} puntos por marcar.',
