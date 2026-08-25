@@ -1,7 +1,7 @@
 """Controles de lista de verificación, pláticas ESH y fotos unificadas
 
-Revision ID: 0004_controles_checklist
-Revises: 0003_controles_esh
+Revision ID: 0005_controles_checklist
+Revises: 0004_usuarios_y_bitacora
 Create Date: 2026-08-24
 
 Se habilitan cuatro controles más del libro de inspecciones:
@@ -25,8 +25,8 @@ from collections.abc import Sequence
 
 from alembic import op
 
-revision: str = "0004_controles_checklist"
-down_revision: str | None = "0003_controles_esh"
+revision: str = "0005_controles_checklist"
+down_revision: str | None = "0004_usuarios_y_bitacora"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

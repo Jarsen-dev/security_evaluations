@@ -576,16 +576,8 @@ export function registrarChecklist(
   control: string,
   datos: {
     fecha: string;
-    puntos: Array<{
-      orden: number;
-      valor: ValorChecklist;
-      observaciones: string;
-      medicion?: string;
-    }>;
+    puntos: Array<{ orden: number; valor: ValorChecklist; observaciones: string }>;
     fotos: Record<number, File[]>;
-    /** Solo los formatos por inspección los usan. */
-    encabezado?: Record<string, string>;
-    secciones?: Record<string, Record<string, string>>;
   },
 ): Promise<RegistroChecklist> {
   const cuerpo = new FormData();
@@ -597,12 +589,9 @@ export function registrarChecklist(
         orden: punto.orden,
         valor: punto.valor,
         observaciones: punto.observaciones || null,
-        medicion: punto.medicion || null,
       })),
     ),
   );
-  cuerpo.append('encabezado', JSON.stringify(datos.encabezado ?? {}));
-  cuerpo.append('secciones', JSON.stringify(datos.secciones ?? {}));
 
   for (const [orden, fotos] of Object.entries(datos.fotos)) {
     fotos.forEach((foto) => cuerpo.append(`fotos_${orden}`, foto));
@@ -610,16 +599,6 @@ export function registrarChecklist(
 
   return enviarFormulario<RegistroChecklist>(`/controles/checklist/${control}`, cuerpo);
 }
-
-/** Excel de una inspección suelta, con el formato de su hoja. */
-export const descargarExcelInspeccion = (
-  control: string,
-  id: string,
-): Promise<void> =>
-  descargarArchivo(
-    `/controles/checklist/${control}/${id}/exportar/excel`,
-    `${control}.xlsx`,
-  );
 
 export const eliminarRegistroChecklist = (
   control: string,
@@ -672,7 +651,6 @@ export const descargarExcelPlaticas = (desde: string, hasta: string): Promise<vo
     `/controles/platicas/exportar/excel?${new URLSearchParams({ desde, hasta }).toString()}`,
     'platicas_esh.xlsx',
   );
-
 
 // --- Administración: usuarios ----------------------------------------------
 
