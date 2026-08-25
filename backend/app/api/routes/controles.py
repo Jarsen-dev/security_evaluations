@@ -622,6 +622,7 @@ async def exportar_inspeccion(
 @router.delete(
     "/checklist/{control}/{registro_id}",
     status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[Depends(requiere("controles", editar=True))],
     summary="Elimina un registro mal capturado",
 )
 async def eliminar_checklist(
@@ -729,6 +730,7 @@ async def registrar_platica(
 @router.delete(
     "/platicas/{platica_id}",
     status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[Depends(requiere("controles", editar=True))],
     summary="Elimina una plática mal capturada",
 )
 async def eliminar_platica(
