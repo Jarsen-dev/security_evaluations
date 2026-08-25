@@ -25,6 +25,7 @@ from sqlalchemy import (
     func,
     text,
 )
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -176,19 +177,29 @@ class RespuestaSqp(Base):
 
 
 class RegistroChecklist(Base):
-    """Un día de una hoja de lista de verificación (OK / NO OK).
+    """Una hoja de lista de verificación llenada.
 
-    Las tres hojas que tienen esta forma —almacén de residuos peligrosos,
-    recorridos perimetrales y revisión de muros— comparten tabla y se
-    distinguen por ``control``. Sus puntos viven en
-    ``app/core/controles_catalogo.py``, no en la base: cambiar la redacción de
-    un punto no debe obligar a tocar el histórico.
+    Todas las hojas de esta forma comparten tabla y se distinguen por
+    ``control``. Sus puntos viven en ``app/core/controles_catalogo.py``, no en
+    la base: cambiar la redacción de un punto no debe obligar a tocar el
+    histórico.
+
+    Hay dos formas de control y las dos caben aquí:
+
+    * Las de **rejilla mensual** (almacén de RP's, recorridos, muro) llevan una
+      hoja por día: su ``discriminador`` queda vacío.
+    * Las de **formato por inspección** (silos, tableros) llevan encabezado y
+      admiten varias el mismo día; su ``discriminador`` lo arma el servicio con
+      los campos que las identifican (el turno, o el tablero y el turno).
     """
 
     __tablename__ = "registros_checklist"
     __table_args__ = (
-        # Una hoja por día y por control, igual que el formato en papel.
-        UniqueConstraint("control", "fecha", name="uq_checklist_control_fecha"),
+        # Una sola restricción cubre los dos casos: con el discriminador vacío
+        # equivale a "una hoja por día y control".
+        UniqueConstraint(
+            "control", "fecha", "discriminador", name="uq_checklist_control_fecha"
+        ),
         Index("ix_registros_checklist_control_fecha", "control", "fecha"),
     )
 
@@ -199,6 +210,21 @@ class RegistroChecklist(Base):
     )
     control: Mapped[str] = mapped_column(String(30), nullable=False)
     fecha: Mapped[date] = mapped_column(Date, nullable=False)
+    # Lo que distingue dos inspecciones del mismo día ("noche", "T-12|noche").
+    # Vacío en los controles que solo admiten una por día.
+    discriminador: Mapped[str] = mapped_column(
+        String(80), nullable=False, server_default=text("''")
+    )
+
+    # Campos del encabezado del formato y de sus bloques extra. Son metadatos
+    # del documento —se muestran y se imprimen, nunca se agregan—, y su forma
+    # la define y la valida el catálogo, así que no ganan nada normalizados.
+    encabezado: Mapped[dict] = mapped_column(
+        JSONB, nullable=False, server_default=text("'{}'::jsonb")
+    )
+    secciones: Mapped[dict] = mapped_column(
+        JSONB, nullable=False, server_default=text("'{}'::jsonb")
+    )
 
     responsable: Mapped[str] = mapped_column(String(150), nullable=False)
     admin_id: Mapped[uuid.UUID | None] = mapped_column(
@@ -242,10 +268,13 @@ class PuntoChecklist(Base):
     )
     orden: Mapped[int] = mapped_column(Integer, nullable=False)
     clave: Mapped[str] = mapped_column(String(40), nullable=False)
-    # 'ok' | 'no_ok'
+    # 'ok' | 'no_ok' (los formatos por inspección los rotulan SÍ / NO).
     valor: Mapped[str] = mapped_column(String(6), nullable=False)
     # Obligatorias cuando el valor es 'no_ok'.
     observaciones: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Solo en los puntos que piden una lectura ("62.5"); el catálogo dice
+    # cuáles y con qué unidad.
+    medicion: Mapped[str | None] = mapped_column(String(40), nullable=True)
 
     registro: Mapped["RegistroChecklist"] = relationship(back_populates="puntos")
     fotos: Mapped[list["FotoControl"]] = relationship(

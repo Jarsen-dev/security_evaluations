@@ -429,6 +429,70 @@ def separar_sustancias(texto: str | None) -> list[str]:
 # --- Listas de verificación (OK / NO OK) -----------------------------------
 
 
+def _validar_campos(
+    campos: tuple, valores: dict[str, str], contexto: str
+) -> dict[str, str]:
+    """Comprueba un grupo de campos del formato contra el catálogo.
+
+    Devuelve solo los campos que el catálogo declara: lo que llegue de más se
+    descarta en vez de guardarse, para que el histórico no acumule claves que
+    nadie sabe leer.
+    """
+    limpios: dict[str, str] = {}
+
+    for campo in campos:
+        valor = (valores.get(campo.clave) or "").strip()
+
+        if not valor:
+            if campo.obligatorio:
+                raise ErrorDeNegocio(f"{contexto}{campo.etiqueta}: falta capturarlo.")
+            continue
+
+        if campo.tipo == "opcion" and valor not in campo.opciones:
+            opciones = " o ".join(campo.opciones)
+            raise ErrorDeNegocio(
+                f"{contexto}{campo.etiqueta}: elige una opción válida ({opciones})."
+            )
+
+        if campo.tipo == "numero":
+            try:
+                Decimal(valor.replace(",", "."))
+            except InvalidOperation as exc:
+                raise ErrorDeNegocio(
+                    f"{contexto}{campo.etiqueta}: se esperaba un número."
+                ) from exc
+
+        limpios[campo.clave] = valor
+
+    return limpios
+
+
+def _discriminador(
+    definicion: DefinicionChecklist, encabezado: dict[str, str]
+) -> str:
+    """Lo que distingue dos inspecciones del mismo día.
+
+    Sale de los campos que el catálogo marca como identificadores: el turno en
+    silos, el tablero y el turno en tableros. En los controles de rejilla la
+    lista está vacía y el discriminador queda en blanco, así que la
+    restricción de unicidad significa "una hoja por día".
+    """
+    return "|".join(
+        encabezado.get(clave, "").lower() for clave in definicion.clave_unicidad
+    )
+
+
+def _descripcion_registro(
+    definicion: DefinicionChecklist, fecha: date, encabezado: dict[str, str]
+) -> str:
+    """Cómo se nombra una inspección en los mensajes de error."""
+    partes = [
+        encabezado[clave] for clave in definicion.clave_unicidad if encabezado.get(clave)
+    ]
+    detalle = f" ({', '.join(partes)})" if partes else ""
+    return f"{fecha:%d/%m/%Y}{detalle}"
+
+
 async def registrar_checklist(
     db: AsyncSession,
     *,
@@ -452,11 +516,42 @@ async def registrar_checklist(
             "cada uno."
         )
 
+    encabezado = _validar_campos(definicion.encabezado, datos.encabezado, "")
+    hay_hallazgos = any(punto.valor == "no_ok" for punto in datos.puntos)
+
+    secciones: dict[str, dict[str, str]] = {}
+    for seccion in definicion.secciones:
+        # El bloque de acción ante anomalía solo se exige cuando algo salió
+        # mal; en un recorrido limpio ni siquiera se muestra.
+        if seccion.solo_con_hallazgos and not hay_hallazgos:
+            continue
+
+        secciones[seccion.clave] = _validar_campos(
+            seccion.campos, datos.secciones.get(seccion.clave, {}), f"{seccion.titulo} — "
+        )
+
     puntos: list[PuntoChecklist] = []
 
     for punto in sorted(datos.puntos, key=lambda p: p.orden):
-        etiqueta = definicion.puntos[punto.orden].etiqueta
+        definicion_punto = definicion.puntos[punto.orden]
+        etiqueta = definicion_punto.etiqueta
         fotos = fotos_por_punto.get(punto.orden, [])
+
+        if definicion_punto.medicion and not punto.medicion:
+            raise ErrorDeNegocio(
+                f"{etiqueta}: falta la medición en {definicion_punto.medicion}."
+            )
+
+        if punto.medicion and not definicion_punto.medicion:
+            raise ErrorDeNegocio(f"{etiqueta}: este punto no lleva medición.")
+
+        if punto.medicion:
+            try:
+                Decimal(punto.medicion.replace(",", "."))
+            except InvalidOperation as exc:
+                raise ErrorDeNegocio(
+                    f"{etiqueta}: la medición debe ser un número."
+                ) from exc
 
         if punto.valor == "no_ok" and not fotos:
             raise ErrorDeNegocio(
@@ -475,9 +570,10 @@ async def registrar_checklist(
         puntos.append(
             PuntoChecklist(
                 orden=punto.orden,
-                clave=definicion.puntos[punto.orden].clave,
+                clave=definicion_punto.clave,
                 valor=punto.valor,
                 observaciones=punto.observaciones,
+                medicion=punto.medicion,
                 fotos=_construir_fotos(fotos),
             )
         )
@@ -485,6 +581,9 @@ async def registrar_checklist(
     registro = RegistroChecklist(
         control=definicion.clave,
         fecha=datos.fecha,
+        discriminador=_discriminador(definicion, encabezado),
+        encabezado=encabezado,
+        secciones=secciones,
         responsable=admin.username,
         admin_id=admin.id,
         puntos=puntos,
@@ -498,7 +597,8 @@ async def registrar_checklist(
         # uq_checklist_control_fecha. Se comprueba aquí y no con un SELECT
         # previo porque dos capturas simultáneas pasarían ambas la prueba.
         raise ConflictoDeNegocio(
-            f"Ya existe el registro del {datos.fecha:%d/%m/%Y}. "
+            f"Ya existe el registro del "
+            f"{_descripcion_registro(definicion, datos.fecha, encabezado)}. "
             "Elimínalo si necesitas corregirlo."
         ) from exc
 
@@ -539,20 +639,38 @@ async def listar_checklist(
             "responsable": registro.responsable,
             "creado_at": registro.creado_at,
             "hay_hallazgos": any(p.valor == "no_ok" for p in registro.puntos),
+            "encabezado": registro.encabezado,
+            "secciones": registro.secciones,
             "puntos": [
-                {
-                    "orden": punto.orden,
-                    "clave": punto.clave,
-                    "etiqueta": _etiqueta_punto(definicion, punto),
-                    "valor": punto.valor,
-                    "observaciones": punto.observaciones,
-                    "fotos": fotos.get(punto.id, []),
-                }
+                _describir_punto(definicion, punto, fotos.get(punto.id, []))
                 for punto in registro.puntos
             ],
         }
         for registro in registros
     ]
+
+
+def _describir_punto(
+    definicion: DefinicionChecklist, punto: PuntoChecklist, fotos: list[uuid.UUID]
+) -> dict:
+    """Un punto guardado con lo que aporta el catálogo."""
+    del_catalogo = (
+        definicion.puntos[punto.orden]
+        if 0 <= punto.orden < len(definicion.puntos)
+        else None
+    )
+
+    return {
+        "orden": punto.orden,
+        "clave": punto.clave,
+        "etiqueta": _etiqueta_punto(definicion, punto),
+        "etiqueta_ko": del_catalogo.etiqueta_ko if del_catalogo else None,
+        "categoria": del_catalogo.categoria if del_catalogo else None,
+        "valor": punto.valor,
+        "observaciones": punto.observaciones,
+        "medicion": punto.medicion,
+        "fotos": fotos,
+    }
 
 
 def _etiqueta_punto(definicion: DefinicionChecklist, punto: PuntoChecklist) -> str:
@@ -564,6 +682,73 @@ def _etiqueta_punto(definicion: DefinicionChecklist, punto: PuntoChecklist) -> s
     if 0 <= punto.orden < len(definicion.puntos):
         return definicion.puntos[punto.orden].etiqueta
     return punto.clave
+
+
+async def obtener_checklist(
+    db: AsyncSession, definicion: DefinicionChecklist, registro_id: uuid.UUID
+) -> dict:
+    """Una inspección suelta, para el Excel por formato."""
+    registro = await db.scalar(
+        select(RegistroChecklist)
+        .where(RegistroChecklist.id == registro_id)
+        .options(selectinload(RegistroChecklist.puntos))
+    )
+
+    # Se comprueba el control además del id: una liga de otra pestaña no debe
+    # poder leer el registro de esta.
+    if registro is None or registro.control != definicion.clave:
+        raise RecursoNoEncontrado("El registro no existe.")
+
+    fotos = await _ids_de_fotos(
+        db, FotoControl.punto_id, [punto.id for punto in registro.puntos]
+    )
+
+    return {
+        "id": registro.id,
+        "fecha": registro.fecha,
+        "responsable": registro.responsable,
+        "creado_at": registro.creado_at,
+        "hay_hallazgos": any(p.valor == "no_ok" for p in registro.puntos),
+        "encabezado": registro.encabezado,
+        "secciones": registro.secciones,
+        "puntos": [
+            _describir_punto(definicion, punto, fotos.get(punto.id, []))
+            for punto in registro.puntos
+        ],
+    }
+
+
+async def evidencias_registro(
+    db: AsyncSession, definicion: DefinicionChecklist, registro_id: uuid.UUID
+) -> list[Evidencia]:
+    """Fotos de una sola inspección, para su hoja de evidencias."""
+    filas = await db.execute(
+        select(
+            RegistroChecklist.fecha,
+            RegistroChecklist.responsable,
+            PuntoChecklist.clave,
+            FotoControl.imagen,
+        )
+        .join(PuntoChecklist, PuntoChecklist.registro_id == RegistroChecklist.id)
+        .join(FotoControl, FotoControl.punto_id == PuntoChecklist.id)
+        .where(
+            RegistroChecklist.id == registro_id,
+            RegistroChecklist.control == definicion.clave,
+        )
+        .order_by(PuntoChecklist.orden, FotoControl.orden)
+    )
+
+    etiquetas = {punto.clave: punto.etiqueta for punto in definicion.puntos}
+
+    return [
+        Evidencia(
+            fecha=fila.fecha,
+            detalle=etiquetas.get(fila.clave, fila.clave),
+            responsable=fila.responsable,
+            imagen=fila.imagen,
+        )
+        for fila in filas.all()
+    ]
 
 
 async def eliminar_checklist(

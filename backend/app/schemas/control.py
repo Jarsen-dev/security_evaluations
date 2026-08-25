@@ -191,6 +191,33 @@ class PuntoControlOut(BaseModel):
     orden: int
     clave: str
     etiqueta: str
+    etiqueta_ko: str | None = None
+    categoria: str | None = None
+    medicion: str | None = Field(
+        default=None, description="Unidad de la lectura que pide el punto."
+    )
+
+
+class CampoFormatoOut(BaseModel):
+    """Campo del encabezado o de una sección del formato."""
+
+    clave: str
+    etiqueta: str
+    etiqueta_ko: str | None
+    tipo: str
+    opciones: list[str]
+    unidad: str | None
+    obligatorio: bool
+
+
+class SeccionFormatoOut(BaseModel):
+    """Bloque que va después de la lista de puntos."""
+
+    clave: str
+    titulo: str
+    titulo_ko: str | None
+    campos: list[CampoFormatoOut]
+    solo_con_hallazgos: bool
 
 
 class CatalogoChecklist(BaseModel):
@@ -198,9 +225,21 @@ class CatalogoChecklist(BaseModel):
 
     clave: str
     titulo: str
+    titulo_ko: str | None = None
     subtitulo: str | None
     puntos: list[PuntoControlOut]
     max_fotos: int = Field(description="Cuántas fotos admite un punto en NO OK.")
+    estilo_valores: str = Field(description="'ok_no_ok' o 'si_no'.")
+    encabezado: list[CampoFormatoOut] = Field(default_factory=list)
+    secciones: list[SeccionFormatoOut] = Field(default_factory=list)
+    nota: str | None = None
+    nota_ko: str | None = None
+    por_inspeccion: bool = Field(
+        description=(
+            "True cuando el control es un formato por inspección: lleva "
+            "encabezado y admite varios registros el mismo día."
+        )
+    )
 
 
 class PuntoChecklistIn(BaseModel):
@@ -209,8 +248,10 @@ class PuntoChecklistIn(BaseModel):
     orden: int = Field(ge=0)
     valor: str = Field(description="'ok' o 'no_ok'.")
     observaciones: str | None = Field(default=None, max_length=2000)
+    medicion: str | None = Field(default=None, max_length=40)
 
     _limpiar_observaciones = field_validator("observaciones")(_texto_opcional)
+    _limpiar_medicion = field_validator("medicion")(_texto_opcional)
 
     @field_validator("valor")
     @classmethod
@@ -233,6 +274,10 @@ class ChecklistCrear(BaseModel):
 
     fecha: date
     puntos: list[PuntoChecklistIn]
+    # Solo los formatos por inspección los usan; el servicio los valida contra
+    # el catálogo, que es quien define qué campos existen.
+    encabezado: dict[str, str] = Field(default_factory=dict)
+    secciones: dict[str, dict[str, str]] = Field(default_factory=dict)
 
 
 class PuntoChecklistOut(BaseModel):
@@ -241,8 +286,11 @@ class PuntoChecklistOut(BaseModel):
     orden: int
     clave: str
     etiqueta: str
+    etiqueta_ko: str | None = None
+    categoria: str | None = None
     valor: str
     observaciones: str | None
+    medicion: str | None = None
     fotos: list[uuid.UUID]
 
 
@@ -253,6 +301,8 @@ class RegistroChecklistOut(BaseModel):
     fecha: date
     puntos: list[PuntoChecklistOut]
     hay_hallazgos: bool = Field(description="Si algún punto salió como NO OK.")
+    encabezado: dict[str, str] = Field(default_factory=dict)
+    secciones: dict[str, dict[str, str]] = Field(default_factory=dict)
     responsable: str
     creado_at: datetime
 
