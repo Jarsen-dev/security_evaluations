@@ -11,8 +11,10 @@ import type {
   Admin,
   Area,
   AreaPlatica,
+  Avisos,
   BitacoraPaginada,
   CatalogoChecklist,
+  CatalogoEstudios,
   CatalogoSqp,
   ConfigWifi,
   Credenciales,
@@ -27,6 +29,8 @@ import type {
   EstadisticaPregunta,
   EstadoIntento,
   EstadoSalud,
+  Estudio,
+  EstudioPayload,
   FiltrosBitacora,
   FiltrosEstadisticas,
   IdentidadRespondiente,
@@ -721,3 +725,25 @@ export const listarUsuariosBitacora = (): Promise<string[]> =>
 
 export const obtenerMantenimiento = (): Promise<Mantenimiento> =>
   api.get<Mantenimiento>('/administracion/mantenimiento');
+
+// --- Estudios y capacitaciones ---------------------------------------------
+
+export const obtenerCatalogoEstudios = (): Promise<CatalogoEstudios> =>
+  api.get<CatalogoEstudios>('/estudios/catalogo');
+
+export const listarEstudios = (): Promise<Estudio[]> => api.get<Estudio[]>('/estudios');
+
+export const crearEstudio = (datos: EstudioPayload): Promise<Estudio> =>
+  api.post<Estudio>('/estudios', datos);
+
+export const actualizarEstudio = (id: string, datos: EstudioPayload): Promise<Estudio> =>
+  api.put<Estudio>(`/estudios/${id}`, datos);
+
+export const eliminarEstudio = (id: string): Promise<void> =>
+  api.delete<void>(`/estudios/${id}`);
+
+/** Estudios que vencen dentro de un mes y los que ya vencieron. */
+export const obtenerAvisos = (): Promise<Avisos> => api.get<Avisos>('/estudios/avisos');
+
+export const descargarExcelEstudios = (): Promise<void> =>
+  descargarArchivo('/estudios/exportar/excel', 'estudios.xlsx');

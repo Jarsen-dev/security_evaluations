@@ -161,8 +161,9 @@ Dos consecuencias al escribir código:
 
   Los controles ESH estrenaron el prefijo `api/controles`, y el panel las
   rutas `controles` e `inventario`. La pestaña de Administración estrenó
-  `api/administracion` y la ruta `administracion`. **Sus aplicaciones de Access
-  todavía están pendientes de crear**; queda anotado en `SEGURIDAD.md`.
+  `api/administracion` y la ruta `administracion`, y la de Estudios
+  `api/estudios` y la ruta `estudios`. **Sus aplicaciones de Access todavía
+  están pendientes de crear**; queda anotado en `SEGURIDAD.md`.
 
 El límite de tasa distingue dos cuotas (`core/ratelimit.py`): la amplia de
 `/api/publico` y una estricta de 5 fallos por 5 minutos en `/api/auth/login`.
@@ -174,9 +175,9 @@ repartir el QR, vigilancia y los riesgos que el diseño acepta.
 ### 8. Los permisos los aplica la API, no el panel
 
 Tener sesión ya no da acceso total. Cada usuario lleva en `admin_users.permisos`
-un JSON por módulo (`cuestionarios`, `controles`, `inventario`): **estar
-presente** es el acceso de ver y crear, `editar` agrega modificar y eliminar. El
-superadministrador (`es_superadmin`) puede todo y es el único que ve
+un JSON por módulo (`cuestionarios`, `controles`, `inventario`, `estudios`):
+**estar presente** es el acceso de ver y crear, `editar` agrega modificar y
+eliminar. El superadministrador (`es_superadmin`) puede todo y es el único que ve
 `/administracion`.
 
 La decisión vive en **un solo lugar**, `AdminUser.puede()`. La capa HTTP la
@@ -282,14 +283,15 @@ relativas, así que comparte origen con la API y la cookie de sesión viaja sola
 | `services/` | Lógica de negocio. No conoce FastAPI |
 | `models/` | SQLAlchemy. Se importan todos en `models/__init__.py` para Alembic |
 | `schemas/` | Pydantic. `publico.py` está separado a propósito (ver regla 1) |
-| `core/` | Configuración, constantes, catálogos de los controles, seguridad, límite de tasa, bitácora, errores |
+| `core/` | Configuración, constantes, catálogos de los controles y de los estudios, seguridad, límite de tasa, bitácora, errores |
 
 Las exportaciones viven en `services/`: `excel_export.py` y `pptx_export.py`
 (reportes de estadísticas), `pdf_export.py` (cuestionario imprimible),
-`controles_excel.py` (formatos de los controles ESH) y `exportacion_comun.py`
-con lo que comparten: estilos de hoja, la cabecera de descarga y los helpers
-de fecha. Todas generan en `BytesIO` y se
-devuelven con `StreamingResponse`: nada toca el disco del servidor.
+`controles_excel.py` (formatos de los controles ESH), `estudios_excel.py` (la
+hoja DETALLE del programa de estudios) y `exportacion_comun.py` con lo que
+comparten: estilos de hoja, la paleta del semáforo, la cabecera de descarga y
+los helpers de fecha. Todas generan en `BytesIO` y se devuelven con
+`StreamingResponse`: nada toca el disco del servidor.
 
 **El PDF imprimible nunca marca la respuesta correcta.** Se le entrega a quien
 va a contestar. `pdf_export.py` no debe leer `es_correcta` bajo ninguna
@@ -336,15 +338,42 @@ propias:
   los listados **nunca** traen la columna `imagen`: un mes de evidencias son
   decenas de megabytes.
 
+**Estudios y capacitaciones** (`api/routes/estudios.py`,
+`services/estudio_service.py`)
+
+El programa anual de estudios normativos, que antes vivía en un Excel. No es un
+control ESH y por eso no cuelga de ellos: aquellos son un histórico de
+inspecciones que no se toca, y cada renglón de aquí es un documento vivo que
+cambia de estatus varias veces al año y se edita en su lugar.
+
+- Las opciones de cada campo (vigencia, prioridad, IN/EX, estatus, vencimiento,
+  aprobado y pagado) viven en `core/estudios_catalogo.py` y se sirven por la
+  API, igual que las áreas y los puntos de los controles. Ahí va también el
+  color del semáforo de cada opción: el panel y el Excel lo pintan, no lo
+  deciden.
+- Dos `CHECK` sostienen desde la base lo que también valida el servicio: la
+  fecha de vencimiento existe **exactamente** cuando el vencimiento está "en
+  curso", y el link solo acompaña a un estudio con estatus OK. El servicio
+  descarta el campo que no aplica en lugar de rechazar la petición, así que el
+  `CHECK` es la red, no el camino normal.
+- Un estudio "en curso" cuya fecha ya pasó **no se cambia solo** a vencido: el
+  dato capturado se respeta y el estado se deduce de la fecha.
+- La campana del encabezado consulta `GET /api/estudios/avisos`, que devuelve lo
+  que vence dentro de un mes natural (`sumar_un_mes()`) y lo ya vencido. La
+  ventana la decide el backend; el frontend solo la dibuja.
+
 **Frontend** (`frontend/src/`)
 
 El grupo de rutas `(panel)` comparte el encabezado con las pestañas
-(Cuestionarios, Controles, Inventario y, solo para el superadministrador,
-Administración). El encabezado las filtra con `useSesion().puede()`.
+(Cuestionarios, Controles, Inventario, Estudios y, solo para el
+superadministrador, Administración). El encabezado las filtra con
+`useSesion().puede()`. A su derecha van la campana de vencimientos y el
+selector de idioma.
 
 Estadísticas ya no es una ruta: es una sub-pestaña dentro de `/cuestionarios`,
 y la vista activa viaja en la query (`?vista=estadisticas`). Controles hace lo
-mismo con `?control=rayser`, y Administración con `?seccion=logs`.
+mismo con `?control=rayser`, y Administración con `?seccion=logs`. Estudios no
+lleva nada en la query: es una sola tabla con su formulario.
 
 Los textos del panel salen de `src/lib/i18n` (ver regla 6).
 `/r/[token]` queda fuera: layout propio, sin sesión y en **tema claro de alto

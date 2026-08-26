@@ -93,12 +93,15 @@ una aplicación **Self-hosted** por cada ruta del panel:
 | API — metas | `evaluaciones.chwon.it.com` | `api/metas-area` |
 | API — wifi | `evaluaciones.chwon.it.com` | `api/wifi` |
 | API — controles | `evaluaciones.chwon.it.com` | `api/controles` |
+| Panel — estudios | `evaluaciones.chwon.it.com` | `estudios` |
+| API — estudios | `evaluaciones.chwon.it.com` | `api/estudios` |
 | Panel — administración | `evaluaciones.chwon.it.com` | `administracion` |
 | API — administración | `evaluaciones.chwon.it.com` | `api/administracion` |
 
-> **Pendiente.** Cinco aplicaciones son nuevas y **todavía no están dadas de
-> alta**: `controles`, `inventario`, `api/controles`, `administracion` y
-> `api/administracion`. Mientras no se creen, esas rutas quedan fuera de Access
+> **Pendiente.** Siete aplicaciones son nuevas y **todavía no están dadas de
+> alta**: `controles`, `inventario`, `api/controles`, `estudios`,
+> `api/estudios`, `administracion` y `api/administracion`. Mientras no se
+> creen, esas rutas quedan fuera de Access
 > y lo único que las defiende es la cookie de sesión más la comprobación de
 > permisos: la pantalla de login del panel no aparece, pero la ruta sí es
 > alcanzable desde internet. Las dos de administración son las más sensibles de

@@ -17,6 +17,7 @@ from app.models.control import (
     RespuestaSqp,
 )
 from app.models.cuestionario import Cuestionario, Opcion, Pregunta
+from app.models.estudio import Estudio
 from app.models.intento import Intento, Respuesta
 from app.models.meta_area import MetaArea
 
@@ -26,6 +27,7 @@ __all__ = [
     "Base",
     "Bitacora",
     "Cuestionario",
+    "Estudio",
     "FotoControl",
     "InspeccionSqp",
     "Intento",

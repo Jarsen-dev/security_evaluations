@@ -12,7 +12,12 @@ import type { Modulo, Usuario } from '@/lib/types';
  * alguien se desactive o se elimine a sí mismo, y ofrecer botones que van a
  * fallar solo confunde.
  */
-const MODULOS: readonly Modulo[] = ['cuestionarios', 'controles', 'inventario'];
+const MODULOS: readonly Modulo[] = [
+  'cuestionarios',
+  'controles',
+  'inventario',
+  'estudios',
+];
 
 interface TablaUsuariosProps {
   usuarios: Usuario[];

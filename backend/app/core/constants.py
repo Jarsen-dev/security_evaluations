@@ -59,6 +59,7 @@ MODULOS_PERMISO: Final[tuple[str, ...]] = (
     "cuestionarios",
     "controles",
     "inventario",
+    "estudios",
 )
 
 # Longitud mínima de las contraseñas del panel. Vive aquí, y no en `cli.py`

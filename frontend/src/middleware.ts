@@ -21,6 +21,7 @@ const RUTAS_PROTEGIDAS = [
   '/cuestionarios',
   '/controles',
   '/inventario',
+  '/estudios',
   '/administracion',
 ];
 
