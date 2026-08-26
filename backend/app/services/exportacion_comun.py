@@ -79,6 +79,35 @@ FORMATO_FECHA = "dd/mm/yyyy hh:mm"
 FORMATO_PORCENTAJE = "0.00"
 
 
+# --- Semáforo compartido ---------------------------------------------------
+#
+# La paleta clásica de Excel ("Bueno / Neutral / Incorrecto"), que es la que
+# trae el archivo de estudios en su formato condicional. La comparten la hoja
+# de estudios y los formatos de los controles ESH: así el mismo verde y el
+# mismo rojo significan lo mismo en todo lo que exporta el sistema.
+#
+# `naranja` solo la usan los controles —una lectura por encima del rango no es
+# lo mismo que una por debajo— y `gris` marca lo que no aplica.
+
+RELLENOS_SEMAFORO: dict[str, PatternFill] = {
+    "verde": PatternFill(start_color="C6EFCE", end_color="C6EFCE", fill_type="solid"),
+    "amarillo": PatternFill(
+        start_color="FFEB9C", end_color="FFEB9C", fill_type="solid"
+    ),
+    "rojo": PatternFill(start_color="FFC7CE", end_color="FFC7CE", fill_type="solid"),
+    "naranja": PatternFill(start_color="FFE0B2", end_color="FFE0B2", fill_type="solid"),
+    "gris": PatternFill(start_color="E7E6E6", end_color="E7E6E6", fill_type="solid"),
+}
+
+FUENTES_SEMAFORO: dict[str, Font] = {
+    "verde": Font(color="006100"),
+    "amarillo": Font(bold=True, color="9C5700"),
+    "rojo": Font(bold=True, color="9C0006"),
+    "naranja": Font(bold=True, color="9C5700"),
+    "gris": Font(color="7F7F7F"),
+}
+
+
 def escribir_encabezados(
     hoja: Worksheet, encabezados: list[str], fila: int = 1
 ) -> None:

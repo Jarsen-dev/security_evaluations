@@ -185,6 +185,55 @@ CATALOGO: Final[tuple[EntradaCatalogo, ...]] = (
         "controles",
         "Registró una inspección de sustancias químicas peligrosas",
     ),
+    EntradaCatalogo(
+        "POST",
+        _ruta("/api/controles/checklist/{}"),
+        "checklist.registrar",
+        "controles",
+        "Llenó una hoja de lista de verificación",
+    ),
+    EntradaCatalogo(
+        "DELETE",
+        _ruta("/api/controles/checklist/{}/{}"),
+        "checklist.eliminar",
+        "controles",
+        "Eliminó una hoja de lista de verificación",
+    ),
+    EntradaCatalogo(
+        "POST",
+        _ruta("/api/controles/platicas"),
+        "platica.registrar",
+        "controles",
+        "Registró una plática de seguridad",
+    ),
+    EntradaCatalogo(
+        "DELETE",
+        _ruta("/api/controles/platicas/{}"),
+        "platica.eliminar",
+        "controles",
+        "Eliminó una plática de seguridad",
+    ),
+    # --- Estudios y capacitaciones -----------------------------------------
+    EntradaCatalogo(
+        "POST",
+        _ruta("/api/estudios"),
+        "estudio.crear",
+        "estudios",
+        "Dio de alta un estudio",
+    ),
+    EntradaCatalogo(
+        "PUT",
+        _ruta("/api/estudios/{}"),
+        "estudio.editar",
+        "estudios",
+        "Actualizó un estudio",
+    ),
+    EntradaCatalogo(
+        "DELETE",
+        _ruta("/api/estudios/{}"),
+        "estudio.eliminar",
+        "estudios",
+        "Eliminó un estudio",
     # --- Catálogo de insumos -----------------------------------------------
     # La de importar va ANTES del POST a secas, o el patrón general se la
     # tragaría: `_buscar_en_catalogo` toma la primera coincidencia.

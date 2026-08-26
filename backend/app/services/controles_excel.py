@@ -32,29 +32,19 @@ from app.core.controles_catalogo import (
 )
 from app.models.control import InspeccionSqp
 from app.services.control_service import Evidencia
+# El semáforo vive en `exportacion_comun` porque también lo usa la hoja de
+# estudios: así el Excel y la pantalla no se contradicen en ningún módulo.
 from app.services.exportacion_comun import (
     BORDE_FINO,
     FUENTE_ENCABEZADO,
     FUENTE_TITULO,
+    FUENTES_SEMAFORO,
     GRIS,
     RELLENO_ENCABEZADO,
+    RELLENOS_SEMAFORO,
     ajustar_anchos,
     escribir_encabezados,
 )
-
-# Rellenos del semáforo. Son los mismos tres colores que pinta la tabla del
-# panel, para que el Excel y la pantalla no se contradigan.
-RELLENOS_SEMAFORO: dict[str, PatternFill] = {
-    "verde": PatternFill(start_color="C6EFCE", end_color="C6EFCE", fill_type="solid"),
-    "rojo": PatternFill(start_color="FFC7CE", end_color="FFC7CE", fill_type="solid"),
-    "naranja": PatternFill(start_color="FFE0B2", end_color="FFE0B2", fill_type="solid"),
-}
-
-FUENTES_SEMAFORO: dict[str, Font] = {
-    "verde": Font(color="006100"),
-    "rojo": Font(bold=True, color="9C0006"),
-    "naranja": Font(bold=True, color="9C5700"),
-}
 
 RELLENO_SECCION = PatternFill(start_color=GRIS, end_color=GRIS, fill_type="solid")
 

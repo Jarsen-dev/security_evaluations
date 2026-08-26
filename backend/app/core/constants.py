@@ -59,6 +59,7 @@ MODULOS_PERMISO: Final[tuple[str, ...]] = (
     "cuestionarios",
     "controles",
     "inventario",
+    "estudios",
     "catalogo",
     "rondines",
 )

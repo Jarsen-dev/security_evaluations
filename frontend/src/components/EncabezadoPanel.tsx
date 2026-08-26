@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useState } from 'react';
 
+import { Notificaciones } from '@/components/Notificaciones';
 import { SelectorIdioma } from '@/components/SelectorIdioma';
 import { Button } from '@/components/ui/Button';
 import { Logo } from '@/components/ui/Logo';
@@ -25,6 +26,7 @@ const PESTANAS: ReadonlyArray<{
   { href: '/cuestionarios', clave: 'encabezado.cuestionarios', modulo: 'cuestionarios' },
   { href: '/controles', clave: 'encabezado.controles', modulo: 'controles' },
   { href: '/inventario', clave: 'encabezado.inventario', modulo: 'inventario' },
+  { href: '/estudios', clave: 'encabezado.estudios', modulo: 'estudios' },
   { href: '/catalogo', clave: 'encabezado.catalogo', modulo: 'catalogo' },
   { href: '/rondines', clave: 'encabezado.rondines', modulo: 'rondines' },
   { href: '/administracion', clave: 'encabezado.administracion', modulo: null },
@@ -87,6 +89,7 @@ export function EncabezadoPanel() {
         </nav>
 
         <div className="flex items-center gap-3">
+          <Notificaciones />
           <SelectorIdioma />
           {usuario && (
             <span className="hidden text-sm text-texto-suave sm:inline">

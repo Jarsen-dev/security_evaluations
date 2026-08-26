@@ -16,6 +16,7 @@ const MODULOS: readonly Modulo[] = [
   'cuestionarios',
   'controles',
   'inventario',
+  'estudios',
   'catalogo',
   'rondines',
 ];

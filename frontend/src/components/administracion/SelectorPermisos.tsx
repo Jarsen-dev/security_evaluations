@@ -14,6 +14,7 @@ const MODULOS: ReadonlyArray<{ clave: Modulo; etiqueta: ClaveTraduccion }> = [
   { clave: 'cuestionarios', etiqueta: 'permisos.cuestionarios' },
   { clave: 'controles', etiqueta: 'permisos.controles' },
   { clave: 'inventario', etiqueta: 'permisos.inventario' },
+  { clave: 'estudios', etiqueta: 'permisos.estudios' },
   { clave: 'catalogo', etiqueta: 'permisos.catalogo' },
   { clave: 'rondines', etiqueta: 'permisos.rondines' },
 ];

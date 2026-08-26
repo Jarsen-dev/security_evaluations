@@ -32,7 +32,8 @@ export type Modulo =
   | 'controles'
   | 'inventario'
   | 'catalogo'
-  | 'rondines';
+  | 'rondines'
+  | 'estudios';
 
 /** Lo que puede hacer un usuario dentro de un módulo. */
 export interface PermisoModulo {
@@ -642,6 +643,59 @@ export interface Platica {
   creado_at: string;
 }
 
+// --- Estudios y capacitaciones ---------------------------------------------
+
+/**
+ * Una opción de un campo de selección, como la sirve
+ * `GET /api/estudios/catalogo`.
+ *
+ * `etiqueta` viene en español y solo se usa de respaldo: el rótulo que ve el
+ * usuario sale del diccionario del idioma activo (regla 6).
+ */
+export interface OpcionEstudio {
+  clave: string;
+  etiqueta: string;
+  /** Cómo se abrevia en la tabla ("IN" en lugar de "Interno"). */
+  corto: string;
+  /** `'verde'`, `'amarillo'`, `'rojo'`, `'gris'` o vacío si no se semaforiza. */
+  semaforo: string;
+  /** Solo la prioridad: 1 alta, 2 media, 3 baja. */
+  numero: number | null;
+}
+
+/** Todas las listas de opciones del formulario de estudios. */
+export interface CatalogoEstudios {
+  vigencias: OpcionEstudio[];
+  prioridades: OpcionEstudio[];
+  tipos: OpcionEstudio[];
+  estatus: OpcionEstudio[];
+  vencimientos: OpcionEstudio[];
+  aprobaciones: OpcionEstudio[];
+  /** Clave del vencimiento que habilita el campo de fecha. */
+  vencimiento_con_fecha: string;
+  /** Clave del estatus que habilita el campo de link. */
+  estatus_con_link: string;
+}
+
+/** Lo que se envía al dar de alta o al editar un estudio. */
+export interface EstudioPayload {
+  despacho: string;
+  estudio: string;
+  estudio_ko: string | null;
+  vigencia: string;
+  prioridad: string;
+  tipo: string;
+  estatus: string;
+  vencimiento: string;
+  fecha_vencimiento: string | null;
+  aprobado: string;
+  pagado: string;
+  link: string | null;
+}
+
+export interface Estudio extends EstudioPayload {
+  id: string;
+  responsable: string;
 // --- Catálogo de insumos ---------------------------------------------------
 
 /** Semáforo de la existencia contra su rango. Lo decide el backend. */
@@ -715,6 +769,22 @@ export interface PuntoRondin {
   actualizado_at: string | null;
 }
 
+/** Un estudio que vence pronto o que ya venció. */
+export interface AvisoVencimiento {
+  id: string;
+  estudio: string;
+  despacho: string;
+  fecha_vencimiento: string;
+  /** Días que faltan; negativo si la fecha ya pasó. */
+  dias: number;
+  vencido: boolean;
+}
+
+/** Lo que dibuja la campana del encabezado. */
+export interface Avisos {
+  total: number;
+  vencidos: number;
+  avisos: AvisoVencimiento[];
 /** Alta y edición de un punto. */
 export interface PuntoRondinPayload {
   numero: number;

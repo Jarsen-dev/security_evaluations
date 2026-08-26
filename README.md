@@ -1,6 +1,6 @@
 # Sistema ESH
 
-Sistema web interno del departamento de seguridad. Cubre dos cosas:
+Sistema web interno del departamento de seguridad. Cubre tres cosas:
 
 - **Evaluaciones de conocimientos.** El administrador arma los cuestionarios
   desde un panel; los operadores los contestan desde su celular escaneando un
@@ -13,6 +13,11 @@ Sistema web interno del departamento de seguridad. Cubre dos cosas:
   coreano/español—. Con semaforización automática, evidencia fotográfica y
   descarga en Excel con el mismo formato de la hoja original. Solo falta por
   habilitar el control de medicamento.
+- **Estudios y capacitaciones.** El programa anual de estudios normativos:
+  qué despacho los hace, con qué vigencia, en qué estatus van y cuándo
+  vencen. Se descarga con el formato de la hoja DETALLE del archivo del
+  departamento, y la campana del encabezado avisa un mes antes de cada
+  vencimiento.
 
 El panel se puede leer en **español, inglés y coreano**; se cambia con el
 selector del encabezado. El formulario que contesta el personal de planta va
