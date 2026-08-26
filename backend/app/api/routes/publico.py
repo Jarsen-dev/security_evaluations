@@ -7,6 +7,7 @@ Sin autenticación: la única credencial es el token de la URL. Ver
 import ipaddress
 import logging
 import uuid
+from datetime import datetime
 
 from fastapi import APIRouter, Depends, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -17,6 +18,7 @@ from app.core.ratelimit import obtener_ip_cliente
 from app.db.session import get_db
 from app.schemas.publico import (
     CuestionarioPublico,
+    EscaneoRegistrado,
     EstadoIntento,
     GuardarRespuestaIn,
     IniciarIntentoIn,
@@ -25,7 +27,7 @@ from app.schemas.publico import (
     RespuestaGuardada,
     ResultadoIntento,
 )
-from app.services import intento_service
+from app.services import intento_service, rondin_service
 
 logger = logging.getLogger(__name__)
 
@@ -184,4 +186,40 @@ async def finalizar_intento(
         aprobado=intento_service.calcular_aprobado(intento.puntaje),
         umbral_aprobacion=settings.UMBRAL_APROBACION,
         finalizado_at=intento.finalizado_at,
+    )
+
+
+# --- Rondines de seguridad -------------------------------------------------
+# No choca con "/{token}" pese a ir después: aquella ruta es de un solo
+# segmento y esta de dos, así que FastAPI nunca las confunde.
+
+
+@router.post(
+    "/rondin/{token}",
+    response_model=EscaneoRegistrado,
+    status_code=status.HTTP_201_CREATED,
+    summary="Registra el escaneo de un punto de control",
+)
+async def escanear_punto(
+    token: str,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+) -> EscaneoRegistrado:
+    """Registra la visita a un punto y devuelve cuál fue.
+
+    Es POST y no GET a propósito: el QR abre una página y la página envía el
+    escaneo. Con GET, cualquier previsualizador de enlaces o rastreador
+    registraría visitas que nadie hizo.
+
+    La hora la pone el servidor. El reloj de un celular cualquiera decidiría a
+    qué rondín pertenece la visita.
+    """
+    punto = await rondin_service.registrar_escaneo(db, token, ip=_ip_valida(request))
+    logger.info("Escaneo registrado: punto %s", punto.numero)
+
+    return EscaneoRegistrado(
+        numero=punto.numero,
+        nombre=punto.nombre,
+        ubicacion=punto.ubicacion,
+        escaneado_at=datetime.now(tz=rondin_service.zona()),
     )

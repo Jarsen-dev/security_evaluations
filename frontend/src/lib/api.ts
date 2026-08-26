@@ -15,6 +15,7 @@ import type {
   BitacoraPaginada,
   CatalogoChecklist,
   CatalogoEstudios,
+  EscaneoRegistrado,
   CatalogoSqp,
   ConfigWifi,
   Credenciales,
@@ -32,24 +33,33 @@ import type {
   Estudio,
   EstudioPayload,
   FiltrosBitacora,
+  FiltrosCatalogo,
   FiltrosEstadisticas,
   IdentidadRespondiente,
   IntentoIniciado,
   InspeccionSqpPayload,
   InspeccionSqpResumen,
+  Insumo,
+  InsumoPayload,
+  InsumosPaginados,
   IntentosPaginados,
   Mantenimiento,
   Mensaje,
   MetaArea,
   Platica,
+  PuntoRondin,
+  PuntoRondinPayload,
   PuntoLineaTiempo,
   RangoDistribucion,
   RangoRayser,
   RegistroChecklist,
   RegistroRayser,
   Resumen,
+  Tablero,
+  TurnoRondin,
   PreguntaPayload,
   ResultadoImportacion,
+  ResultadoImportacionInsumos,
   ResultadoIntento,
   Usuario,
   UsuarioActualizarPayload,
@@ -580,16 +590,8 @@ export function registrarChecklist(
   control: string,
   datos: {
     fecha: string;
-    puntos: Array<{
-      orden: number;
-      valor: ValorChecklist;
-      observaciones: string;
-      medicion?: string;
-    }>;
+    puntos: Array<{ orden: number; valor: ValorChecklist; observaciones: string }>;
     fotos: Record<number, File[]>;
-    /** Solo los formatos por inspección los usan. */
-    encabezado?: Record<string, string>;
-    secciones?: Record<string, Record<string, string>>;
   },
 ): Promise<RegistroChecklist> {
   const cuerpo = new FormData();
@@ -601,12 +603,9 @@ export function registrarChecklist(
         orden: punto.orden,
         valor: punto.valor,
         observaciones: punto.observaciones || null,
-        medicion: punto.medicion || null,
       })),
     ),
   );
-  cuerpo.append('encabezado', JSON.stringify(datos.encabezado ?? {}));
-  cuerpo.append('secciones', JSON.stringify(datos.secciones ?? {}));
 
   for (const [orden, fotos] of Object.entries(datos.fotos)) {
     fotos.forEach((foto) => cuerpo.append(`fotos_${orden}`, foto));
@@ -677,7 +676,6 @@ export const descargarExcelPlaticas = (desde: string, hasta: string): Promise<vo
     'platicas_esh.xlsx',
   );
 
-
 // --- Administración: usuarios ----------------------------------------------
 
 export const listarUsuarios = (): Promise<Usuario[]> =>
@@ -747,3 +745,100 @@ export const obtenerAvisos = (): Promise<Avisos> => api.get<Avisos>('/estudios/a
 
 export const descargarExcelEstudios = (): Promise<void> =>
   descargarArchivo('/estudios/exportar/excel', 'estudios.xlsx');
+// --- Catálogo de insumos ---------------------------------------------------
+
+/** Arma la query del catálogo omitiendo los filtros vacíos. */
+function consultaCatalogo(filtros: FiltrosCatalogo, pagina: number): string {
+  const parametros = new URLSearchParams({ page: String(pagina) });
+
+  if (filtros.busqueda) parametros.set('busqueda', filtros.busqueda);
+  if (filtros.categoria) parametros.set('categoria', filtros.categoria);
+  if (filtros.estado) parametros.set('estado', filtros.estado);
+
+  return parametros.toString();
+}
+
+export const listarInsumos = (
+  filtros: FiltrosCatalogo,
+  pagina = 1,
+): Promise<InsumosPaginados> =>
+  api.get<InsumosPaginados>(`/catalogo?${consultaCatalogo(filtros, pagina)}`);
+
+/** Categorías válidas; nunca se escriben a mano en el frontend. */
+export const obtenerCategoriasInsumo = (): Promise<string[]> =>
+  api
+    .get<{ categorias: string[] }>('/catalogo/categorias')
+    .then((datos) => datos.categorias);
+
+export const crearInsumo = (datos: InsumoPayload): Promise<Insumo> =>
+  api.post<Insumo>('/catalogo', datos);
+
+export const actualizarInsumo = (id: string, datos: InsumoPayload): Promise<Insumo> =>
+  api.put<Insumo>(`/catalogo/${id}`, datos);
+
+export const eliminarInsumo = (id: string): Promise<void> =>
+  api.delete<void>(`/catalogo/${id}`);
+
+/**
+ * Carga masiva del catálogo.
+ *
+ * Va por `enviarFormulario` y no por `solicitar`: forzar
+ * `Content-Type: application/json` rompería el multipart.
+ */
+export function importarCatalogoExcel(
+  archivo: File,
+): Promise<ResultadoImportacionInsumos> {
+  const cuerpo = new FormData();
+  cuerpo.append('archivo', archivo);
+  return enviarFormulario<ResultadoImportacionInsumos>('/catalogo/importar-excel', cuerpo);
+}
+
+/** La cookie httpOnly viaja sola, así que basta un <a download>. */
+export const URL_PLANTILLA_CATALOGO = '/api/catalogo/plantilla-excel';
+
+// --- Rondines de seguridad -------------------------------------------------
+
+export const obtenerTablero = (fecha: string, turno: TurnoRondin): Promise<Tablero> =>
+  api.get<Tablero>(
+    `/rondines/tablero?${new URLSearchParams({ fecha, turno }).toString()}`,
+  );
+
+export const listarPuntosRondin = (): Promise<PuntoRondin[]> =>
+  api.get<PuntoRondin[]>('/rondines/puntos');
+
+export const crearPuntoRondin = (datos: PuntoRondinPayload): Promise<PuntoRondin> =>
+  api.post<PuntoRondin>('/rondines/puntos', datos);
+
+export const actualizarPuntoRondin = (
+  id: string,
+  datos: PuntoRondinPayload,
+): Promise<PuntoRondin> => api.put<PuntoRondin>(`/rondines/puntos/${id}`, datos);
+
+export const eliminarPuntoRondin = (id: string): Promise<void> =>
+  api.delete<void>(`/rondines/puntos/${id}`);
+
+export const descargarExcelRondines = (
+  fecha: string,
+  turno: TurnoRondin,
+): Promise<void> =>
+  descargarArchivo(
+    `/rondines/exportar/excel?${new URLSearchParams({ fecha, turno }).toString()}`,
+    `rondines_${fecha}_${turno}.xlsx`,
+  );
+
+export const enviarReporteRondines = (
+  fecha: string,
+  turno: TurnoRondin,
+  destinatario: string,
+): Promise<Mensaje> =>
+  api.post<Mensaje>('/rondines/reporte/enviar', { fecha, turno, destinatario });
+
+/** La cookie httpOnly viaja sola, así que basta un <a download>. */
+export const URL_QR_PUNTOS = '/api/rondines/puntos/imprimir';
+
+/**
+ * Registra el escaneo de un punto. NO lleva sesión: la llama la página que
+ * abre el código QR pegado en la planta.
+ */
+export const escanearPunto = (token: string): Promise<EscaneoRegistrado> =>
+  api.post<EscaneoRegistrado>(`/publico/rondin/${token}`);

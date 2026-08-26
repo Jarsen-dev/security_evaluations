@@ -247,8 +247,17 @@ export function FormularioChecklist({
           </p>
         </div>
 
-        {grupos.map((grupo) => (
-          <div key={grupo.categoria ?? 'sin-categoria'} className="flex flex-col gap-4">
+        {/*
+          La categoría NO sirve como clave: el catálogo repite algunas (por
+          ejemplo "비상 / Emergencia") en grupos no contiguos del mismo
+          control, y React descartaba uno de los dos. Se ancla al primer
+          punto, que sí es único dentro del formato.
+        */}
+        {grupos.map((grupo, indice) => (
+          <div
+            key={grupo.puntos[0]?.orden ?? `grupo-${indice}`}
+            className="flex flex-col gap-4"
+          >
             {grupo.categoria && (
               <h3 className="border-t border-borde pt-4 text-sm font-semibold tracking-wide text-texto-suave">
                 {grupo.categoria}

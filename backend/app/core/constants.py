@@ -60,9 +60,45 @@ MODULOS_PERMISO: Final[tuple[str, ...]] = (
     "controles",
     "inventario",
     "estudios",
+    "catalogo",
+    "rondines",
 )
 
 # Longitud mínima de las contraseñas del panel. Vive aquí, y no en `cli.py`
 # ni en los schemas, para que la CLI y el alta desde la interfaz apliquen
 # exactamente la misma regla.
 LONGITUD_MINIMA_CONTRASENA: Final[int] = 8
+
+
+# --- Catálogo de insumos de seguridad --------------------------------------
+
+# Categorías del catálogo. Se definen aquí y en ningún otro lado: el frontend
+# las obtiene por ``GET /api/catalogo/categorias``, igual que las áreas, para
+# que no queden escritas a mano en dos lugares que se desincronizan.
+CATEGORIAS_INSUMO: Final[tuple[str, ...]] = (
+    "Medicamento",
+    "EPP",
+    "Señalización",
+    "Extintores",
+    "Otros",
+)
+
+# Valores aceptados al dar de alta o importar un insumo.
+CATEGORIAS_VALIDAS: Final[frozenset[str]] = frozenset(CATEGORIAS_INSUMO)
+
+
+# --- Rondines de seguridad -------------------------------------------------
+
+# Un turno dura 12 horas y arranca a las 07:30. El día que se elige en el panel
+# es el de INICIO del turno, no el del calendario: la noche del 25 al 26 se
+# consulta seleccionando el 25.
+HORA_INICIO_TURNO: Final[int] = 7
+MINUTO_INICIO_TURNO: Final[int] = 30
+HORAS_TURNO: Final[int] = 12
+
+#: Rondines por turno. Cada uno cubre un bloque de dos horas.
+RONDINES_POR_TURNO: Final[int] = 6
+
+# Silencio a partir del cual se considera que empezó un recorrido nuevo. Un
+# recorrido completo de la planta toma bastante menos que esto.
+GAP_RECORRIDO_MINUTOS: Final[int] = 30

@@ -164,6 +164,11 @@ Dos consecuencias al escribir código:
   `api/administracion` y la ruta `administracion`, y la de Estudios
   `api/estudios` y la ruta `estudios`. **Sus aplicaciones de Access todavía
   están pendientes de crear**; queda anotado en `SEGURIDAD.md`.
+  rutas `controles` e `inventario`. Administración estrenó
+  `api/administracion` y la ruta `administracion`; Catálogo, `api/catalogo`
+  y la ruta `catalogo`; Rondines, `api/rondines` y la ruta `rondines`.
+  **Sus aplicaciones de Access
+  todavía están pendientes de crear**; queda anotado en `SEGURIDAD.md`.
 
 El límite de tasa distingue dos cuotas (`core/ratelimit.py`): la amplia de
 `/api/publico` y una estricta de 5 fallos por 5 minutos en `/api/auth/login`.
@@ -178,6 +183,11 @@ Tener sesión ya no da acceso total. Cada usuario lleva en `admin_users.permisos
 un JSON por módulo (`cuestionarios`, `controles`, `inventario`, `estudios`):
 **estar presente** es el acceso de ver y crear, `editar` agrega modificar y
 eliminar. El superadministrador (`es_superadmin`) puede todo y es el único que ve
+un JSON por módulo (`cuestionarios`, `controles`, `inventario`, `catalogo`,
+`rondines`):
+**estar presente** es el acceso de ver y crear, `editar` agrega modificar y
+eliminar. El
+superadministrador (`es_superadmin`) puede todo y es el único que ve
 `/administracion`.
 
 La decisión vive en **un solo lugar**, `AdminUser.puede()`. La capa HTTP la
@@ -369,6 +379,9 @@ El grupo de rutas `(panel)` comparte el encabezado con las pestañas
 superadministrador, Administración). El encabezado las filtra con
 `useSesion().puede()`. A su derecha van la campana de vencimientos y el
 selector de idioma.
+(Cuestionarios, Controles, Inventario, Catálogo, Rondines y, solo para el
+superadministrador, Administración). El encabezado las filtra con
+`useSesion().puede()`.
 
 Estadísticas ya no es una ruta: es una sub-pestaña dentro de `/cuestionarios`,
 y la vista activa viaja en la query (`?vista=estadisticas`). Controles hace lo
@@ -421,6 +434,22 @@ middleware exige contenido, no solo presencia.
 **El middleware de Next NO valida la firma del JWT** y no debe hacerlo: la
 llave vive en el backend. Solo evita el parpadeo de cargar el panel para luego
 rebotar. La autorización real la aplica la API en cada endpoint.
+
+**`sin_zona()` convierte a UTC, no a la hora local.** Sirve para sellos de
+tiempo, pero si lo que el reporte muestra ES la hora (como el tablero de
+rondines, donde cada celda dice a qué hora pasó el guardia), sale corrido seis
+horas. Ver el helper `_local()` de `services/rondines_excel.py`.
+
+**El escaneo de un rondín no pasa por la bitácora.** Cae bajo `/api/publico`,
+que está excluido a propósito, y ya deja su rastro en `escaneos_rondin`. La
+página que lo recibe (`/p/[token]`) también debe estar excluida del matcher de
+`middleware.ts`: sin eso rebota al login y ningún QR funciona.
+
+**Una tarea del `lifespan` corre en CADA worker de uvicorn.** Con
+`UVICORN_WORKERS: "4"`, un envío programado sale cuatro veces. El reporte
+automático de rondines lo resuelve con un candado en la base
+(`envios_reporte_rondin`): el primero que gana el INSERT envía y los demás
+chocan. Cualquier tarea periódica nueva necesita el mismo cuidado.
 
 **openpyxl no acepta datetimes con zona horaria.** Las columnas son
 `TIMESTAMPTZ`; usa `sin_zona()` de `services/exportacion_comun.py`.

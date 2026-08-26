@@ -17,6 +17,8 @@ const MODULOS: readonly Modulo[] = [
   'controles',
   'inventario',
   'estudios',
+  'catalogo',
+  'rondines',
 ];
 
 interface TablaUsuariosProps {
