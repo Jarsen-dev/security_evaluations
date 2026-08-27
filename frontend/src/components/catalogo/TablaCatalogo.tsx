@@ -27,7 +27,7 @@ const CLASES_CAMPO =
   'h-10 rounded-md border border-borde bg-fondo px-3 text-sm text-texto focus:border-primario';
 
 /** Número de columnas, para los renglones de estado vacío. */
-const COLUMNAS = 8;
+const COLUMNAS = 9;
 
 export function TablaCatalogo({
   datos,
@@ -129,10 +129,13 @@ export function TablaCatalogo({
           <thead className="bg-fondo-sutil">
             <tr>
               <th scope="col" className="px-5 py-3 text-left font-medium text-texto-suave">
-                {t('catalogo.nombre')}
+                {t('catalogo.codigo')}
               </th>
               <th scope="col" className="px-5 py-3 text-left font-medium text-texto-suave">
                 {t('catalogo.categoria')}
+              </th>
+              <th scope="col" className="px-5 py-3 text-left font-medium text-texto-suave">
+                {t('catalogo.unidadMedida')}
               </th>
               <th scope="col" className="px-5 py-3 text-left font-medium text-texto-suave">
                 {t('catalogo.proveedor')}
@@ -181,7 +184,7 @@ export function TablaCatalogo({
               datos?.items.map((insumo) => (
                 <tr key={insumo.id} className="border-b border-borde last:border-0">
                   <td className="px-5 py-3">
-                    <span className="font-medium text-texto">{insumo.nombre}</span>
+                    <span className="font-medium text-texto">{insumo.codigo}</span>
                     {insumo.descripcion && (
                       <span className="block text-xs text-texto-tenue">
                         {insumo.descripcion}
@@ -189,6 +192,7 @@ export function TablaCatalogo({
                     )}
                   </td>
                   <td className="px-5 py-3 text-texto-suave">{insumo.categoria}</td>
+                  <td className="px-5 py-3 text-texto-suave">{insumo.unidad_medida}</td>
                   <td className="px-5 py-3 text-texto-suave">{insumo.proveedor ?? '—'}</td>
                   <td className="px-5 py-3 text-texto-suave">{insumo.ubicacion ?? '—'}</td>
                   <td className="px-5 py-3 text-right font-medium text-texto">

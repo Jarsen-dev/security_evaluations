@@ -61,6 +61,14 @@ const config: Config = {
           suave: '#3a2410',
         },
 
+        // Indicador de turno del encabezado: de día reutiliza `alerta` (el
+        // mismo ámbar de aviso); de noche necesita un azul rey que no
+        // desentone con `primario`, que ya significa otra cosa (lo activo).
+        turno: {
+          noche: '#4c5fd6',
+          'noche-suave': '#1a1f42',
+        },
+
         // --- Formulario público (tema claro, alto contraste) ---
         claro: {
           fondo: '#ffffff',

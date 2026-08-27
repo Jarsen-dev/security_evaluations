@@ -2,11 +2,14 @@
 
 import { useMemo, useState } from 'react';
 
+import { AvisoBorrador, BotonReiniciar } from '@/components/controles/AvisoBorrador';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Input';
 import { Textarea } from '@/components/ui/Textarea';
+import { useBorrador } from '@/hooks/useBorrador';
 import { useTraduccion } from '@/lib/i18n';
+import { useSesion } from '@/lib/sesion';
 import type {
   Area,
   CatalogoSqp,
@@ -28,9 +31,12 @@ interface EstadoRespuesta {
   observaciones: string;
 }
 
-const OPCIONES: ReadonlyArray<{ valor: ValorSqp; clave: 'respuestaSi' | 'respuestaNo' | 'respuestaNa' }> = [
-  { valor: 'si', clave: 'respuestaSi' },
-  { valor: 'no', clave: 'respuestaNo' },
+const OPCIONES: ReadonlyArray<{
+  valor: ValorSqp;
+  clave: 'respuestaConforme' | 'respuestaInconforme' | 'respuestaNa';
+}> = [
+  { valor: 'si', clave: 'respuestaConforme' },
+  { valor: 'no', clave: 'respuestaInconforme' },
   { valor: 'na', clave: 'respuestaNa' },
 ];
 
@@ -60,6 +66,40 @@ export function FormularioSqp({
     () => sustancias.split('\n').filter((linea) => linea.trim() !== ''),
     [sustancias],
   );
+
+  // Lo capturado sobrevive a cambiar de pestaña, salir del panel o recargar.
+  // La fecha no cuenta como contenido: arranca con la de hoy sola.
+  const { usuario } = useSesion();
+  const hayContenido =
+    area !== '' ||
+    encargado.trim() !== '' ||
+    cargo.trim() !== '' ||
+    sustancias.trim() !== '' ||
+    Object.keys(respuestas).length > 0;
+
+  const borrador = useBorrador(
+    usuario ? `${usuario.username}:sqp` : null,
+    { fecha, area, encargado, cargo, sustancias, respuestas },
+    hayContenido,
+    (guardado) => {
+      setFecha(guardado.fecha);
+      setArea(guardado.area);
+      setEncargado(guardado.encargado);
+      setCargo(guardado.cargo);
+      setSustancias(guardado.sustancias);
+      setRespuestas(guardado.respuestas);
+    },
+  );
+
+  /** Vacía la hoja entera. El botón de reiniciar sí borra fecha y área. */
+  function limpiar() {
+    setFecha(fechaDeHoy());
+    setArea('');
+    setEncargado('');
+    setCargo('');
+    setSustancias('');
+    setRespuestas({});
+  }
 
   const contestados = catalogo.puntos.filter(
     (punto) => respuestas[punto.orden]?.valor != null,
@@ -132,10 +172,13 @@ export function FormularioSqp({
       return;
     }
 
+    // La fecha y el área se conservan a propósito: en un recorrido se
+    // capturan varias áreas seguidas el mismo día.
     setRespuestas({});
     setSustancias('');
     setEncargado('');
     setCargo('');
+    borrador.descartar();
   }
 
   // Se agrupa por sección para reproducir el orden del formato en papel.
@@ -146,6 +189,8 @@ export function FormularioSqp({
 
   return (
     <div className="flex flex-col gap-5">
+      <AvisoBorrador fecha={borrador.esDeOtroDia ? borrador.fecha : null} />
+
       <Card className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Input
           etiqueta={t('comun.fecha')}
@@ -234,7 +279,7 @@ export function FormularioSqp({
                           onClick={() => responder(punto.orden, opcion.valor)}
                           disabled={guardando}
                           className={cn(
-                            'h-tactil w-16 rounded-md border text-sm font-semibold transition-colors',
+                            'h-tactil w-32 rounded-md border text-sm font-semibold transition-colors',
                             'disabled:cursor-not-allowed disabled:opacity-50',
                             activa
                               ? SELECCIONADO[opcion.valor]
@@ -298,14 +343,25 @@ export function FormularioSqp({
                   })}
         </p>
 
-        <Button
-          tamano="lg"
-          onClick={() => void guardar()}
-          disabled={!puedeGuardar}
-          cargando={guardando}
-        >
-          {t('sqp.guardarInspeccion')}
-        </Button>
+        <div className="flex flex-wrap items-center gap-3">
+          <BotonReiniciar
+            hayContenido={hayContenido}
+            deshabilitado={guardando}
+            onReiniciar={() => {
+              limpiar();
+              borrador.descartar();
+            }}
+          />
+
+          <Button
+            tamano="lg"
+            onClick={() => void guardar()}
+            disabled={!puedeGuardar}
+            cargando={guardando}
+          >
+            {t('sqp.guardarInspeccion')}
+          </Button>
+        </div>
       </div>
     </div>
   );

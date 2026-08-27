@@ -31,12 +31,17 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import requiere
 from app.core.bitacora import anotar
-from app.core.constants import CATEGORIAS_INSUMO, CATEGORIAS_VALIDAS
+from app.core.constants import (
+    CATEGORIAS_INSUMO,
+    CATEGORIAS_VALIDAS,
+    UNIDADES_MEDIDA,
+)
 from app.core.errors import ErrorDeNegocio
 from app.db.session import get_db
 from app.models.insumo import ESTADO_BAJO, ESTADO_EXCEDIDO
 from app.schemas.catalogo import (
     CatalogoCategorias,
+    CatalogoUnidades,
     ErrorImportacionInsumo,
     InsumoActualizar,
     InsumoCrear,
@@ -80,6 +85,16 @@ async def listar_categorias() -> CatalogoCategorias:
     nunca las tenga escritas a mano.
     """
     return CatalogoCategorias(categorias=list(CATEGORIAS_INSUMO))
+
+
+@router.get(
+    "/unidades",
+    response_model=CatalogoUnidades,
+    summary="Unidades de medida válidas de los insumos",
+)
+async def listar_unidades() -> CatalogoUnidades:
+    """Alimenta el selector del formulario, igual que las categorías."""
+    return CatalogoUnidades(unidades=list(UNIDADES_MEDIDA))
 
 
 @router.get(
@@ -208,9 +223,9 @@ async def crear_insumo(
     request: Request,
     db: AsyncSession = Depends(get_db),
 ) -> InsumoOut:
-    """El nombre identifica al insumo y no puede repetirse."""
+    """El código identifica al insumo y no puede repetirse."""
     insumo = await insumo_service.crear(db, datos)
-    anotar(request, detalle=insumo.nombre)
+    anotar(request, detalle=insumo.codigo)
     return InsumoOut.model_validate(insumo)
 
 
@@ -228,7 +243,7 @@ async def actualizar_insumo(
 ) -> InsumoOut:
     """Incluye la existencia: es donde se corrige tras el conteo."""
     insumo = await insumo_service.actualizar(db, insumo_id, datos)
-    anotar(request, detalle=insumo.nombre)
+    anotar(request, detalle=insumo.codigo)
     return InsumoOut.model_validate(insumo)
 
 
@@ -243,7 +258,7 @@ async def eliminar_insumo(
     request: Request,
     db: AsyncSession = Depends(get_db),
 ) -> Response:
-    """Lo borra por completo; la bitácora conserva el nombre."""
-    nombre = await insumo_service.eliminar(db, insumo_id)
-    anotar(request, detalle=nombre)
+    """Lo borra por completo; la bitácora conserva el código."""
+    codigo = await insumo_service.eliminar(db, insumo_id)
+    anotar(request, detalle=codigo)
     return Response(status_code=status.HTTP_204_NO_CONTENT)

@@ -14,8 +14,18 @@ WORKDIR /app
 
 # `libpq5` no hace falta (asyncpg no usa libpq), pero `curl` sirve para
 # diagnosticar el healthcheck desde dentro del contenedor.
+#
+# Tesseract es el paso (1) del pipeline de recepciones: lee la foto de la
+# remisión antes de que el LLM acomode el texto. Los dos idiomas son
+# necesarios, no opcionales: las hojas traen el cuerpo en español y los
+# encabezados de muchos proveedores en inglés, y `lang="spa+eng"` los
+# resuelve en una sola pasada.
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends curl \
+    && apt-get install -y --no-install-recommends \
+        curl \
+        tesseract-ocr \
+        tesseract-ocr-spa \
+        tesseract-ocr-eng \
     && rm -rf /var/lib/apt/lists/*
 
 # Las dependencias van antes que el código: así un cambio en app/ no

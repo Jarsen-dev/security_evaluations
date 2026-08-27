@@ -2,18 +2,16 @@
 
 import { useEffect, useState } from 'react';
 
-import {
-  CLASES_SEMAFORO,
-  SELECCION_NEUTRA,
-  claveEtiqueta,
-  type GrupoOpciones,
-} from '@/components/estudios/opciones';
+import { claveEtiqueta, type GrupoOpciones } from '@/components/estudios/opciones';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Textarea } from '@/components/ui/Textarea';
 import { useTraduccion, type ClaveTraduccion } from '@/lib/i18n';
 import type { CatalogoEstudios, Estudio, EstudioPayload, OpcionEstudio } from '@/lib/types';
-import { cn } from '@/lib/utils';
+
+/** Mismo estilo que `Input`, para que el desplegable no desentone. */
+const CLASES_CAMPO =
+  'h-10 rounded-md border border-borde bg-fondo px-3 text-sm text-texto focus:border-primario disabled:cursor-not-allowed disabled:opacity-50';
 
 interface FormularioEstudioProps {
   catalogo: CatalogoEstudios;
@@ -138,75 +136,98 @@ export function FormularioEstudio({
         {t(editando ? 'estudios.editando' : 'estudios.nuevo')}
       </h2>
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        <Input
-          etiqueta={t('estudios.despacho')}
-          name="estudio-despacho"
-          value={datos.despacho}
-          onChange={(evento) => cambiar('despacho', evento.target.value)}
-          disabled={guardando}
-          maxLength={150}
-        />
+      {/* Dos columnas: la izquierda identifica el estudio (Despacho a
+          Prioridad), la derecha lleva su ciclo de vida (IN/EX a Pagado). Cada
+          una es su propia pila para que los campos condicionales de la
+          derecha (Link, Fecha) no desalineen la izquierda. */}
+      <div className="grid gap-x-6 gap-y-4 lg:grid-cols-2">
+        <div className="flex flex-col gap-4">
+          <Input
+            etiqueta={t('estudios.despacho')}
+            name="estudio-despacho"
+            value={datos.despacho}
+            onChange={(evento) => cambiar('despacho', evento.target.value)}
+            disabled={guardando}
+            maxLength={150}
+          />
 
-        <Textarea
-          etiqueta={t('estudios.estudio')}
-          name="estudio-nombre"
-          value={datos.estudio}
-          onChange={(evento) => cambiar('estudio', evento.target.value)}
-          disabled={guardando}
-          maxLength={2000}
-        />
+          <Textarea
+            etiqueta={t('estudios.estudio')}
+            name="estudio-nombre"
+            value={datos.estudio}
+            onChange={(evento) => cambiar('estudio', evento.target.value)}
+            disabled={guardando}
+            maxLength={2000}
+          />
 
-        <Textarea
-          etiqueta={t('estudios.estudioKo')}
-          ayuda={t('estudios.estudioKoAyuda')}
-          name="estudio-coreano"
-          value={datos.estudio_ko ?? ''}
-          onChange={(evento) => cambiar('estudio_ko', evento.target.value)}
-          disabled={guardando}
-          maxLength={2000}
-        />
-      </div>
+          <Textarea
+            etiqueta={t('estudios.estudioKo')}
+            ayuda={t('estudios.estudioKoAyuda')}
+            name="estudio-coreano"
+            value={datos.estudio_ko ?? ''}
+            onChange={(evento) => cambiar('estudio_ko', evento.target.value)}
+            disabled={guardando}
+            maxLength={2000}
+          />
 
-      <div className="grid gap-5 lg:grid-cols-2">
-        <GrupoOpcionesEstudio
-          titulo={t('estudios.vigencia')}
-          grupo="vigencia"
-          opciones={catalogo.vigencias}
-          valor={datos.vigencia}
-          onElegir={(clave) => cambiar('vigencia', clave)}
-          deshabilitado={guardando}
-        />
+          <SelectorEstudio
+            id="estudio-vigencia"
+            titulo={t('estudios.vigencia')}
+            grupo="vigencia"
+            opciones={catalogo.vigencias}
+            valor={datos.vigencia}
+            onElegir={(clave) => cambiar('vigencia', clave)}
+            deshabilitado={guardando}
+          />
 
-        <GrupoOpcionesEstudio
-          titulo={t('estudios.prioridad')}
-          grupo="prioridad"
-          opciones={catalogo.prioridades}
-          valor={datos.prioridad}
-          onElegir={(clave) => cambiar('prioridad', clave)}
-          deshabilitado={guardando}
-        />
+          <SelectorEstudio
+            id="estudio-prioridad"
+            titulo={t('estudios.prioridad')}
+            grupo="prioridad"
+            opciones={catalogo.prioridades}
+            valor={datos.prioridad}
+            onElegir={(clave) => cambiar('prioridad', clave)}
+            deshabilitado={guardando}
+          />
+        </div>
 
-        <GrupoOpcionesEstudio
-          titulo={t('estudios.tipo')}
-          grupo="tipo"
-          opciones={catalogo.tipos}
-          valor={datos.tipo}
-          onElegir={(clave) => cambiar('tipo', clave)}
-          deshabilitado={guardando}
-        />
+        <div className="flex flex-col gap-4">
+          <SelectorEstudio
+            id="estudio-tipo"
+            titulo={t('estudios.tipo')}
+            grupo="tipo"
+            opciones={catalogo.tipos}
+            valor={datos.tipo}
+            onElegir={(clave) => cambiar('tipo', clave)}
+            deshabilitado={guardando}
+          />
 
-        <GrupoOpcionesEstudio
-          titulo={t('estudios.estatus')}
-          grupo="estatus"
-          opciones={catalogo.estatus}
-          valor={datos.estatus}
-          onElegir={(clave) => cambiar('estatus', clave)}
-          deshabilitado={guardando}
-        />
+          <SelectorEstudio
+            id="estudio-estatus"
+            titulo={t('estudios.estatus')}
+            grupo="estatus"
+            opciones={catalogo.estatus}
+            valor={datos.estatus}
+            onElegir={(clave) => cambiar('estatus', clave)}
+            deshabilitado={guardando}
+          />
 
-        <div className="flex flex-col gap-3">
-          <GrupoOpcionesEstudio
+          {/* El link solo tiene sentido cuando el estudio ya está hecho: vive
+              justo debajo del estatus que lo habilita. */}
+          {pideLink && (
+            <Input
+              etiqueta={t('estudios.link')}
+              ayuda={t('estudios.linkAyuda')}
+              name="estudio-link"
+              value={datos.link ?? ''}
+              onChange={(evento) => cambiar('link', evento.target.value)}
+              disabled={guardando}
+              maxLength={500}
+            />
+          )}
+
+          <SelectorEstudio
+            id="estudio-vencimiento"
             titulo={t('estudios.vencimiento')}
             grupo="vencimiento"
             opciones={catalogo.vencimientos}
@@ -215,6 +236,8 @@ export function FormularioEstudio({
             deshabilitado={guardando}
           />
 
+          {/* Igual que el link: la fecha solo aparece con el vencimiento que
+              la pide, justo debajo de su selector. */}
           {pideFecha && (
             <Input
               etiqueta={t('estudios.fechaVencimiento')}
@@ -227,39 +250,28 @@ export function FormularioEstudio({
               disabled={guardando}
             />
           )}
+
+          <SelectorEstudio
+            id="estudio-aprobado"
+            titulo={t('estudios.aprobado')}
+            grupo="aprobacion"
+            opciones={catalogo.aprobaciones}
+            valor={datos.aprobado}
+            onElegir={(clave) => cambiar('aprobado', clave)}
+            deshabilitado={guardando}
+          />
+
+          <SelectorEstudio
+            id="estudio-pagado"
+            titulo={t('estudios.pagado')}
+            grupo="aprobacion"
+            opciones={catalogo.aprobaciones}
+            valor={datos.pagado}
+            onElegir={(clave) => cambiar('pagado', clave)}
+            deshabilitado={guardando}
+          />
         </div>
-
-        <GrupoOpcionesEstudio
-          titulo={t('estudios.aprobado')}
-          grupo="aprobacion"
-          opciones={catalogo.aprobaciones}
-          valor={datos.aprobado}
-          onElegir={(clave) => cambiar('aprobado', clave)}
-          deshabilitado={guardando}
-        />
-
-        <GrupoOpcionesEstudio
-          titulo={t('estudios.pagado')}
-          grupo="aprobacion"
-          opciones={catalogo.aprobaciones}
-          valor={datos.pagado}
-          onElegir={(clave) => cambiar('pagado', clave)}
-          deshabilitado={guardando}
-        />
       </div>
-
-      {/* El link solo tiene sentido cuando el estudio ya está hecho. */}
-      {pideLink && (
-        <Input
-          etiqueta={t('estudios.link')}
-          ayuda={t('estudios.linkAyuda')}
-          name="estudio-link"
-          value={datos.link ?? ''}
-          onChange={(evento) => cambiar('link', evento.target.value)}
-          disabled={guardando}
-          maxLength={500}
-        />
-      )}
 
       <div className="flex flex-wrap items-center gap-3">
         <Button onClick={() => void confirmar()} disabled={!completo} cargando={guardando}>
@@ -280,7 +292,9 @@ export function FormularioEstudio({
   );
 }
 
-interface GrupoProps {
+interface SelectorProps {
+  /** `grupo` se repite entre campos (aprobado y pagado comparten catálogo). */
+  id: string;
   titulo: string;
   grupo: GrupoOpciones;
   opciones: OpcionEstudio[];
@@ -289,15 +303,22 @@ interface GrupoProps {
   deshabilitado: boolean;
 }
 
-/** Un campo de selección dibujado como botones, con su semáforo. */
-function GrupoOpcionesEstudio({
+/**
+ * Un campo de selección como desplegable, sin semáforo.
+ *
+ * El color de cada opción solo se muestra ya capturado, en la tabla de
+ * registros: aquí todas las opciones se ven igual, para que elegir una no se
+ * sienta como acertar o fallar un color.
+ */
+function SelectorEstudio({
+  id,
   titulo,
   grupo,
   opciones,
   valor,
   onElegir,
   deshabilitado,
-}: GrupoProps) {
+}: SelectorProps) {
   const t = useTraduccion();
 
   function rotulo(opcion: OpcionEstudio): string {
@@ -307,34 +328,24 @@ function GrupoOpcionesEstudio({
 
   return (
     <div className="flex flex-col gap-1.5">
-      <span className="text-sm font-medium text-texto">{titulo}</span>
+      <label htmlFor={id} className="text-sm font-medium text-texto">
+        {titulo}
+      </label>
 
-      <div role="radiogroup" aria-label={titulo} className="flex flex-wrap gap-2">
-        {opciones.map((opcion) => {
-          const activa = valor === opcion.clave;
-          const resaltado = CLASES_SEMAFORO[opcion.semaforo] ?? SELECCION_NEUTRA;
-
-          return (
-            <button
-              key={opcion.clave}
-              type="button"
-              role="radio"
-              aria-checked={activa}
-              onClick={() => onElegir(activa ? '' : opcion.clave)}
-              disabled={deshabilitado}
-              className={cn(
-                'h-10 min-w-[5rem] flex-1 rounded-md border px-3 text-sm font-medium transition-colors',
-                'disabled:cursor-not-allowed disabled:opacity-50',
-                activa
-                  ? resaltado
-                  : 'border-borde text-texto-suave hover:border-borde-fuerte hover:text-texto',
-              )}
-            >
-              {rotulo(opcion)}
-            </button>
-          );
-        })}
-      </div>
+      <select
+        id={id}
+        className={CLASES_CAMPO}
+        value={valor}
+        disabled={deshabilitado}
+        onChange={(evento) => onElegir(evento.target.value)}
+      >
+        <option value="">—</option>
+        {opciones.map((opcion) => (
+          <option key={opcion.clave} value={opcion.clave}>
+            {rotulo(opcion)}
+          </option>
+        ))}
+      </select>
     </div>
   );
 }

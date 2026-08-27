@@ -2,11 +2,14 @@
 
 import { useState } from 'react';
 
+import { AvisoBorrador, BotonReiniciar } from '@/components/controles/AvisoBorrador';
 import { CampoFotos } from '@/components/controles/CampoFotos';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Input';
+import { useBorrador } from '@/hooks/useBorrador';
 import { useTraduccion } from '@/lib/i18n';
+import { useSesion } from '@/lib/sesion';
 import type { AreaPlatica } from '@/lib/types';
 import { cn, fechaDeHoy } from '@/lib/utils';
 
@@ -49,6 +52,29 @@ export function FormularioPlaticas({
   const hayAreas = elegidas.length > 0;
   const puedeGuardar = hayTema && hayAreas && fotos.length > 0;
 
+  // Lo capturado sobrevive a cambiar de pestaña, salir del panel o recargar.
+  // La fecha no cuenta como contenido: arranca con la de hoy sola.
+  const { usuario } = useSesion();
+  const hayContenido = hayTema || hayAreas || fotos.length > 0;
+
+  const borrador = useBorrador(
+    usuario ? `${usuario.username}:platicas` : null,
+    { fecha, tema, elegidas, fotos },
+    hayContenido,
+    (guardado) => {
+      setFecha(guardado.fecha);
+      setTema(guardado.tema);
+      setElegidas(guardado.elegidas);
+      setFotos(guardado.fotos);
+    },
+  );
+
+  function limpiar() {
+    setTema('');
+    setElegidas([]);
+    setFotos([]);
+  }
+
   function alternar(clave: string) {
     setElegidas((previas) =>
       previas.includes(clave)
@@ -69,9 +95,8 @@ export function FormularioPlaticas({
       return;
     }
 
-    setTema('');
-    setElegidas([]);
-    setFotos([]);
+    limpiar();
+    borrador.descartar();
   }
 
   return (
@@ -82,6 +107,8 @@ export function FormularioPlaticas({
         </h2>
         <p className="mt-1 text-sm text-texto-suave">{t('platicas.descripcion')}</p>
       </div>
+
+      <AvisoBorrador fecha={borrador.esDeOtroDia ? borrador.fecha : null} />
 
       <div className="grid gap-4 sm:grid-cols-[12rem_1fr]">
         <Input
@@ -162,14 +189,25 @@ export function FormularioPlaticas({
                 : t('platicas.listo', { total: elegidas.length })}
         </p>
 
-        <Button
-          tamano="lg"
-          onClick={() => void guardar()}
-          disabled={!puedeGuardar}
-          cargando={guardando}
-        >
-          {t('checklist.confirmar')}
-        </Button>
+        <div className="flex flex-wrap items-center gap-3">
+          <BotonReiniciar
+            hayContenido={hayContenido}
+            deshabilitado={guardando}
+            onReiniciar={() => {
+              limpiar();
+              borrador.descartar();
+            }}
+          />
+
+          <Button
+            tamano="lg"
+            onClick={() => void guardar()}
+            disabled={!puedeGuardar}
+            cargando={guardando}
+          >
+            {t('checklist.confirmar')}
+          </Button>
+        </div>
       </div>
     </Card>
   );

@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useState } from 'react';
 
+import { IndicadorTurno } from '@/components/IndicadorTurno';
 import { Notificaciones } from '@/components/Notificaciones';
 import { SelectorIdioma } from '@/components/SelectorIdioma';
 import { Button } from '@/components/ui/Button';
@@ -59,7 +60,7 @@ export function EncabezadoPanel() {
 
   return (
     <header className="border-b border-borde bg-fondo-elevado">
-      <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-6 py-3">
+      <div className="mx-auto flex max-w-[96rem] items-center justify-between gap-4 px-6 py-3">
         <div className="flex items-center gap-3">
           <Logo alto={30} sobreFondoOscuro />
           <span className="hidden text-sm font-semibold text-texto sm:inline">
@@ -89,6 +90,7 @@ export function EncabezadoPanel() {
         </nav>
 
         <div className="flex items-center gap-3">
+          <IndicadorTurno />
           <Notificaciones />
           <SelectorIdioma />
           {usuario && (

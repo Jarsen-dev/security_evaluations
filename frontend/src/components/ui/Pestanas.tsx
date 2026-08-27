@@ -70,7 +70,11 @@ export function Pestanas({ pestanas, activa, onCambiar, etiqueta }: PestanasProp
             tabIndex={seleccionada ? 0 : -1}
             onClick={() => onCambiar(pestana.clave)}
             className={cn(
-              'whitespace-nowrap rounded-t-md px-4 py-2 text-sm font-medium transition-colors',
+              // px-3 y no px-4: con las nueve pestañas de Controles, este
+              // recorte es lo que cierra el hueco que dejaba el ensanche del
+              // panel en la laptop de planta (~1366px) y evita el scroll
+              // lateral de la barra.
+              'whitespace-nowrap rounded-t-md px-3 py-2 text-sm font-medium transition-colors',
               'border-b-2',
               seleccionada
                 ? 'border-primario text-primario'

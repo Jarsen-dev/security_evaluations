@@ -234,6 +234,7 @@ CATALOGO: Final[tuple[EntradaCatalogo, ...]] = (
         "estudio.eliminar",
         "estudios",
         "Eliminó un estudio",
+    ),
     # --- Catálogo de insumos -----------------------------------------------
     # La de importar va ANTES del POST a secas, o el patrón general se la
     # tragaría: `_buscar_en_catalogo` toma la primera coincidencia.
@@ -295,6 +296,40 @@ CATALOGO: Final[tuple[EntradaCatalogo, ...]] = (
         "punto.eliminar",
         "rondines",
         "Eliminó un punto de control",
+    ),
+    # --- Recepciones de mercancía ------------------------------------------
+    # Las rutas específicas van ANTES del POST a secas, o el patrón general se
+    # las tragaría: `_buscar_en_catalogo` toma la primera coincidencia.
+    #
+    # La subida desde el CELULAR no se registra: cae bajo /api/publico, que
+    # está excluido a propósito, y ya deja rastro en la sesión y en la foto.
+    EntradaCatalogo(
+        "POST",
+        _ruta("/api/inventario/recepciones/ocr/desde-sesion/{}"),
+        "recepcion.ocr",
+        "inventario",
+        "Procesó con IA una foto tomada desde el celular",
+    ),
+    EntradaCatalogo(
+        "POST",
+        _ruta("/api/inventario/recepciones/ocr"),
+        "recepcion.ocr",
+        "inventario",
+        "Procesó con IA la foto de una remisión",
+    ),
+    EntradaCatalogo(
+        "POST",
+        _ruta("/api/inventario/recepciones/qr-session"),
+        "recepcion.sesion",
+        "inventario",
+        "Abrió una sesión de captura por QR",
+    ),
+    EntradaCatalogo(
+        "POST",
+        _ruta("/api/inventario/recepciones"),
+        "recepcion.crear",
+        "inventario",
+        "Registró una recepción y dio entrada al inventario",
     ),
     # --- Administración ----------------------------------------------------
     EntradaCatalogo(

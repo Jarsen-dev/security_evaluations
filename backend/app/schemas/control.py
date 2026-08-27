@@ -208,6 +208,10 @@ class CampoFormatoOut(BaseModel):
     opciones: list[str]
     unidad: str | None
     obligatorio: bool
+    automatico: str | None = Field(
+        default=None,
+        description="'turno' u 'hora' si el servicio lo calcula solo; None si lo captura el operador.",
+    )
 
 
 class SeccionFormatoOut(BaseModel):
@@ -229,7 +233,6 @@ class CatalogoChecklist(BaseModel):
     subtitulo: str | None
     puntos: list[PuntoControlOut]
     max_fotos: int = Field(description="Cuántas fotos admite un punto en NO OK.")
-    estilo_valores: str = Field(description="'ok_no_ok' o 'si_no'.")
     encabezado: list[CampoFormatoOut] = Field(default_factory=list)
     secciones: list[SeccionFormatoOut] = Field(default_factory=list)
     nota: str | None = None

@@ -19,7 +19,12 @@ export default function LayoutPanel({ children }: { children: React.ReactNode })
         <ProveedorSesion>
           <div className="min-h-screen bg-fondo">
             <EncabezadoPanel />
-            <main className="mx-auto max-w-7xl px-6 py-8">{children}</main>
+            {/* 96rem (antes 80rem/max-w-7xl): en laptops de plantilla de
+                ~1366-1440px el contenedor angosto dejaba menos ancho útil que
+                la pantalla, y forzaba scroll lateral en tablas y en la barra
+                de pestañas de Controles (ver el comentario en Pestanas.tsx).
+                Sigue habiendo margen a los lados en monitores anchos. */}
+            <main className="mx-auto max-w-[96rem] px-6 py-8">{children}</main>
           </div>
         </ProveedorSesion>
       </ProveedorToast>

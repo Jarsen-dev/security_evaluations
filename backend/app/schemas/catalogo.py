@@ -5,7 +5,12 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from app.core.constants import CATEGORIAS_INSUMO, CATEGORIAS_VALIDAS
+from app.core.constants import (
+    CATEGORIAS_INSUMO,
+    CATEGORIAS_VALIDAS,
+    UNIDADES_MEDIDA,
+    UNIDADES_VALIDAS,
+)
 
 
 def _texto(valor: str) -> str:
@@ -33,12 +38,25 @@ def _validar_categoria(valor: str) -> str:
     return limpio
 
 
+def _validar_unidad_medida(valor: str) -> str:
+    """Rechaza unidades de medida fuera del catálogo."""
+    limpio = _texto(valor)
+    if limpio not in UNIDADES_VALIDAS:
+        raise ValueError(
+            "La unidad de medida no es válida. Usa una de: "
+            + ", ".join(UNIDADES_MEDIDA)
+            + "."
+        )
+    return limpio
+
+
 class _InsumoBase(BaseModel):
     """Campos comunes al alta y a la edición."""
 
-    nombre: str = Field(min_length=1, max_length=150)
+    codigo: str = Field(min_length=1, max_length=150)
     descripcion: str | None = Field(default=None, max_length=2000)
     categoria: str = Field(max_length=30)
+    unidad_medida: str = Field(max_length=10)
     proveedor: str | None = Field(default=None, max_length=150)
     ubicacion: str | None = Field(default=None, max_length=150)
     cantidad: int = Field(default=0, ge=0)
@@ -46,16 +64,17 @@ class _InsumoBase(BaseModel):
     maximo: int = Field(default=0, ge=0)
 
     _limpiar_categoria = field_validator("categoria")(_validar_categoria)
+    _limpiar_unidad_medida = field_validator("unidad_medida")(_validar_unidad_medida)
     _limpiar_opcionales = field_validator("descripcion", "proveedor", "ubicacion")(
         _texto_opcional
     )
 
-    @field_validator("nombre")
+    @field_validator("codigo")
     @classmethod
-    def _limpiar_nombre(cls, valor: str) -> str:
+    def _limpiar_codigo(cls, valor: str) -> str:
         limpio = _texto(valor)
         if not limpio:
-            raise ValueError("El nombre del insumo es obligatorio.")
+            raise ValueError("El código del insumo es obligatorio.")
         return limpio
 
     @model_validator(mode="after")
@@ -90,9 +109,10 @@ class InsumoOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: uuid.UUID
-    nombre: str
+    codigo: str
     descripcion: str | None = None
     categoria: str
+    unidad_medida: str
     proveedor: str | None = None
     ubicacion: str | None = None
     cantidad: int
@@ -135,3 +155,9 @@ class CatalogoCategorias(BaseModel):
     """Categorías válidas, para el selector del formulario y el filtro."""
 
     categorias: list[str]
+
+
+class CatalogoUnidades(BaseModel):
+    """Unidades de medida válidas, para el selector del formulario."""
+
+    unidades: list[str]

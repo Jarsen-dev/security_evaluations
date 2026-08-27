@@ -133,6 +133,7 @@ def _campo(campo: CampoFormato) -> CampoFormatoOut:
         opciones=list(campo.opciones),
         unidad=campo.unidad,
         obligatorio=campo.obligatorio,
+        automatico=campo.automatico,
     )
 
 
@@ -462,7 +463,6 @@ async def catalogo_checklist(control: str) -> CatalogoChecklist:
             for orden, punto in enumerate(definicion.puntos)
         ],
         max_fotos=MAX_FOTOS,
-        estilo_valores=definicion.estilo_valores,
         encabezado=[_campo(campo) for campo in definicion.encabezado],
         secciones=[
             SeccionFormatoOut(

@@ -23,6 +23,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from 'react';
@@ -135,21 +136,39 @@ export function ProveedorIdioma({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  const valor = useMemo<ContextoIdioma>(() => {
-    const diccionario = DICCIONARIOS[idioma];
+  // Espejo del idioma vigente para que `t` pueda leerlo sin depender de él.
+  const idiomaRef = useRef(idioma);
+  idiomaRef.current = idioma;
 
-    return {
-      idioma,
-      locale: LOCALES[idioma],
-      cambiarIdioma,
-      t: (clave, valores) => {
-        // Si a una traducción le falta la clave, se cae al español antes que
-        // mostrar la ruta cruda en pantalla.
-        const texto = buscar(diccionario, clave) ?? buscar(es, clave) ?? clave;
-        return interpolar(texto, valores);
-      },
-    };
-  }, [idioma, cambiarIdioma]);
+  /**
+   * `t` NUNCA cambia de identidad, ni al cambiar de idioma. Es deliberado y
+   * el panel depende de ello: media docena de paneles la traen en el array de
+   * dependencias de un `useEffect` o un `useCallback`, así que una `t` nueva
+   * los volvería a disparar a todos.
+   *
+   * Pasó: `PanelChecklist` hace `setCatalogo(null)` dentro de un efecto que
+   * dependía de `t`, y cambiar de idioma a media inspección desmontaba el
+   * formulario y borraba los puntos marcados, las observaciones y las fotos
+   * que todavía no se habían subido.
+   *
+   * La pantalla se traduce igual: el `valor` del contexto SÍ es nuevo en cada
+   * cambio, así que los consumidores se vuelven a renderizar y al llamar a
+   * `t()` leen el idioma ya actualizado del ref. Lo único que se estabiliza
+   * es la referencia de la función. Mismo criterio que `mostrarToast` en
+   * `components/ui/Toast.tsx`.
+   */
+  const t = useCallback<ContextoIdioma['t']>((clave, valores) => {
+    const diccionario = DICCIONARIOS[idiomaRef.current];
+    // Si a una traducción le falta la clave, se cae al español antes que
+    // mostrar la ruta cruda en pantalla.
+    const texto = buscar(diccionario, clave) ?? buscar(es, clave) ?? clave;
+    return interpolar(texto, valores);
+  }, []);
+
+  const valor = useMemo<ContextoIdioma>(
+    () => ({ idioma, locale: LOCALES[idioma], cambiarIdioma, t }),
+    [idioma, cambiarIdioma, t],
+  );
 
   return <Contexto.Provider value={valor}>{children}</Contexto.Provider>;
 }

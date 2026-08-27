@@ -23,8 +23,8 @@ TAMANO_PAGINA: int = 50
 # escaparlos, traería todo lo que empieza con "100" en vez del texto literal.
 COMODINES_LIKE = str.maketrans({"\\": "\\\\", "%": "\\%", "_": "\\_"})
 
-NOMBRE_DUPLICADO = (
-    "Ya existe un insumo con ese nombre. Los nombres no distinguen mayúsculas."
+CODIGO_DUPLICADO = (
+    "Ya existe un insumo con ese código. Los códigos no distinguen mayúsculas."
 )
 NO_EXISTE = "El insumo no existe."
 
@@ -44,7 +44,7 @@ def _condiciones(
         # ILIKE: quien busca en planta no distingue mayúsculas.
         condiciones.append(
             or_(
-                Insumo.nombre.ilike(patron, escape="\\"),
+                Insumo.codigo.ilike(patron, escape="\\"),
                 Insumo.descripcion.ilike(patron, escape="\\"),
                 Insumo.proveedor.ilike(patron, escape="\\"),
                 Insumo.ubicacion.ilike(patron, escape="\\"),
@@ -70,6 +70,25 @@ async def _obtener(db: AsyncSession, insumo_id: uuid.UUID) -> Insumo:
     return insumo
 
 
+async def mapa_por_codigo(
+    db: AsyncSession, codigos: set[str]
+) -> dict[str, Insumo]:
+    """Busca varios insumos por código en **una sola** consulta.
+
+    La clave del diccionario es el código en minúsculas, porque así es el
+    índice único: quien llama debe buscar con ``codigo.lower()``. Se resuelve
+    de un golpe y no uno por uno para poder decirle al usuario **todos** los
+    códigos que faltan de una vez, en lugar de hacerle corregir de a uno.
+    """
+    if not codigos:
+        return {}
+
+    filas = await db.scalars(
+        select(Insumo).where(func.lower(Insumo.codigo).in_(codigos))
+    )
+    return {insumo.codigo.lower(): insumo for insumo in filas.all()}
+
+
 async def listar(
     db: AsyncSession,
     *,
@@ -90,7 +109,7 @@ async def listar(
     filas = await db.scalars(
         select(Insumo)
         .where(*condiciones)
-        .order_by(func.lower(Insumo.nombre))
+        .order_by(func.lower(Insumo.codigo))
         .offset((page - 1) * TAMANO_PAGINA)
         .limit(TAMANO_PAGINA)
     )
@@ -114,7 +133,7 @@ async def crear(db: AsyncSession, datos: InsumoCrear) -> Insumo:
         await db.commit()
     except IntegrityError as exc:
         await db.rollback()
-        raise ConflictoDeNegocio(NOMBRE_DUPLICADO) from exc
+        raise ConflictoDeNegocio(CODIGO_DUPLICADO) from exc
 
     await db.refresh(insumo)
     return insumo
@@ -134,23 +153,23 @@ async def actualizar(
         await db.commit()
     except IntegrityError as exc:
         await db.rollback()
-        raise ConflictoDeNegocio(NOMBRE_DUPLICADO) from exc
+        raise ConflictoDeNegocio(CODIGO_DUPLICADO) from exc
 
     await db.refresh(insumo)
     return insumo
 
 
 async def eliminar(db: AsyncSession, insumo_id: uuid.UUID) -> str:
-    """Borra un insumo y devuelve su nombre.
+    """Borra un insumo y devuelve su código.
 
     Después del DELETE ya no hay de dónde leerlo, y la bitácora necesita
     decir qué se eliminó.
     """
     insumo = await _obtener(db, insumo_id)
-    nombre = insumo.nombre
+    codigo = insumo.codigo
     await db.delete(insumo)
     await db.commit()
-    return nombre
+    return codigo
 
 
 async def importar(db: AsyncSession, filas: list[InsumoCrear]) -> tuple[int, int]:
@@ -160,18 +179,18 @@ async def importar(db: AsyncSession, filas: list[InsumoCrear]) -> tuple[int, int
     actualizarse a propósito: así un archivo viejo no puede pisar existencias
     que ya se corrigieron en el panel.
 
-    Los nombres ya presentes se resuelven con **una** consulta, no una por
+    Los códigos ya presentes se resuelven con **una** consulta, no una por
     fila, y se compara en minúsculas porque así es el índice único.
     """
     if not filas:
         return 0, 0
 
-    nombres = {fila.nombre.lower() for fila in filas}
+    codigos = {fila.codigo.lower() for fila in filas}
     existentes = set(
         (
             await db.scalars(
-                select(func.lower(Insumo.nombre)).where(
-                    func.lower(Insumo.nombre).in_(nombres)
+                select(func.lower(Insumo.codigo)).where(
+                    func.lower(Insumo.codigo).in_(codigos)
                 )
             )
         ).all()
@@ -182,7 +201,7 @@ async def importar(db: AsyncSession, filas: list[InsumoCrear]) -> tuple[int, int
     vistos: set[str] = set()
 
     for fila in filas:
-        clave = fila.nombre.lower()
+        clave = fila.codigo.lower()
         # `vistos` atrapa los repetidos DENTRO del mismo archivo, que la
         # consulta de arriba no puede ver todavía.
         if clave in existentes or clave in vistos:

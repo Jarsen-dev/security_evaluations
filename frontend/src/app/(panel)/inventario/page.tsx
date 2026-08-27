@@ -1,24 +1,61 @@
 'use client';
 
+import { useRouter, useSearchParams } from 'next/navigation';
+import { Suspense } from 'react';
+
 import { GuardiaModulo } from '@/components/GuardiaModulo';
-import { useTraduccion } from '@/lib/i18n';
+import { PanelRecepciones } from '@/components/inventario/recepciones/PanelRecepciones';
+import { TablaRecepciones } from '@/components/inventario/recepciones/TablaRecepciones';
+import { Pestanas } from '@/components/ui/Pestanas';
+import { useTraduccion, type ClaveTraduccion } from '@/lib/i18n';
 
 /**
- * Inventario de medicamento e insumos de seguridad.
+ * Inventario.
  *
- * Todavía se lleva en el archivo de Excel: la pestaña existe para fijar la
- * estructura del sistema mientras se definen sus reglas de captura.
+ * De momento tiene una sola función: recibir mercancía fotografiando la
+ * remisión del proveedor. Cada recepción confirmada suma la existencia de los
+ * insumos del catálogo, así que es la entrada del inventario.
  */
+const SECCIONES: ReadonlyArray<{ clave: Seccion; etiqueta: ClaveTraduccion }> = [
+  { clave: 'recepciones', etiqueta: 'inventario.recepciones' },
+  { clave: 'historial', etiqueta: 'inventario.historial' },
+];
+
+type Seccion = 'recepciones' | 'historial';
+
+const POR_DEFECTO: Seccion = 'recepciones';
+
+function esSeccion(valor: string | null): valor is Seccion {
+  return valor === 'recepciones' || valor === 'historial';
+}
+
 export default function PaginaInventario() {
   return (
-    <GuardiaModulo modulo="inventario">
-      <ContenidoInventario />
-    </GuardiaModulo>
+    // `useSearchParams` obliga a un límite de Suspense para prerenderizar.
+    <Suspense fallback={null}>
+      <GuardiaModulo modulo="inventario">
+        <ContenidoInventario />
+      </GuardiaModulo>
+    </Suspense>
   );
 }
 
 function ContenidoInventario() {
   const t = useTraduccion();
+  const router = useRouter();
+  const parametros = useSearchParams();
+
+  const solicitada = parametros.get('seccion');
+  const activa: Seccion = esSeccion(solicitada) ? solicitada : POR_DEFECTO;
+
+  function cambiar(clave: string) {
+    // La sección viaja en la query: la liga se puede compartir y sobrevive a
+    // la recarga.
+    router.replace(
+      clave === POR_DEFECTO ? '/inventario' : `/inventario?seccion=${clave}`,
+      { scroll: false },
+    );
+  }
 
   return (
     <div className="flex flex-col gap-6">
@@ -27,14 +64,17 @@ function ContenidoInventario() {
         <p className="mt-1 text-sm text-texto-suave">{t('inventario.descripcion')}</p>
       </div>
 
-      <div className="rounded-tarjeta border border-dashed border-borde bg-fondo-elevado px-6 py-12 text-center">
-        <p className="text-sm font-medium text-alerta">
-          {t('inventario.enConstruccion')}
-        </p>
-        <p className="mx-auto mt-3 max-w-md text-sm text-texto-suave">
-          {t('inventario.enConstruccionDetalle')}
-        </p>
-      </div>
+      <Pestanas
+        etiqueta={t('inventario.titulo')}
+        activa={activa}
+        onCambiar={cambiar}
+        pestanas={SECCIONES.map((seccion) => ({
+          clave: seccion.clave,
+          etiqueta: t(seccion.etiqueta),
+        }))}
+      />
+
+      {activa === 'recepciones' ? <PanelRecepciones /> : <TablaRecepciones />}
     </div>
   );
 }

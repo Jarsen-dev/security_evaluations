@@ -62,6 +62,12 @@ export function PanelChecklist({ control }: { control: string }) {
     let cancelado = false;
 
     // El catálogo se pide por control: al cambiar de pestaña hay que recargarlo.
+    //
+    // CUIDADO: esto desmonta <FormularioChecklist> y con él se va TODO lo que
+    // el usuario lleve capturado —puntos, observaciones y fotos aún sin
+    // subir—. Este efecto solo debe depender de cosas que cambien al cambiar
+    // de control; `t` está aquí porque lo pide exhaustive-deps, y es inerte
+    // porque el proveedor la mantiene estable (ver `lib/i18n/index.tsx`).
     setCatalogo(null);
 
     obtenerCatalogoChecklist(control)

@@ -86,6 +86,12 @@ CATEGORIAS_INSUMO: Final[tuple[str, ...]] = (
 # Valores aceptados al dar de alta o importar un insumo.
 CATEGORIAS_VALIDAS: Final[frozenset[str]] = frozenset(CATEGORIAS_INSUMO)
 
+# Unidades de medida del catálogo. Mismo patrón que las categorías: catálogo
+# fijo aquí, servido por ``GET /api/catalogo/unidades`` para que el frontend
+# nunca las tenga escritas a mano.
+UNIDADES_MEDIDA: Final[tuple[str, ...]] = ("TAB", "ML", "PZA")
+UNIDADES_VALIDAS: Final[frozenset[str]] = frozenset(UNIDADES_MEDIDA)
+
 
 # --- Rondines de seguridad -------------------------------------------------
 

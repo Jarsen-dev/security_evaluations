@@ -58,22 +58,13 @@ export function claveEtiqueta(
 }
 
 /**
- * Semáforo de un botón seleccionado o de una celda de la tabla.
+ * Semáforo de una celda de la tabla de registros.
  *
  * El color lo decide el backend (`opcion.semaforo`); aquí solo se traduce a
- * tokens de Tailwind. Los campos que no se semaforizan —vigencia, IN/EX— caen
- * en el azul del panel, que es como se marca cualquier otra selección.
+ * tokens de Tailwind. Se muestra únicamente en los registros ya capturados,
+ * no en el formulario: elegir una opción no debe sentirse como acertar o
+ * fallar un color.
  */
-export const CLASES_SEMAFORO: Record<string, string> = {
-  verde: 'border-exito bg-exito-suave text-exito',
-  amarillo: 'border-alerta bg-alerta-suave text-alerta',
-  rojo: 'border-error bg-error-suave text-error',
-  gris: 'border-borde-fuerte bg-fondo-sutil text-texto-suave',
-};
-
-export const SELECCION_NEUTRA = 'border-primario bg-primario-suave text-primario';
-
-/** Lo mismo, sin borde: en la tabla las celdas ya vienen separadas. */
 export const CLASES_CELDA: Record<string, string> = {
   verde: 'bg-exito-suave text-exito',
   amarillo: 'bg-alerta-suave text-alerta',

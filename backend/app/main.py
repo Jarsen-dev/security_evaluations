@@ -21,6 +21,7 @@ from app.api.routes import (
     estadisticas,
     estudios,
     exportacion,
+    inventario,
     publico,
     rondines,
     sistema,
@@ -211,3 +212,4 @@ app.include_router(estudios.router, prefix="/api")
 app.include_router(administracion.router, prefix="/api")
 app.include_router(catalogo.router, prefix="/api")
 app.include_router(rondines.router, prefix="/api")
+app.include_router(inventario.router, prefix="/api")

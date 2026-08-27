@@ -27,9 +27,11 @@ a internet igual que el formulario.
 | `/login`, `/cuestionarios`, `/controles`, `/inventario` | Solo usuarios del panel |
 | `/catalogo`, `/rondines` | Solo usuarios del panel, según sus permisos |
 | `/p/<token>`, `/api/publico/rondin/*` | Cualquiera con el QR. El token **es** la credencial |
+| `/re/<sesion>`, `/api/publico/recepcion/*` | Cualquiera con el QR, **durante 10 minutos y una sola vez** |
 | `/administracion` | Solo el superadministrador |
 | `/api/auth/*`, `/api/cuestionarios/*`, `/api/preguntas/*`, `/api/estadisticas/*`, `/api/metas-area`, `/api/wifi`, `/api/controles/*` | Solo usuarios del panel, según sus permisos |
 | `/api/catalogo/*`, `/api/rondines/*` | Solo usuarios del panel, según sus permisos |
+| `/api/inventario/*` | Solo usuarios del panel, según sus permisos |
 | `/api/administracion/*` | Solo el superadministrador |
 
 `/api/wifi` devuelve la contraseña de la red en claro; exige sesión por eso.
@@ -105,21 +107,17 @@ una aplicación **Self-hosted** por cada ruta del panel:
 | Panel — administración | `evaluaciones.chwon.it.com` | `administracion` |
 | API — catálogo | `evaluaciones.chwon.it.com` | `api/catalogo` |
 | API — rondines | `evaluaciones.chwon.it.com` | `api/rondines` |
+| API — inventario | `evaluaciones.chwon.it.com` | `api/inventario` |
 | API — administración | `evaluaciones.chwon.it.com` | `api/administracion` |
 
-> **Pendiente.** Siete aplicaciones son nuevas y **todavía no están dadas de
-> alta**: `controles`, `inventario`, `api/controles`, `estudios`,
-> `api/estudios`, `administracion` y `api/administracion`. Mientras no se
-> creen, esas rutas quedan fuera de Access
-> y lo único que las defiende es la cookie de sesión más la comprobación de
-> alta**: `controles`, `inventario`, `api/controles`, `administracion`,
-> `api/administracion`, `catalogo`, `api/catalogo`, `rondines` y
-> `api/rondines`. Mientras no se creen, esas
-> rutas quedan fuera de Access y lo único que las defiende es la cookie de
-> sesión más la comprobación de
-> permisos: la pantalla de login del panel no aparece, pero la ruta sí es
-> alcanzable desde internet. Las dos de administración son las más sensibles de
-> la lista, porque desde ahí se dan de alta usuarios.
+> **Pendiente.** Doce aplicaciones son nuevas y **todavía no están dadas de
+> alta**: `controles`, `inventario`, `api/controles`, `api/inventario`,
+> `estudios`, `api/estudios`, `catalogo`, `api/catalogo`, `rondines`,
+> `api/rondines`, `administracion` y `api/administracion`. Mientras no se creen, esas rutas
+> quedan fuera de Access y lo único que las defiende es la cookie de sesión más
+> la comprobación de permisos: la pantalla de login del panel no aparece, pero
+> la ruta sí es alcanzable desde internet. Las dos de administración son las
+> más sensibles de la lista, porque desde ahí se dan de alta usuarios.
 >
 > `estadisticas` ya no necesita su propia aplicación porque ahora es una
 > pestaña dentro de `/cuestionarios`; se puede borrar o dejar, no estorba.
@@ -140,6 +138,7 @@ contestar:
 ```
 /r/            → el formulario
 /p/            → la página que abre el QR de un punto de rondín
+/re/           → la página que abre el QR para fotografiar una remisión
 /api/publico/  → lo que el formulario y el escaneo consumen
 /api/health    → lo usa el healthcheck del contenedor
 /api/areas     → lo pide el formulario para el selector de área
@@ -244,8 +243,10 @@ Lista corta:
       del servidor actualizado con las variables nuevas.
 - [ ] Contraseña de `admin` cambiada.
 - [ ] Aplicaciones de Access creadas y verificadas con los `curl` de arriba,
-      **incluidas las nuevas** de `controles`, `inventario`, `api/controles`,
-      `administracion`, `api/administracion`, `catalogo` y `api/catalogo`.
+      **incluidas las doce nuevas** de `controles`, `inventario`,
+      `api/controles`, `estudios`, `api/estudios`, `catalogo`, `api/catalogo`,
+      `rondines`, `api/rondines`, `api/inventario`, `administracion` y
+      `api/administracion`.
 - [ ] `/r/<token>` abre sin pedir nada desde una red externa.
 - [ ] `NEXT_PUBLIC_BASE_URL` es el dominio y el frontend se reconstruyó después
       de cambiarlo (Next incrusta esa variable en el build, no la lee en
@@ -315,6 +316,28 @@ siempre nace con `es_superadmin = false`. El rol solo se otorga con
 privilegios desde la interfaz. El reverso es que el sistema puede quedarse sin
 administrador si se pierde esa cuenta: por eso el backend impide eliminar o
 desactivar al último superadministrador activo, y que uno se quite a sí mismo.
+
+**La sesión de captura por QR es la credencial, durante diez minutos.** Los
+dos endpoints de `/api/publico/recepcion/*` son públicos porque el celular que
+toma la foto no inició sesión en el panel. Lo que los sostiene son tres cosas
+**a la vez**: el identificador de sesión es un UUID que no se adivina, expira a
+los diez minutos y solo admite una subida (`pendiente → subida → usada`).
+Quitar cualquiera de las tres deja el hueco abierto. El peor caso es que quien
+intercepte el código en esa ventana suba una foto que el operador vería en
+pantalla antes de guardar nada.
+
+**El texto de la remisión sale hacia el servidor de Ollama.** La foto **no**:
+al modelo solo se le manda el texto que Tesseract ya leyó. Aun así, ese texto
+viaja en claro por la LAN hasta `192.168.1.56`. Es una máquina de la propia
+red y no sale a internet, pero si algún día el host de Ollama se mueve fuera
+del edificio, esa decisión hay que volver a tomarla: son datos de proveedores
+y cantidades compradas.
+
+**La foto de la remisión se guarda siempre, aunque no se guarde la
+recepción.** Es deliberado: la evidencia es lo primero que se persiste, antes
+de intentar leerla. La consecuencia es que `recepciones_fotos` acumula fotos
+huérfanas de capturas que el operador abandonó. No hay limpieza automática; si
+llega a pesar, se borran las que no tengan `recepcion` ni sesión asociada.
 
 **El código QR del punto es la credencial.** Igual que la liga del
 cuestionario: quien fotografíe o copie la etiqueta de un punto puede registrar

@@ -80,6 +80,12 @@ class Settings(BaseSettings):
     RATE_LIMIT_RONDIN_ESCANEOS: int = Field(default=120, ge=1)
     RATE_LIMIT_RONDIN_VENTANA_SEGUNDOS: int = Field(default=60, ge=1)
 
+    # La PC sondea el estado de la sesión de captura cada dos segundos: unas
+    # 30 peticiones por minuto de un solo operador, y varios pueden estar
+    # capturando a la vez detrás del mismo NAT de planta.
+    RATE_LIMIT_RECEPCION_PETICIONES: int = Field(default=120, ge=1)
+    RATE_LIMIT_RECEPCION_VENTANA_SEGUNDOS: int = Field(default=60, ge=1)
+
     # --- Red WiFi de planta ------------------------------------------------
     # Se usan para generar un código QR de acceso a la red, junto al QR del
     # cuestionario. Deliberadamente SIN el prefijo NEXT_PUBLIC_: esas
@@ -162,6 +168,46 @@ class Settings(BaseSettings):
             for correo in self.RONDINES_DESTINATARIOS.split(",")
             if correo.strip()
         ]
+
+    # --- Recepciones por foto (OCR + IA) -----------------------------------
+    # El paso (3) del pipeline lo resuelve un LLM de TEXTO en un Ollama de la
+    # red: nunca ve la imagen, solo acomoda el texto que Tesseract ya leyó.
+    # Un modelo de visión inventaría números de parte y cantidades que no
+    # están en el papel; así el peor caso es un campo en null.
+    OLLAMA_HOST: str = "http://192.168.1.56:11434"
+    OLLAMA_TEXT_MODEL: str = "llama3.2:latest"
+
+    # Umbral del clasificador TF-IDF. Calibrado contra documentos reales: los
+    # aciertos caen en 0.41-0.76 y los formatos ajenos no pasan de 0.149.
+    # Subirlo sale caro (a 0.25 el acierto bajo ruido cae de 40% a 7% sin
+    # ganar rechazo) y de los dos errores el falso negativo duele más: obliga
+    # a dar de alta un formato duplicado, mientras que un falso positivo lo
+    # corrige el operador en la pantalla de revisión.
+    OCR_UMBRAL_SIMILITUD: float = Field(default=0.20, ge=0.0, le=1.0)
+
+    # Presupuesto de tiempo en capas. La regla que no se puede romper: el
+    # techo total debe ser MENOR que el `proxy_read_timeout` de Nginx (120 s).
+    # Si el proxy corta primero, el navegador recibe un 500 opaco en vez del
+    # 200 con `ocr_ok:false` que habilita la captura manual.
+    OCR_TIMEOUT_PS: int = Field(default=5, ge=1)
+    OCR_TIMEOUT_FRIO: int = Field(default=90, ge=1)
+    OCR_TIMEOUT_CALIENTE: int = Field(default=30, ge=1)
+    OCR_PRESUPUESTO_TOTAL: int = Field(default=100, ge=1)
+
+    #: Tope por foto de recepción. Nginx corta antes en 25 MB (client_max_body_size).
+    RECEPCIONES_MAX_BYTES_FOTO: int = Field(default=15 * 1024 * 1024, ge=1)
+
+    #: Minutos que vive una sesión de captura por QR antes de expirar.
+    RECEPCIONES_MINUTOS_SESION_QR: int = Field(default=10, ge=1)
+
+    @property
+    def ocr_configurado(self) -> bool:
+        """Si hay a dónde mandar el texto para estructurarlo.
+
+        No comprueba que el host responda: eso se descubre al llamarlo, y la
+        extracción degrada sola a captura manual si no contesta.
+        """
+        return bool(self.OLLAMA_HOST.strip() and self.OLLAMA_TEXT_MODEL.strip())
 
     # --- Reglas de negocio -------------------------------------------------
     UMBRAL_APROBACION: int = Field(

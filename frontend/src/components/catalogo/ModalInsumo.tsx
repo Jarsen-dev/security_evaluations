@@ -24,15 +24,17 @@ interface ModalInsumoProps {
   /** `null` para dar de alta; el insumo a modificar en caso contrario. */
   insumo: Insumo | null;
   categorias: string[];
+  unidades: string[];
   guardando: boolean;
   onGuardar: (datos: DatosInsumo) => void;
   onCerrar: () => void;
 }
 
 export interface DatosInsumo {
-  nombre: string;
+  codigo: string;
   descripcion: string;
   categoria: string;
+  unidad_medida: string;
   proveedor: string;
   ubicacion: string;
   cantidad: string;
@@ -41,9 +43,10 @@ export interface DatosInsumo {
 }
 
 const VACIO: DatosInsumo = {
-  nombre: '',
+  codigo: '',
   descripcion: '',
   categoria: '',
+  unidad_medida: '',
   proveedor: '',
   ubicacion: '',
   cantidad: '0',
@@ -58,6 +61,7 @@ export function ModalInsumo({
   abierto,
   insumo,
   categorias,
+  unidades,
   guardando,
   onGuardar,
   onCerrar,
@@ -81,9 +85,10 @@ export function ModalInsumo({
       insumo === null
         ? VACIO
         : {
-            nombre: insumo.nombre,
+            codigo: insumo.codigo,
             descripcion: insumo.descripcion ?? '',
             categoria: insumo.categoria,
+            unidad_medida: insumo.unidad_medida,
             proveedor: insumo.proveedor ?? '',
             ubicacion: insumo.ubicacion ?? '',
             cantidad: String(insumo.cantidad),
@@ -106,8 +111,9 @@ export function ModalInsumo({
 
     const esquema = z
       .object({
-        nombre: z.string().trim().min(1, t('catalogo.faltaNombre')),
+        codigo: z.string().trim().min(1, t('catalogo.faltaCodigo')),
         categoria: z.string().trim().min(1, t('catalogo.faltaCategoria')),
+        unidad_medida: z.string().trim().min(1, t('catalogo.faltaUnidad')),
         cantidad: entero,
         minimo: entero,
         maximo: entero,
@@ -171,13 +177,13 @@ export function ModalInsumo({
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="sm:col-span-2">
             <Input
-              name="nombre"
-              etiqueta={t('catalogo.nombre')}
-              value={datos.nombre}
-              error={errores.nombre}
-              ayuda={t('catalogo.nombreAyuda')}
+              name="codigo"
+              etiqueta={t('catalogo.codigo')}
+              value={datos.codigo}
+              error={errores.codigo}
+              ayuda={t('catalogo.codigoAyuda')}
               autoComplete="off"
-              onChange={(evento) => setDatos({ ...datos, nombre: evento.target.value })}
+              onChange={(evento) => setDatos({ ...datos, codigo: evento.target.value })}
             />
           </div>
 
@@ -208,13 +214,44 @@ export function ModalInsumo({
             )}
           </div>
 
-          <Input
-            name="proveedor"
-            etiqueta={t('catalogo.proveedor')}
-            value={datos.proveedor}
-            autoComplete="off"
-            onChange={(evento) => setDatos({ ...datos, proveedor: evento.target.value })}
-          />
+          <div className="flex flex-col gap-1.5">
+            <label htmlFor="unidad_medida" className="text-sm font-medium text-texto">
+              {t('catalogo.unidadMedida')}
+            </label>
+            <select
+              id="unidad_medida"
+              className={CLASES_CAMPO}
+              value={datos.unidad_medida}
+              aria-invalid={errores.unidad_medida ? true : undefined}
+              onChange={(evento) =>
+                setDatos({ ...datos, unidad_medida: evento.target.value })
+              }
+            >
+              <option value="">—</option>
+              {unidades.map((unidad) => (
+                <option key={unidad} value={unidad}>
+                  {unidad}
+                </option>
+              ))}
+            </select>
+            {errores.unidad_medida && (
+              <p role="alert" className="text-sm text-error">
+                {errores.unidad_medida}
+              </p>
+            )}
+          </div>
+
+          <div className="sm:col-span-2">
+            <Input
+              name="proveedor"
+              etiqueta={t('catalogo.proveedor')}
+              value={datos.proveedor}
+              autoComplete="off"
+              onChange={(evento) =>
+                setDatos({ ...datos, proveedor: evento.target.value })
+              }
+            />
+          </div>
 
           <div className="sm:col-span-2">
             <Textarea

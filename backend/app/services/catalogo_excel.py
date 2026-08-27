@@ -14,7 +14,7 @@ from typing import Any
 from openpyxl import Workbook, load_workbook
 from openpyxl.styles import Alignment, Font
 
-from app.core.constants import CATEGORIAS_INSUMO
+from app.core.constants import CATEGORIAS_INSUMO, UNIDADES_MEDIDA
 from app.core.errors import ErrorDeNegocio
 from app.services.exportacion_comun import ajustar_anchos, escribir_encabezados
 
@@ -24,15 +24,17 @@ NOMBRE_HOJA_INSTRUCCIONES = "Instrucciones"
 #: Tope de filas por archivo. Un catálogo de planta no llega ni cerca.
 MAX_INSUMOS = 1000
 
-COLUMNA_NOMBRE = "nombre"
+COLUMNA_CODIGO = "codigo"
 COLUMNA_CATEGORIA = "categoria"
+COLUMNA_UNIDAD = "unidad_medida"
 
 # El orden es el de la plantilla; el lector los localiza por nombre, así que
 # reordenar las columnas en el Excel no rompe la importación.
 ENCABEZADOS: list[str] = [
-    "Nombre",
+    "Código",
     "Descripción",
     "Categoría",
+    "Unidad de medida",
     "Proveedor",
     "Ubicación",
     "Cantidad",
@@ -42,9 +44,10 @@ ENCABEZADOS: list[str] = [
 
 #: Nombre de columna normalizado -> clave interna.
 CLAVES: dict[str, str] = {
-    "nombre": COLUMNA_NOMBRE,
+    "codigo": COLUMNA_CODIGO,
     "descripcion": "descripcion",
     "categoria": COLUMNA_CATEGORIA,
+    "unidad de medida": COLUMNA_UNIDAD,
     "proveedor": "proveedor",
     "ubicacion": "ubicacion",
     "cantidad": "cantidad",
@@ -52,7 +55,7 @@ CLAVES: dict[str, str] = {
     "maximo": "maximo",
 }
 
-ANCHOS = [34, 42, 18, 26, 24, 12, 12, 12]
+ANCHOS = [20, 42, 18, 18, 26, 24, 12, 12, 12]
 
 
 @dataclass
@@ -129,6 +132,24 @@ def _resolver_categoria(valor: Any) -> str:
     )
 
 
+def _resolver_unidad(valor: Any) -> str:
+    """Empareja el texto de la celda con una unidad de medida del catálogo."""
+    texto = _texto_celda(valor)
+    if not texto:
+        raise ValueError("Falta la unidad de medida.")
+
+    normalizada = _normalizar(texto)
+    for unidad in UNIDADES_MEDIDA:
+        if _normalizar(unidad) == normalizada:
+            return unidad
+
+    raise ValueError(
+        f"La unidad «{texto}» no existe. Usa una de: "
+        + ", ".join(UNIDADES_MEDIDA)
+        + "."
+    )
+
+
 def _mapear_columnas(encabezados: tuple[Any, ...]) -> dict[str, int]:
     """Relaciona cada columna conocida con su índice en la hoja."""
     mapa: dict[str, int] = {}
@@ -179,8 +200,9 @@ def parsear_excel(contenido: bytes) -> ResultadoLectura:
 
         mapa = _mapear_columnas(encabezados)
         for obligatoria, etiqueta in (
-            (COLUMNA_NOMBRE, "Nombre"),
+            (COLUMNA_CODIGO, "Código"),
             (COLUMNA_CATEGORIA, "Categoría"),
+            (COLUMNA_UNIDAD, "Unidad de medida"),
         ):
             if obligatoria not in mapa:
                 raise ErrorDeNegocio(
@@ -193,9 +215,9 @@ def parsear_excel(contenido: bytes) -> ResultadoLectura:
         # La fila 1 es el encabezado, así que la numeración arranca en 2 y
         # coincide con lo que ve el usuario en Excel.
         for numero, fila in enumerate(filas, start=2):
-            nombre = _texto_celda(_celda(fila, mapa.get(COLUMNA_NOMBRE)))
-            if not nombre:
-                # Fila sin nombre: separador visual, se salta en silencio.
+            codigo = _texto_celda(_celda(fila, mapa.get(COLUMNA_CODIGO)))
+            if not codigo:
+                # Fila sin código: separador visual, se salta en silencio.
                 continue
 
             if len(resultado.filas) >= MAX_INSUMOS:
@@ -210,11 +232,14 @@ def parsear_excel(contenido: bytes) -> ResultadoLectura:
 
             try:
                 datos = {
-                    "nombre": nombre,
+                    "codigo": codigo,
                     "descripcion": _texto_celda(_celda(fila, mapa.get("descripcion")))
                     or None,
                     "categoria": _resolver_categoria(
                         _celda(fila, mapa.get(COLUMNA_CATEGORIA))
+                    ),
+                    "unidad_medida": _resolver_unidad(
+                        _celda(fila, mapa.get(COLUMNA_UNIDAD))
                     ),
                     "proveedor": _texto_celda(_celda(fila, mapa.get("proveedor")))
                     or None,
@@ -254,9 +279,10 @@ def generar_plantilla() -> BytesIO:
     escribir_encabezados(hoja, ENCABEZADOS)
     hoja.append(
         [
-            "Guantes de nitrilo talla M",
-            "Caja con 100 piezas",
+            "GN-100-M",
+            "Guantes de nitrilo talla M, caja con 100 piezas",
             "EPP",
+            "PZA",
             "Suministros Industriales del Norte",
             "Almacén — anaquel A3",
             120,
@@ -275,8 +301,9 @@ def generar_plantilla() -> BytesIO:
         ("Borra el renglón de ejemplo antes de importar.", False),
         ("", False),
         ("Columnas obligatorias", True),
-        ("Nombre: identifica al insumo. No puede repetirse.", False),
+        ("Código: identifica al insumo. No puede repetirse.", False),
         ("Categoría: una de las de abajo, tal cual está escrita.", False),
+        ("Unidad de medida: una de las de abajo, tal cual está escrita.", False),
         ("", False),
         ("Columnas opcionales", True),
         ("Descripción, Proveedor y Ubicación pueden ir vacías.", False),
@@ -285,6 +312,9 @@ def generar_plantilla() -> BytesIO:
         ("", False),
         ("Categorías válidas", True),
         *[(f"• {categoria}", False) for categoria in CATEGORIAS_INSUMO],
+        ("", False),
+        ("Unidades de medida válidas", True),
+        *[(f"• {unidad}", False) for unidad in UNIDADES_MEDIDA],
         ("", False),
         ("Qué pasa al importar", True),
         ("Los insumos nuevos se dan de alta.", False),

@@ -160,15 +160,13 @@ Dos consecuencias al escribir código:
   anótala en `SEGURIDAD.md`.
 
   Los controles ESH estrenaron el prefijo `api/controles`, y el panel las
-  rutas `controles` e `inventario`. La pestaña de Administración estrenó
-  `api/administracion` y la ruta `administracion`, y la de Estudios
-  `api/estudios` y la ruta `estudios`. **Sus aplicaciones de Access todavía
-  están pendientes de crear**; queda anotado en `SEGURIDAD.md`.
-  rutas `controles` e `inventario`. Administración estrenó
-  `api/administracion` y la ruta `administracion`; Catálogo, `api/catalogo`
-  y la ruta `catalogo`; Rondines, `api/rondines` y la ruta `rondines`.
-  **Sus aplicaciones de Access
-  todavía están pendientes de crear**; queda anotado en `SEGURIDAD.md`.
+  rutas `controles` e `inventario`. Después estrenaron prefijo propio
+  Administración (`api/administracion` y la ruta `administracion`), Estudios
+  (`api/estudios` y la ruta `estudios`), Catálogo (`api/catalogo` y la ruta
+  `catalogo`), Rondines (`api/rondines` y la ruta `rondines`) e Inventario
+  (`api/inventario`, sobre la ruta `inventario` que ya existía). **Sus
+  aplicaciones de Access todavía están pendientes de crear**; queda anotado en
+  `SEGURIDAD.md`.
 
 El límite de tasa distingue dos cuotas (`core/ratelimit.py`): la amplia de
 `/api/publico` y una estricta de 5 fallos por 5 minutos en `/api/auth/login`.
@@ -180,15 +178,10 @@ repartir el QR, vigilancia y los riesgos que el diseño acepta.
 ### 8. Los permisos los aplica la API, no el panel
 
 Tener sesión ya no da acceso total. Cada usuario lleva en `admin_users.permisos`
-un JSON por módulo (`cuestionarios`, `controles`, `inventario`, `estudios`):
-**estar presente** es el acceso de ver y crear, `editar` agrega modificar y
-eliminar. El superadministrador (`es_superadmin`) puede todo y es el único que ve
-un JSON por módulo (`cuestionarios`, `controles`, `inventario`, `catalogo`,
-`rondines`):
-**estar presente** es el acceso de ver y crear, `editar` agrega modificar y
-eliminar. El
-superadministrador (`es_superadmin`) puede todo y es el único que ve
-`/administracion`.
+un JSON por módulo (`cuestionarios`, `controles`, `inventario`, `estudios`,
+`catalogo`, `rondines`): **estar presente** es el acceso de ver y crear,
+`editar` agrega modificar y eliminar. El superadministrador (`es_superadmin`)
+puede todo y es el único que ve `/administracion`.
 
 La decisión vive en **un solo lugar**, `AdminUser.puede()`. La capa HTTP la
 traduce con la fábrica `requiere()` de `api/deps.py`:
@@ -372,21 +365,54 @@ cambia de estatus varias veces al año y se edita en su lugar.
   que vence dentro de un mes natural (`sumar_un_mes()`) y lo ya vencido. La
   ventana la decide el backend; el frontend solo la dibuja.
 
+**Recepciones por foto** (`api/routes/inventario.py`,
+`services/ocr_recepciones.py`, `services/recepcion_service.py`,
+`services/plantilla_service.py`)
+
+La pestaña de Inventario recibe mercancía fotografiando la remisión del
+proveedor. Tres pasos deterministas más un LLM **de texto**: Tesseract lee la
+foto, un clasificador TF-IDF local reconoce el formato, y el modelo acomoda en
+JSON el texto que Tesseract ya leyó. Cinco reglas propias:
+
+- **El LLM nunca ve la imagen.** Un modelo de visión alucina caracteres e
+  inventa números de parte y cantidades que no están en el papel. Aquí el peor
+  caso es un campo en `null`, que el operador llena mirando la foto; no un dato
+  falso que nadie detecta. Es la decisión que hace auditable el módulo.
+- **`extraer()` nunca lanza.** Tesseract ausente, imagen corrupta, LLM caído,
+  JSON inválido: todo sale como `ResultadoExtraccion(ocr_ok=False, error=...)`
+  con un mensaje para el operador, y la ruta responde **200**. El formulario
+  abre en captura manual con la foto ya guardada. Un código de error haría que
+  el frontend tratara como fallo lo que en realidad es "hazlo a mano".
+- **La foto se guarda ANTES de leerla.** Si la extracción falla, nadie tiene
+  que volver al almacén por la hoja.
+- **El presupuesto de tiempo (100 s) debe quedar por DEBAJO del
+  `proxy_read_timeout` de Nginx (120 s).** Si el proxy corta primero, el
+  navegador recibe un 500 opaco en vez del 200 con `ocr_ok:false` que habilita
+  la captura manual.
+- **Tres límites separados** en `ocr_recepciones.py`: `MAX_EJEMPLOS_CURADOS`
+  (2), `MAX_EJEMPLOS_AUTO` (4) y `MAX_EJEMPLOS_PROMPT` (2, y **solo curados**).
+  El corpus de clasificación quiere muchos ejemplos; el prompt quiere pocos.
+  Sin esa separación, cada documento aprendido haría la extracción más lenta.
+  El umbral del clasificador (0.20) y los n-gramas de **carácter** están
+  calibrados con documentos reales: no se tocan a ojo.
+
+Confirmar una recepción **suma la existencia** de cada insumo con un
+`UPDATE ... cantidad + :n` en SQL, no leyendo y reescribiendo: con cuatro
+workers dos recepciones simultáneas del mismo insumo se pisarían.
+
 **Frontend** (`frontend/src/`)
 
 El grupo de rutas `(panel)` comparte el encabezado con las pestañas
-(Cuestionarios, Controles, Inventario, Estudios y, solo para el
-superadministrador, Administración). El encabezado las filtra con
+(Cuestionarios, Controles, Inventario, Estudios, Catálogo, Rondines y, solo
+para el superadministrador, Administración). El encabezado las filtra con
 `useSesion().puede()`. A su derecha van la campana de vencimientos y el
 selector de idioma.
-(Cuestionarios, Controles, Inventario, Catálogo, Rondines y, solo para el
-superadministrador, Administración). El encabezado las filtra con
-`useSesion().puede()`.
 
 Estadísticas ya no es una ruta: es una sub-pestaña dentro de `/cuestionarios`,
 y la vista activa viaja en la query (`?vista=estadisticas`). Controles hace lo
-mismo con `?control=rayser`, y Administración con `?seccion=logs`. Estudios no
-lleva nada en la query: es una sola tabla con su formulario.
+mismo con `?control=rayser`, Administración con `?seccion=logs`, Rondines con
+`?seccion=puntos` e Inventario con `?seccion=historial`. Estudios y Catálogo no
+llevan nada en la query: cada una es una sola tabla con su formulario.
 
 Los textos del panel salen de `src/lib/i18n` (ver regla 6).
 `/r/[token]` queda fuera: layout propio, sin sesión y en **tema claro de alto
@@ -435,6 +461,25 @@ middleware exige contenido, no solo presencia.
 llave vive en el backend. Solo evita el parpadeo de cargar el panel para luego
 rebotar. La autorización real la aplica la API en cada endpoint.
 
+**Nada que dependa de la hora o del navegador se calcula en el primer
+render.** El contenedor del frontend corre en **UTC** y la planta en UTC-6, así
+que el HTML del servidor y el del navegador no coinciden y Next tira
+*"Text content does not match server-rendered HTML"*. Pasó con
+`IndicadorTurno`: a las 15:00 el servidor pintaba 🌙 y el navegador ☀️. No se
+arregla poniéndole `TZ` al contenedor —el servidor nunca puede saber la zona
+horaria de quien mira—: se arranca en un valor neutro y se resuelve en un
+`useEffect`, como ya hace `ProveedorIdioma` con el idioma de `localStorage`.
+
+**La `t` del diccionario NO debe cambiar de identidad.** `ProveedorIdioma` la
+expone como un `useCallback` estable que lee el idioma de un ref, y no como
+parte del `useMemo` del contexto. Media docena de paneles traen `t` en el array
+de dependencias de un `useEffect`; si cambiara al cambiar de idioma, esos
+efectos volverían a correr. Pasó: `PanelChecklist` hace `setCatalogo(null)` ahí
+dentro, y cambiar de idioma a media inspección desmontaba el formulario y
+borraba los puntos marcados, las observaciones y las fotos todavía sin subir.
+La pantalla se traduce igual porque el *valor* del contexto sí cambia y eso
+basta para re-renderizar a los consumidores.
+
 **`sin_zona()` convierte a UTC, no a la hora local.** Sirve para sellos de
 tiempo, pero si lo que el reporte muestra ES la hora (como el tablero de
 rondines, donde cada celda dice a qué hora pasó el guardia), sale corrido seis
@@ -457,6 +502,35 @@ chocan. Cualquier tarea periódica nueva necesita el mismo cuidado.
 **PostgreSQL no indexa las llaves foráneas solo.** Sin
 `ix_respuestas_opcion_id`, borrar una opción recorría las 188 mil respuestas
 (56 ms por opción, y una edición borra decenas).
+
+**Las imágenes van a la base, no al disco.** El backend **no tiene ningún
+volumen escribible**: `docker-compose.yml` no le monta ninguno y `static/` solo
+trae el logo, así que cualquier archivo escrito muere con el contenedor. Las
+evidencias de los controles (`controles_fotos`), las fotos de recepción
+(`recepciones_fotos`) y los ejemplos del clasificador
+(`recepciones_plantilla_ejemplos`) son todos columnas `BYTEA`, servidas por un
+endpoint autenticado. Los listados **nunca** seleccionan la columna de la
+imagen: `plantilla_service.corpus()` selecciona columnas sueltas justo por eso,
+y además porque navegar una relación perezosa desde una sesión asíncrona
+revienta con `MissingGreenlet`.
+
+**Los borradores de Controles van a IndexedDB, no a `localStorage`.** Los
+cuatro formularios de Controles autoguardan lo capturado (`lib/borradores.ts` y
+`hooks/useBorrador.ts`) para que cambiar de pestaña, salir del panel o recargar
+no borre media inspección. Tiene que ser IndexedDB porque el borrador incluye
+las **fotos**, que son `File`: `localStorage` solo admite texto, obligaría a
+pasarlas a base64 —un tercio más— y su cuota son ~5 MB, mientras que una hoja
+de silos son 30 puntos × hasta `MAX_FOTOS` fotos de hasta 2 MB. IndexedDB las
+guarda directo por clonado estructurado y **sí funciona fuera de contexto
+seguro**, a diferencia de `crypto.randomUUID` (regla 5); aun así se prueba por
+la IP de LAN, no por localhost. Ninguna función de `borradores.ts` lanza: sin
+almacenamiento el formulario funciona igual, solo que sin red.
+
+Dos cuidados al tocarlo: el borrador **no se escribe hasta haber intentado
+leerlo** (si no, el formulario vacío del primer render pisa lo guardado), y la
+clave lleva el `username` porque la laptop de planta es compartida y la
+inspección a medias de alguien no debe reaparecer —ni archivarse— bajo otro
+nombre.
 
 **`getUserMedia` no sirve para tomar la foto de evidencia.** Es la misma
 trampa de la regla 5 y una más encima: la API no existe por HTTP en la IP de

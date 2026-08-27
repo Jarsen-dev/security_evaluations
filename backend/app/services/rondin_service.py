@@ -54,6 +54,29 @@ def zona() -> ZoneInfo:
     return ZoneInfo(settings.ZONA_HORARIA)
 
 
+def ahora_local() -> datetime:
+    """La hora actual en la zona de la planta, con zona horaria puesta."""
+    return datetime.now(tz=zona())
+
+
+#: Fin del turno de día, derivado de las mismas constantes que ``rango_turno``
+#: (7:30 + 12 h = 19:30). Escrito literal y no con una suma de horas: sumar
+#: podría desbordar el día si algún valor cambiara.
+_FIN_TURNO_DIA = time(19, 30)
+
+
+def turno_actual(momento: datetime | None = None) -> str:
+    """``TURNO_DIA`` o ``TURNO_NOCHE`` para el instante dado (u ahora).
+
+    Mismo límite que usan los rondines: día de 07:30 a 19:30, noche el resto.
+    Un ``momento`` con otra zona horaria se convierte a la de la planta antes
+    de comparar la hora.
+    """
+    local = (momento or datetime.now(tz=zona())).astimezone(zona())
+    inicio_dia = time(HORA_INICIO_TURNO, MINUTO_INICIO_TURNO)
+    return TURNO_DIA if inicio_dia <= local.time() < _FIN_TURNO_DIA else TURNO_NOCHE
+
+
 def rango_turno(fecha: date, turno: str) -> tuple[datetime, datetime]:
     """Devuelve el inicio y el fin de un turno, con zona horaria.
 

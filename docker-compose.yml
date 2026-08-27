@@ -81,6 +81,32 @@ services:
       PGADMIN_URL_PRODUCCION: ${PGADMIN_URL_PRODUCCION:-}
       PGADMIN_EMAIL: ${PGADMIN_EMAIL:-}
       PGADMIN_PASSWORD: ${PGADMIN_PASSWORD:-}
+      # Correo saliente y reporte automático de rondines. Estaban en
+      # config.py pero no se pasaban aquí, así que corrían con los valores
+      # por defecto y el envío quedaba apagado sin que nada lo dijera.
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PUERTO: "${SMTP_PUERTO:-465}"
+      SMTP_USUARIO: ${SMTP_USUARIO:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_DESDE: ${SMTP_DESDE:-}
+      SMTP_SSL: ${SMTP_SSL:-true}
+      RONDINES_REPORTE_AUTOMATICO: ${RONDINES_REPORTE_AUTOMATICO:-false}
+      RONDINES_DESTINATARIOS: ${RONDINES_DESTINATARIOS:-}
+      # Recepciones por foto. El host de Ollama vive fuera de este stack, en
+      # la LAN; el contenedor lo alcanza por la red del puente. Umbral y
+      # tiempos se dejan tuneables para recalibrar sin reconstruir la imagen.
+      OLLAMA_HOST: ${OLLAMA_HOST:-http://192.168.1.56:11434}
+      OLLAMA_TEXT_MODEL: ${OLLAMA_TEXT_MODEL:-llama3.2:latest}
+      OCR_UMBRAL_SIMILITUD: "${OCR_UMBRAL_SIMILITUD:-0.20}"
+      OCR_TIMEOUT_PS: "${OCR_TIMEOUT_PS:-5}"
+      OCR_TIMEOUT_FRIO: "${OCR_TIMEOUT_FRIO:-90}"
+      OCR_TIMEOUT_CALIENTE: "${OCR_TIMEOUT_CALIENTE:-30}"
+      # Techo duro de extremo a extremo. DEBE quedar por debajo del
+      # proxy_read_timeout de Nginx (120 s) o el navegador recibe un 500
+      # opaco en vez del 200 con ocr_ok:false que abre la captura manual.
+      OCR_PRESUPUESTO_TOTAL: "${OCR_PRESUPUESTO_TOTAL:-100}"
+      RECEPCIONES_MAX_BYTES_FOTO: "${RECEPCIONES_MAX_BYTES_FOTO:-15728640}"
+      RECEPCIONES_MINUTOS_SESION_QR: "${RECEPCIONES_MINUTOS_SESION_QR:-10}"
       # Las comillas son obligatorias: docker-compose v2.24 serializa los
       # enteros de YAML sin comillas como `%!s(int=4)` al fusionar varios
       # archivos, y uvicorn lee UVICORN_WORKERS automáticamente (prefijo

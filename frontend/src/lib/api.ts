@@ -41,6 +41,14 @@ import type {
   InspeccionSqpResumen,
   Insumo,
   InsumoPayload,
+  Recepcion,
+  RecepcionPayload,
+  RecepcionesPaginadas,
+  ResultadoOcr,
+  SesionQr,
+  TipoDocumento,
+  FiltrosRecepciones,
+  EstadoSesionQr,
   InsumosPaginados,
   IntentosPaginados,
   Mantenimiento,
@@ -76,6 +84,17 @@ function baseUrl(): string {
   return '/api';
 }
 
+/**
+ * Lo que se le dice al operador cuando el servidor no contestó a tiempo.
+ *
+ * Menciona el historial a propósito: en las recepciones la foto se guarda
+ * ANTES de procesarla, así que un tiempo agotado no significa que no haya
+ * quedado nada. Reintentar a ciegas duplicaría el documento.
+ */
+const MENSAJE_TIEMPO_AGOTADO =
+  'El servidor no respondió a tiempo. La foto puede haberse guardado; ' +
+  'revisa el historial antes de reintentar.';
+
 /** Error de la API con el mensaje en español ya extraído. */
 export class ErrorDeApi extends Error {
   readonly status: number;
@@ -103,8 +122,13 @@ async function solicitar<T>(ruta: string, init?: RequestInit): Promise<T> {
       },
       cache: 'no-store',
     });
-  } catch {
-    // fetch solo lanza por fallo de red, no por códigos 4xx/5xx.
+  } catch (error: unknown) {
+    // fetch solo lanza por fallo de red o por aborto, no por códigos 4xx/5xx.
+    // `AbortSignal.timeout` lanza un DOMException con el texto en inglés, que
+    // no le dice nada al operador: se traduce y se le indica qué hacer.
+    if (error instanceof DOMException && error.name === 'TimeoutError') {
+      throw new ErrorDeApi(0, MENSAJE_TIEMPO_AGOTADO);
+    }
     throw new ErrorDeApi(0, 'No se pudo conectar con el servidor. Revisa tu conexión.');
   }
 
@@ -134,12 +158,14 @@ async function solicitar<T>(ruta: string, init?: RequestInit): Promise<T> {
 }
 
 export const api = {
-  get: <T>(ruta: string): Promise<T> => solicitar<T>(ruta, { method: 'GET' }),
+  get: <T>(ruta: string, senal?: AbortSignal): Promise<T> =>
+    solicitar<T>(ruta, { method: 'GET', signal: senal }),
 
-  post: <T>(ruta: string, cuerpo?: unknown): Promise<T> =>
+  post: <T>(ruta: string, cuerpo?: unknown, senal?: AbortSignal): Promise<T> =>
     solicitar<T>(ruta, {
       method: 'POST',
       body: cuerpo === undefined ? undefined : JSON.stringify(cuerpo),
+      signal: senal,
     }),
 
   put: <T>(ruta: string, cuerpo?: unknown): Promise<T> =>
@@ -494,7 +520,11 @@ export const urlFotoControl = (id: string): string => `/api/controles/fotos/${id
  * `Content-Type: application/json` rompería el multipart de la foto (mismo
  * motivo que en `importarExcel`).
  */
-async function enviarFormulario<T>(ruta: string, cuerpo: FormData): Promise<T> {
+async function enviarFormulario<T>(
+  ruta: string,
+  cuerpo: FormData,
+  senal?: AbortSignal,
+): Promise<T> {
   let respuesta: Response;
 
   try {
@@ -503,8 +533,12 @@ async function enviarFormulario<T>(ruta: string, cuerpo: FormData): Promise<T> {
       body: cuerpo,
       credentials: 'include',
       cache: 'no-store',
+      signal: senal,
     });
-  } catch {
+  } catch (error: unknown) {
+    if (error instanceof DOMException && error.name === 'TimeoutError') {
+      throw new ErrorDeApi(0, MENSAJE_TIEMPO_AGOTADO);
+    }
     throw new ErrorDeApi(0, 'No se pudo conectar con el servidor.');
   }
 
@@ -590,8 +624,18 @@ export function registrarChecklist(
   control: string,
   datos: {
     fecha: string;
-    puntos: Array<{ orden: number; valor: ValorChecklist; observaciones: string }>;
+    puntos: Array<{
+      orden: number;
+      valor: ValorChecklist;
+      observaciones: string;
+      /** Lectura del punto; solo la piden los puntos con `medicion`. */
+      medicion?: string;
+    }>;
     fotos: Record<number, File[]>;
+    /** Encabezado del formato. Vacío en los controles de rejilla. */
+    encabezado: Record<string, string>;
+    /** Bloques del pie del formato, por clave de sección. */
+    secciones: Record<string, Record<string, string>>;
   },
 ): Promise<RegistroChecklist> {
   const cuerpo = new FormData();
@@ -603,9 +647,16 @@ export function registrarChecklist(
         orden: punto.orden,
         valor: punto.valor,
         observaciones: punto.observaciones || null,
+        medicion: punto.medicion || null,
       })),
     ),
   );
+
+  // Los formatos por inspección (silos, tableros) viven de estos dos campos:
+  // sin ellos el servidor recibe el encabezado vacío y responde 422
+  // ("Planta: falta capturarlo") aunque la pantalla se vea llena.
+  cuerpo.append('encabezado', JSON.stringify(datos.encabezado));
+  cuerpo.append('secciones', JSON.stringify(datos.secciones));
 
   for (const [orden, fotos] of Object.entries(datos.fotos)) {
     fotos.forEach((foto) => cuerpo.append(`fotos_${orden}`, foto));
@@ -770,6 +821,12 @@ export const obtenerCategoriasInsumo = (): Promise<string[]> =>
     .get<{ categorias: string[] }>('/catalogo/categorias')
     .then((datos) => datos.categorias);
 
+/** Unidades de medida válidas; mismo patrón que las categorías. */
+export const obtenerUnidadesInsumo = (): Promise<string[]> =>
+  api
+    .get<{ unidades: string[] }>('/catalogo/unidades')
+    .then((datos) => datos.unidades);
+
 export const crearInsumo = (datos: InsumoPayload): Promise<Insumo> =>
   api.post<Insumo>('/catalogo', datos);
 
@@ -842,3 +899,114 @@ export const URL_QR_PUNTOS = '/api/rondines/puntos/imprimir';
  */
 export const escanearPunto = (token: string): Promise<EscaneoRegistrado> =>
   api.post<EscaneoRegistrado>(`/publico/rondin/${token}`);
+
+// --- Recepciones de mercancía ----------------------------------------------
+
+/** Arma la query del historial omitiendo los filtros vacíos. */
+function consultaRecepciones(filtros: FiltrosRecepciones, pagina: number): string {
+  const parametros = new URLSearchParams({ page: String(pagina) });
+
+  if (filtros.busqueda) parametros.set('busqueda', filtros.busqueda);
+  if (filtros.tipo_documento) parametros.set('tipo_documento', filtros.tipo_documento);
+
+  return parametros.toString();
+}
+
+export const listarRecepciones = (
+  filtros: FiltrosRecepciones,
+  pagina = 1,
+  senal?: AbortSignal,
+): Promise<RecepcionesPaginadas> =>
+  api.get<RecepcionesPaginadas>(
+    `/inventario/recepciones?${consultaRecepciones(filtros, pagina)}`,
+    senal,
+  );
+
+export const obtenerRecepcion = (id: string): Promise<Recepcion> =>
+  api.get<Recepcion>(`/inventario/recepciones/${id}`);
+
+/** Formatos registrados, para el filtro del historial. */
+export const obtenerTiposDocumento = (): Promise<TipoDocumento[]> =>
+  api.get<TipoDocumento[]>('/inventario/recepciones/tipos-documento');
+
+export const guardarRecepcion = (datos: RecepcionPayload): Promise<Recepcion> =>
+  api.post<Recepcion>('/inventario/recepciones', datos);
+
+/**
+ * Sube la foto y corre la extracción.
+ *
+ * El techo del backend son 100 s; aquí se espera un poco más para que sea
+ * SIEMPRE el backend quien corte. Si cortara el navegador primero, se perdería
+ * la respuesta con `ocr_ok:false` que habilita la captura manual, y el
+ * operador vería un error genérico con la foto ya guardada sin saberlo.
+ */
+export function procesarFotoRecepcion(archivo: File): Promise<ResultadoOcr> {
+  const cuerpo = new FormData();
+  cuerpo.append('archivo', archivo);
+  return enviarFormulario<ResultadoOcr>(
+    '/inventario/recepciones/ocr',
+    cuerpo,
+    AbortSignal.timeout(115_000),
+  );
+}
+
+/** Corre la extracción sobre la foto que mandó el celular. */
+export const procesarFotoDeSesion = (sesionId: string): Promise<ResultadoOcr> =>
+  api.post<ResultadoOcr>(
+    `/inventario/recepciones/ocr/desde-sesion/${sesionId}`,
+    undefined,
+    AbortSignal.timeout(115_000),
+  );
+
+export const crearSesionQr = (): Promise<SesionQr> =>
+  api.post<SesionQr>('/inventario/recepciones/qr-session');
+
+/**
+ * Estado de la sesión, para el sondeo de la PC.
+ *
+ * Es público: no lleva sesión y por eso se llama con `fetch` directo. Un 409
+ * significa que la sesión venció o ya se usó, no un fallo de red.
+ */
+export async function estadoSesionQr(sesionId: string): Promise<EstadoSesionQr> {
+  const respuesta = await fetch(`/api/publico/recepcion/${sesionId}`, {
+    cache: 'no-store',
+  });
+
+  if (!respuesta.ok) {
+    throw new ErrorDeApi(respuesta.status, 'La sesión de captura ya no está disponible.');
+  }
+
+  const datos = (await respuesta.json()) as { estado: EstadoSesionQr };
+  return datos.estado;
+}
+
+/**
+ * Sube la foto desde el celular. La llama la página pública `/re/[sesion]`.
+ *
+ * No pasa por `enviarFormulario` porque esa ruta manda la cookie de sesión y
+ * aquí no hay ninguna: el celular nunca inició sesión en el panel.
+ */
+export async function subirFotoSesion(sesionId: string, archivo: File): Promise<void> {
+  const cuerpo = new FormData();
+  cuerpo.append('archivo', archivo);
+
+  const respuesta = await fetch(`/api/publico/recepcion/${sesionId}/foto`, {
+    method: 'POST',
+    body: cuerpo,
+  });
+
+  if (!respuesta.ok) {
+    let mensaje = 'No se pudo enviar la foto.';
+    try {
+      const datos = (await respuesta.json()) as ErrorApi;
+      if (datos.detail) mensaje = datos.detail;
+    } catch {
+      // Cuerpo no-JSON: se queda el mensaje genérico.
+    }
+    throw new ErrorDeApi(respuesta.status, mensaje);
+  }
+}
+
+/** La foto de una recepción. La cookie httpOnly viaja sola. */
+export const urlFotoRecepcion = (fotoId: string): string =>
+  `/api/inventario/recepciones/foto/${fotoId}`;

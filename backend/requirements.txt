@@ -40,3 +40,29 @@ segno==1.6.1
 # El smtplib de la biblioteca estándar es bloqueante: mientras habla con el
 # servidor de correo detendría el bucle de eventos y con él toda la API.
 aiosmtplib==3.0.2
+
+# --- Recepciones por foto (OCR + clasificación) ----------------------------
+# Envoltorio del binario `tesseract` que instala el Dockerfile. Pillow ya
+# está arriba y es lo que abre y normaliza la imagen antes de leerla.
+pytesseract==0.3.13
+
+# scikit-learn rompe la costumbre del proyecto de "solo Python puro": arrastra
+# numpy y scipy y engorda la imagen. Se acepta a propósito porque el umbral
+# del clasificador (0.20) y la configuración del vectorizador (`char_wb`,
+# n-gramas 3-5) están calibrados contra ESTA implementación de TF-IDF con
+# documentos reales; rehacerla a mano invalidaría esa calibración y volvería
+# a dejar el umbral en adivinanza.
+scikit-learn==1.6.0
+numpy==2.2.0
+
+# Cliente HTTP asíncrono para hablar con Ollama. `requests` es bloqueante y
+# detendría el bucle de eventos durante los hasta 90 s que puede tardar la
+# estructuración (mismo motivo que aiosmtplib).
+httpx==0.28.1
+
+# --- Pruebas ---------------------------------------------------------------
+# Solo cubren la lógica pura del pipeline de recepciones (clasificación,
+# parseo, rutas de campos nulos, degradación): no necesitan Tesseract, ni el
+# LLM, ni base de datos, y por eso corren en cualquier lado.
+pytest==8.3.4
+pytest-asyncio==0.25.0

@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react';
 
+import { AvisoBorrador, BotonReiniciar } from '@/components/controles/AvisoBorrador';
 import { CampoFotos } from '@/components/controles/CampoFotos';
 import {
   CLASES_SEMAFORO,
@@ -12,7 +13,9 @@ import {
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Textarea } from '@/components/ui/Textarea';
+import { useBorrador } from '@/hooks/useBorrador';
 import { useTraduccion } from '@/lib/i18n';
+import { useSesion } from '@/lib/sesion';
 import type { RangoRayser } from '@/lib/types';
 import { cn } from '@/lib/utils';
 
@@ -54,6 +57,30 @@ export function FormularioRayser({
   const [observaciones, setObservaciones] = useState('');
   const [fotos, setFotos] = useState<File[]>([]);
 
+  // Lo capturado sobrevive a cambiar de pestaña, salir del panel o recargar.
+  const { usuario } = useSesion();
+  const hayContenido =
+    lecturas.some((lectura) => lectura.trim() !== '') ||
+    observaciones.trim() !== '' ||
+    fotos.length > 0;
+
+  const borrador = useBorrador(
+    usuario ? `${usuario.username}:rayser` : null,
+    { lecturas, observaciones, fotos },
+    hayContenido,
+    (guardado) => {
+      setLecturas(guardado.lecturas);
+      setObservaciones(guardado.observaciones);
+      setFotos(guardado.fotos);
+    },
+  );
+
+  function limpiar() {
+    setLecturas(lecturasVacias(rango.manometros));
+    setObservaciones('');
+    setFotos([]);
+  }
+
   const semaforos = useMemo(
     () => lecturas.map((lectura) => clasificar(lectura, minimo, maximo)),
     [lecturas, minimo, maximo],
@@ -86,9 +113,8 @@ export function FormularioRayser({
       return;
     }
 
-    setLecturas(lecturasVacias(rango.manometros));
-    setObservaciones('');
-    setFotos([]);
+    limpiar();
+    borrador.descartar();
   }
 
   return (
@@ -101,6 +127,8 @@ export function FormularioRayser({
           {t('rayser.descripcion', { normal: rango.normal })}
         </p>
       </div>
+
+      <AvisoBorrador fecha={borrador.esDeOtroDia ? borrador.fecha : null} />
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {lecturas.map((lectura, indice) => {
@@ -196,14 +224,25 @@ export function FormularioRayser({
                 : `${t('comun.fecha')}: ${fecha}`}
         </p>
 
-        <Button
-          tamano="lg"
-          onClick={() => void guardar()}
-          disabled={!puedeGuardar}
-          cargando={guardando}
-        >
-          {t('rayser.terminarRegistro')}
-        </Button>
+        <div className="flex flex-wrap items-center gap-3">
+          <BotonReiniciar
+            hayContenido={hayContenido}
+            deshabilitado={guardando}
+            onReiniciar={() => {
+              limpiar();
+              borrador.descartar();
+            }}
+          />
+
+          <Button
+            tamano="lg"
+            onClick={() => void guardar()}
+            disabled={!puedeGuardar}
+            cargando={guardando}
+          >
+            {t('rayser.terminarRegistro')}
+          </Button>
+        </div>
       </div>
     </Card>
   );

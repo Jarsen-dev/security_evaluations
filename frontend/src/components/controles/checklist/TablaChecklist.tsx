@@ -40,13 +40,7 @@ export function TablaChecklist({
   }
 
   const etiquetaValor = (valor: PuntoChecklist['valor']) =>
-    catalogo.estilo_valores === 'si_no'
-      ? valor === 'ok'
-        ? t('checklist.si')
-        : t('checklist.no')
-      : valor === 'ok'
-        ? t('checklist.ok')
-        : t('checklist.noOk');
+    valor === 'ok' ? t('checklist.conforme') : t('checklist.inconforme');
 
   /** Los hallazgos, con su texto y sus fotos: el resto de la hoja no aporta. */
   function hallazgos(registro: RegistroChecklist) {

@@ -9,7 +9,7 @@ import logging
 import uuid
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, Request, status
+from fastapi import APIRouter, Depends, File, Request, Response, UploadFile, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
@@ -27,7 +27,8 @@ from app.schemas.publico import (
     RespuestaGuardada,
     ResultadoIntento,
 )
-from app.services import intento_service, rondin_service
+from app.schemas.recepcion import EstadoSesionOut
+from app.services import intento_service, recepcion_service, rondin_service
 
 logger = logging.getLogger(__name__)
 
@@ -223,3 +224,47 @@ async def escanear_punto(
         ubicacion=punto.ubicacion,
         escaneado_at=datetime.now(tz=rondin_service.zona()),
     )
+
+
+@router.get(
+    "/recepcion/{sesion_id}",
+    response_model=EstadoSesionOut,
+    summary="Estado de una sesión de captura por QR",
+)
+async def estado_sesion_recepcion(
+    sesion_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+) -> EstadoSesionOut:
+    """Lo consulta la PC por sondeo mientras espera la foto del celular.
+
+    Devuelve **solo** el estado: no revela quién abrió la sesión ni qué se
+    subió. Una sesión inexistente, vencida o ya usada dan todas el mismo
+    error, para que el endpoint no sirva para sondear identificadores.
+    """
+    return EstadoSesionOut(estado=await recepcion_service.estado_sesion(db, sesion_id))
+
+
+@router.post(
+    "/recepcion/{sesion_id}/foto",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Recibe la foto que manda el celular",
+)
+async def subir_foto_recepcion(
+    sesion_id: uuid.UUID,
+    archivo: UploadFile = File(description="Foto de la remisión."),
+    db: AsyncSession = Depends(get_db),
+) -> Response:
+    """La sube la página móvil que abre el QR.
+
+    Es público porque el celular no tiene sesión del panel. Lo que lo protege
+    son tres cosas **a la vez**: el identificador no es adivinable, la sesión
+    expira en minutos y solo admite una subida (``pendiente`` → ``subida``).
+    Ninguna de las tres sobra.
+    """
+    contenido = await archivo.read()
+    tipo = recepcion_service.validar_foto(contenido, archivo.content_type)
+
+    await recepcion_service.adjuntar_foto_a_sesion(
+        db, sesion_id, imagen=contenido, tipo_mime=tipo
+    )
+    return Response(status_code=status.HTTP_204_NO_CONTENT)

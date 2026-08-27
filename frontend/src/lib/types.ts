@@ -565,6 +565,12 @@ export interface CampoFormato {
   opciones: string[];
   unidad: string | null;
   obligatorio: boolean;
+  /**
+   * `'turno'` u `'hora'` cuando el backend lo calcula solo al guardar (ver
+   * `automatico` en `controles_catalogo.py`); `null` cuando lo captura el
+   * operador. El formulario no debe pedirlo como input.
+   */
+  automatico: 'turno' | 'hora' | null;
 }
 
 export interface SeccionFormato {
@@ -585,7 +591,6 @@ export interface CatalogoChecklist {
   puntos: PuntoControl[];
   max_fotos: number;
   /** Cómo se rotulan las dos respuestas: OK/NO OK o SÍ/NO. */
-  estilo_valores: 'ok_no_ok' | 'si_no';
   encabezado: CampoFormato[];
   secciones: SeccionFormato[];
   nota: string | null;
@@ -696,6 +701,10 @@ export interface EstudioPayload {
 export interface Estudio extends EstudioPayload {
   id: string;
   responsable: string;
+  creado_at: string;
+  actualizado_at: string | null;
+}
+
 // --- Catálogo de insumos ---------------------------------------------------
 
 /** Semáforo de la existencia contra su rango. Lo decide el backend. */
@@ -704,9 +713,10 @@ export type EstadoInsumo = 'bajo' | 'normal' | 'excedido';
 /** Un renglón del catálogo de insumos de seguridad. */
 export interface Insumo {
   id: string;
-  nombre: string;
+  codigo: string;
   descripcion: string | null;
   categoria: string;
+  unidad_medida: string;
   proveedor: string | null;
   ubicacion: string | null;
   cantidad: number;
@@ -719,9 +729,10 @@ export interface Insumo {
 
 /** Alta y edición de un insumo (los dos mandan lo mismo). */
 export interface InsumoPayload {
-  nombre: string;
+  codigo: string;
   descripcion: string | null;
   categoria: string;
+  unidad_medida: string;
   proveedor: string | null;
   ubicacion: string | null;
   cantidad: number;
@@ -785,6 +796,8 @@ export interface Avisos {
   total: number;
   vencidos: number;
   avisos: AvisoVencimiento[];
+}
+
 /** Alta y edición de un punto. */
 export interface PuntoRondinPayload {
   numero: number;
@@ -832,3 +845,98 @@ export interface EscaneoRegistrado {
   ubicacion: string | null;
   escaneado_at: string;
 }
+
+// --- Recepciones de mercancía ----------------------------------------------
+
+/** Una partida tal como la captura o corrige el operador. */
+export interface ItemRecepcionPayload {
+  codigo: string;
+  cantidad: number;
+}
+
+/** Lo que se manda al confirmar un documento. */
+export interface RecepcionPayload {
+  foto_id: string | null;
+  proveedor: string | null;
+  folio: string | null;
+  fecha: string | null;
+  tipo_documento: string;
+  ocr_ok: boolean;
+  ocr_raw: Record<string, unknown> | null;
+  advertencias: string[] | null;
+  items: ItemRecepcionPayload[];
+  /** Solo cuando el formato no se reconoció y el usuario lo bautiza. */
+  nuevo_formato: string | null;
+}
+
+/** Una partida ya guardada, con el snapshot del catálogo. */
+export interface ItemRecepcion {
+  id: string;
+  codigo: string;
+  descripcion: string | null;
+  unidad_medida: string;
+  cantidad: number;
+}
+
+/** Un documento de recepción guardado. */
+export interface Recepcion {
+  id: string;
+  foto_id: string | null;
+  proveedor: string | null;
+  folio: string | null;
+  fecha: string | null;
+  tipo_documento: string;
+  ocr_ok: boolean;
+  creado_por: string;
+  creado_at: string;
+  items: ItemRecepcion[];
+}
+
+export interface RecepcionesPaginadas {
+  total: number;
+  page: number;
+  size: number;
+  items: Recepcion[];
+}
+
+export interface FiltrosRecepciones {
+  busqueda?: string;
+  tipo_documento?: string;
+}
+
+/** Un formato de documento registrado, para el filtro del historial. */
+export interface TipoDocumento {
+  slug: string;
+  nombre: string;
+}
+
+/**
+ * Lo que devuelve la extracción.
+ *
+ * `ocr_ok: false` **no es un error**: la foto ya se guardó y el formulario
+ * abre en captura manual. `advertencias` trae las rutas de los campos que la
+ * IA no pudo leer (`"fecha"`, `"items[0].cantidad"`), y son exactamente las
+ * que se pintan en ámbar.
+ */
+export interface ResultadoOcr {
+  foto_id: string;
+  ocr_ok: boolean;
+  tipo_documento: string;
+  tipo_conocido: boolean;
+  proveedor: string | null;
+  folio: string | null;
+  fecha: string | null;
+  items: Array<{ codigo?: string | null; cantidad?: number | null }>;
+  advertencias: string[];
+  ocr_raw: Record<string, unknown> | null;
+  error: string | null;
+}
+
+/** Sesión de captura por QR recién abierta. */
+export interface SesionQr {
+  id: string;
+  expira_en: string;
+}
+
+/** Estados por los que pasa una sesión de captura. */
+export type EstadoSesionQr = 'pendiente' | 'subida' | 'usada';

@@ -193,10 +193,11 @@ RENGLONES_SUSTANCIAS: Final[int] = 15
 
 VALORES_SQP: Final[frozenset[str]] = frozenset({"si", "no", "na"})
 
-# Cómo se rotula cada respuesta en la hoja de Excel.
+# Cómo se rotula cada respuesta, en el panel y en la hoja de Excel. El valor
+# guardado sigue siendo "si"/"no"/"na": esto es solo el rótulo.
 ETIQUETAS_VALOR_SQP: Final[dict[str, str]] = {
-    "si": "SI",
-    "no": "NO",
+    "si": "CONFORME",
+    "no": "INCONFORME",
     "na": "N/A",
 }
 
@@ -245,6 +246,11 @@ class CampoFormato(NamedTuple):
     # Unidad que se muestra junto a un campo numérico.
     unidad: str | None = None
     obligatorio: bool = True
+    # Campo que el servicio calcula solo al guardar (turno según la hora,
+    # hora de la captura) y que por eso el formulario nunca pide: llega
+    # vacío del frontend y `control_service.registrar_checklist` lo llena
+    # antes de validar. Ver `services/rondin_service.turno_actual`.
+    automatico: Literal["turno", "hora"] | None = None
 
 
 class SeccionFormato(NamedTuple):
@@ -285,8 +291,6 @@ class DefinicionChecklist(NamedTuple):
     subtitulo: str | None
     puntos: tuple[PuntoControl, ...]
     titulo_ko: str | None = None
-    # Cómo se rotulan las dos respuestas posibles.
-    estilo_valores: Literal["ok_no_ok", "si_no"] = "ok_no_ok"
     encabezado: tuple[CampoFormato, ...] = ()
     secciones: tuple[SeccionFormato, ...] = ()
     # Campos del encabezado que, junto con la fecha, identifican una
@@ -342,19 +346,21 @@ CONTROLES_CHECKLIST: Final[dict[str, DefinicionChecklist]] = {
         titulo_ko="EPS 공장 사일로실 일일 안전점검 체크시트",
         hoja="Silos EPS",
         subtitulo=None,
-        estilo_valores="si_no",
         encabezado=(
             CampoFormato(clave="planta", etiqueta="Planta", etiqueta_ko="공장"),
+            # Turno y hora ya no se preguntan: el servicio los calcula al
+            # guardar, según la hora del servidor (ver `automatico` arriba).
             CampoFormato(
-            clave="turno",
-            etiqueta="Turno",
-            etiqueta_ko="근무조",
-            tipo="opcion",
-            opciones=("Día", "Noche"),
-        ),
+                clave="turno",
+                etiqueta="Turno",
+                etiqueta_ko="근무조",
+                tipo="opcion",
+                opciones=("Día", "Noche"),
+                automatico="turno",
+            ),
             CampoFormato(
                 clave="hora", etiqueta="Hora de inspección", etiqueta_ko="점검시간",
-                tipo="hora",
+                tipo="hora", automatico="hora",
             ),
             CampoFormato(clave="inspector", etiqueta="Inspector", etiqueta_ko="점검자"),
             CampoFormato(
@@ -674,20 +680,22 @@ CONTROLES_CHECKLIST: Final[dict[str, DefinicionChecklist]] = {
         titulo_ko="전기 판넬 안전 일일 체크시트",
         hoja="Tableros electricos",
         subtitulo=None,
-        estilo_valores="si_no",
         encabezado=(
             CampoFormato(clave="planta", etiqueta="Planta", etiqueta_ko="공장"),
             CampoFormato(clave="area", etiqueta="Área", etiqueta_ko="구역"),
             CampoFormato(
                 clave="tablero", etiqueta="No. de tablero", etiqueta_ko="판넬 번호",
             ),
+            # El turno ya no se pregunta: el servicio lo calcula al guardar,
+            # según la hora del servidor (ver `automatico` arriba).
             CampoFormato(
-            clave="turno",
-            etiqueta="Turno",
-            etiqueta_ko="근무조",
-            tipo="opcion",
-            opciones=("Día", "Noche"),
-        ),
+                clave="turno",
+                etiqueta="Turno",
+                etiqueta_ko="근무조",
+                tipo="opcion",
+                opciones=("Día", "Noche"),
+                automatico="turno",
+            ),
             CampoFormato(clave="inspector", etiqueta="Inspector", etiqueta_ko="점검자"),
         ),
         # Cada tablero se revisa por separado, así que en un día hay tantas
@@ -879,16 +887,13 @@ CONTROLES_CHECKLIST: Final[dict[str, DefinicionChecklist]] = {
 
 VALORES_CHECKLIST: Final[frozenset[str]] = frozenset({"ok", "no_ok"})
 
-# Cómo se rotula cada valor en la hoja de Excel.
+# Cómo se rotula cada valor, en el panel y en la hoja de Excel. Todas las
+# hojas usan el mismo par: antes unas decían OK / NO OK y otras SÍ / NO, y esa
+# diferencia era solo de rótulo, no de significado. El valor guardado sigue
+# siendo "ok"/"no_ok".
 ETIQUETAS_VALOR_CHECKLIST: Final[dict[str, str]] = {
-    "ok": "OK",
-    "no_ok": "NO OK",
-}
-
-# Los formatos por inspección rotulan las mismas dos respuestas como SÍ / NO.
-ETIQUETAS_VALOR_SI_NO: Final[dict[str, str]] = {
-    "ok": "SÍ",
-    "no_ok": "NO",
+    "ok": "CONFORME",
+    "no_ok": "INCONFORME",
 }
 
 

@@ -22,7 +22,7 @@ from app.core.constants import etiqueta_area
 from app.core.controles_catalogo import (
     AREAS_PLATICAS,
     ETIQUETAS_VALOR_CHECKLIST,
-    ETIQUETAS_VALOR_SI_NO,
+    ETIQUETAS_VALOR_SQP,
     PUNTOS_SQP,
     RAYSER_NORMAL,
     RENGLONES_SUSTANCIAS,
@@ -352,8 +352,16 @@ def _celda_encabezado(hoja: Worksheet, fila: int, columna: int, texto: str) -> N
 
 
 def _encabezados_puntos(hoja: Worksheet, fila: int) -> None:
-    """Encabezados SI / NO / N/A / OBSERVACIONES de la tabla de puntos."""
-    for columna, texto in ((3, "SI"), (4, "NO"), (5, "N/A"), (6, "OBSERVACIONES")):
+    """Encabezados CONFORME / INCONFORME / N/A / OBSERVACIONES de los puntos.
+
+    Los tres primeros salen del catálogo y en su mismo orden que el bucle que
+    marca la "X", para que no puedan desalinearse.
+    """
+    columnas = tuple(
+        (3 + indice, ETIQUETAS_VALOR_SQP[valor])
+        for indice, valor in enumerate(("si", "no", "na"))
+    )
+    for columna, texto in (*columnas, (6, "OBSERVACIONES")):
         _celda_encabezado(hoja, fila, columna, texto)
     hoja.merge_cells(start_row=fila, start_column=6, end_row=fila, end_column=7)
 
@@ -409,7 +417,7 @@ def generar_excel_sqp(inspeccion: InspeccionSqp, sustancias: list[str]) -> Bytes
     ).font = Font(bold=True)
     hoja.merge_cells(start_row=fila, start_column=1, end_row=fila, end_column=5)
 
-    ajustar_anchos(hoja, [8, 70, 6, 6, 7, 35, 12])
+    ajustar_anchos(hoja, [8, 60, 12, 13, 7, 35, 12])
 
     flujo = BytesIO()
     libro.save(flujo)
@@ -645,7 +653,7 @@ def generar_excel_formato(
     escribir_encabezados(hoja, columnas, fila=fila)
     fila += 1
 
-    etiquetas = ETIQUETAS_VALOR_SI_NO if definicion.estilo_valores == "si_no" else ETIQUETAS_VALOR_CHECKLIST
+    etiquetas = ETIQUETAS_VALOR_CHECKLIST
 
     for punto in registro["puntos"]:
         columna = 1

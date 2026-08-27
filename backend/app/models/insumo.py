@@ -53,12 +53,13 @@ class Insumo(Base):
         server_default=text("gen_random_uuid()"),
     )
 
-    # Único sin distinguir mayúsculas (índice sobre lower(nombre) en la
-    # migración): si no, "Guantes de nitrilo" y "guantes de nitrilo" serían
-    # dos insumos y la importación los duplicaría.
-    nombre: Mapped[str] = mapped_column(String(150), nullable=False)
+    # Único sin distinguir mayúsculas (índice sobre lower(codigo) en la
+    # migración): si no, "GN-100" y "gn-100" serían dos insumos y la
+    # importación los duplicaría.
+    codigo: Mapped[str] = mapped_column(String(150), nullable=False)
     descripcion: Mapped[str | None] = mapped_column(Text, nullable=True)
     categoria: Mapped[str] = mapped_column(String(30), nullable=False, index=True)
+    unidad_medida: Mapped[str] = mapped_column(String(10), nullable=False)
     proveedor: Mapped[str | None] = mapped_column(String(150), nullable=True)
     ubicacion: Mapped[str | None] = mapped_column(String(150), nullable=True)
 
@@ -85,4 +86,4 @@ class Insumo(Base):
         return estado_insumo(self.cantidad, self.minimo, self.maximo)
 
     def __repr__(self) -> str:
-        return f"<Insumo {self.nombre}>"
+        return f"<Insumo {self.codigo}>"

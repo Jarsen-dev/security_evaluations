@@ -15,6 +15,7 @@ import {
   eliminarInsumo,
   listarInsumos,
   obtenerCategoriasInsumo,
+  obtenerUnidadesInsumo,
 } from '@/lib/api';
 import { useTraduccion, type ClaveTraduccion } from '@/lib/i18n';
 import { useSesion } from '@/lib/sesion';
@@ -27,9 +28,10 @@ function aPayload(datos: DatosInsumo): InsumoPayload {
   const opcional = (valor: string) => valor.trim() || null;
 
   return {
-    nombre: datos.nombre.trim(),
+    codigo: datos.codigo.trim(),
     descripcion: opcional(datos.descripcion),
     categoria: datos.categoria,
+    unidad_medida: datos.unidad_medida,
     proveedor: opcional(datos.proveedor),
     ubicacion: opcional(datos.ubicacion),
     cantidad: Number(datos.cantidad),
@@ -49,6 +51,7 @@ export function PanelCatalogo() {
 
   const [datos, setDatos] = useState<InsumosPaginados | null>(null);
   const [categorias, setCategorias] = useState<string[]>([]);
+  const [unidades, setUnidades] = useState<string[]>([]);
   const [cargando, setCargando] = useState(true);
   const [errorCarga, setErrorCarga] = useState('');
 
@@ -63,8 +66,8 @@ export function PanelCatalogo() {
   const [porEliminar, setPorEliminar] = useState<Insumo | null>(null);
   const [eliminando, setEliminando] = useState(false);
 
-  // El catálogo de categorías se pide una sola vez: viene del backend para
-  // que nunca quede escrito a mano en el frontend.
+  // Los catálogos de categorías y unidades se piden una sola vez: vienen del
+  // backend para que nunca queden escritos a mano en el frontend.
   useEffect(() => {
     let cancelado = false;
 
@@ -75,6 +78,14 @@ export function PanelCatalogo() {
       .catch(() => {
         // Los selectores se quedan sin opciones; el resto de la pantalla
         // funciona igual y no vale la pena molestar con un error aparte.
+      });
+
+    obtenerUnidadesInsumo()
+      .then((lista) => {
+        if (!cancelado) setUnidades(lista);
+      })
+      .catch(() => {
+        // Mismo criterio que las categorías.
       });
 
     return () => {
@@ -224,6 +235,7 @@ export function PanelCatalogo() {
         abierto={modalAbierto}
         insumo={editando}
         categorias={categorias}
+        unidades={unidades}
         guardando={guardando}
         onGuardar={(valores) => void guardar(valores)}
         onCerrar={() => setModalAbierto(false)}
@@ -235,7 +247,7 @@ export function PanelCatalogo() {
         mensaje={
           porEliminar === null
             ? ''
-            : t('catalogo.confirmarEliminarDetalle', { nombre: porEliminar.nombre })
+            : t('catalogo.confirmarEliminarDetalle', { codigo: porEliminar.codigo })
         }
         procesando={eliminando}
         onConfirmar={() => void confirmarEliminacion()}

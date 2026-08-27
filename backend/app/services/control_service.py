@@ -8,8 +8,9 @@ recorriendo registros en Python.
 import uuid
 from collections import defaultdict
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
+from typing import Literal
 
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
@@ -40,6 +41,7 @@ from app.models.control import (
     RespuestaSqp,
 )
 from app.schemas.control import ChecklistCrear, InspeccionSqpCrear, PlaticaCrear
+from app.services.rondin_service import TURNO_DIA, ahora_local, turno_actual
 
 # Tipos de imagen aceptados como evidencia y tope de tamaño. El celular de
 # planta sube fotos de varios MB; el frontend las reescala antes de enviarlas,
@@ -473,6 +475,17 @@ def _validar_campos(
     return limpios
 
 
+def _valor_automatico(tipo: Literal["turno", "hora"], momento: datetime) -> str:
+    """Lo que vale un campo que el operador ya no captura.
+
+    `momento` ya viene en hora de la planta (`rondin_service.ahora_local`),
+    así que formatear la hora aquí no repite la trampa de `sin_zona()`.
+    """
+    if tipo == "turno":
+        return "Día" if turno_actual(momento) == TURNO_DIA else "Noche"
+    return f"{momento:%H:%M}"
+
+
 def _discriminador(
     definicion: DefinicionChecklist, encabezado: dict[str, str]
 ) -> str:
@@ -522,7 +535,16 @@ async def registrar_checklist(
             "cada uno."
         )
 
-    encabezado = _validar_campos(definicion.encabezado, datos.encabezado, "")
+    # Turno y hora de inspección ya no los captura el operador: se calculan
+    # aquí, con la hora del servidor, y se inyectan antes de validar. Lo que
+    # mande el frontend para esos campos se ignora.
+    momento = ahora_local()
+    valores_encabezado = dict(datos.encabezado)
+    for campo in definicion.encabezado:
+        if campo.automatico:
+            valores_encabezado[campo.clave] = _valor_automatico(campo.automatico, momento)
+
+    encabezado = _validar_campos(definicion.encabezado, valores_encabezado, "")
     hay_hallazgos = any(punto.valor == "no_ok" for punto in datos.puntos)
 
     secciones: dict[str, dict[str, str]] = {}

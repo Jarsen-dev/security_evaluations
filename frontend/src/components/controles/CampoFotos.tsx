@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 
 import { Button } from '@/components/ui/Button';
 import { useTraduccion } from '@/lib/i18n';
+import { REDUCCION_EVIDENCIA, reducirImagen } from '@/lib/imagen';
 
 /**
  * Captura de evidencia fotográfica, una o varias.
@@ -15,11 +16,6 @@ import { useTraduccion } from '@/lib/i18n';
  * en la laptop abre el explorador de archivos.
  */
 
-/** Lado mayor al que se reduce cada foto antes de subirla. */
-const LADO_MAXIMO = 1600;
-const CALIDAD_JPEG = 0.8;
-const MAX_BYTES = 2 * 1024 * 1024;
-
 interface CampoFotosProps {
   fotos: File[];
   onCambiar: (fotos: File[]) => void;
@@ -29,54 +25,6 @@ interface CampoFotosProps {
   deshabilitado?: boolean;
   /** Identificador del input, para que varios campos no colisionen. */
   id: string;
-}
-
-/**
- * Reduce la imagen con `<canvas>`, que sí está disponible fuera de un contexto
- * seguro. Una foto de celular pesa varios MB y el servidor rechaza todo lo que
- * pase de 2 MB.
- */
-async function reducir(archivo: File): Promise<File> {
-  const url = URL.createObjectURL(archivo);
-
-  try {
-    const imagen = await new Promise<HTMLImageElement>((resolver, rechazar) => {
-      const elemento = new Image();
-      elemento.onload = () => resolver(elemento);
-      elemento.onerror = () => rechazar(new Error('imagen ilegible'));
-      elemento.src = url;
-    });
-
-    const escala = Math.min(1, LADO_MAXIMO / Math.max(imagen.width, imagen.height));
-
-    // Ya es lo bastante chica: no tiene caso recomprimirla y perder calidad.
-    if (escala === 1 && archivo.type === 'image/jpeg' && archivo.size <= MAX_BYTES) {
-      return archivo;
-    }
-
-    const lienzo = document.createElement('canvas');
-    lienzo.width = Math.round(imagen.width * escala);
-    lienzo.height = Math.round(imagen.height * escala);
-
-    const contexto = lienzo.getContext('2d');
-    if (contexto === null) {
-      return archivo;
-    }
-
-    contexto.drawImage(imagen, 0, 0, lienzo.width, lienzo.height);
-
-    const blob = await new Promise<Blob | null>((resolver) => {
-      lienzo.toBlob(resolver, 'image/jpeg', CALIDAD_JPEG);
-    });
-
-    if (blob === null) {
-      return archivo;
-    }
-
-    return new File([blob], 'evidencia.jpg', { type: 'image/jpeg' });
-  } finally {
-    URL.revokeObjectURL(url);
-  }
 }
 
 export function CampoFotos({
@@ -124,9 +72,9 @@ export function CampoFotos({
         }
 
         try {
-          const reducida = await reducir(archivo);
+          const reducida = await reducirImagen(archivo, REDUCCION_EVIDENCIA);
 
-          if (reducida.size > MAX_BYTES) {
+          if (reducida.size > REDUCCION_EVIDENCIA.maxBytes) {
             onError(t('fotos.pesada'));
             continue;
           }

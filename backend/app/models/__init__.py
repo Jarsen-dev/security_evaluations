@@ -22,6 +22,14 @@ from app.models.estudio import Estudio
 from app.models.insumo import Insumo
 from app.models.intento import Intento, Respuesta
 from app.models.meta_area import MetaArea
+from app.models.recepcion import (
+    EjemploPlantillaRecepcion,
+    FotoRecepcion,
+    ItemRecepcion,
+    PlantillaRecepcion,
+    Recepcion,
+    SesionQrRecepcion,
+)
 from app.models.rondin import EnvioReporteRondin, EscaneoRondin, PuntoRondin
 
 __all__ = [
@@ -30,21 +38,27 @@ __all__ = [
     "Base",
     "Bitacora",
     "Cuestionario",
+    "EjemploPlantillaRecepcion",
     "Estudio",
     "EnvioReporteRondin",
     "EscaneoRondin",
     "FotoControl",
+    "FotoRecepcion",
     "InspeccionSqp",
     "Insumo",
     "Intento",
+    "ItemRecepcion",
     "MetaArea",
     "Opcion",
+    "PlantillaRecepcion",
     "PlaticaEsh",
     "Pregunta",
     "PuntoChecklist",
     "PuntoRondin",
+    "Recepcion",
     "RegistroChecklist",
     "RegistroRayser",
     "Respuesta",
     "RespuestaSqp",
+    "SesionQrRecepcion",
 ]

@@ -2,12 +2,15 @@
 
 import { useState } from 'react';
 
+import { AvisoBorrador, BotonReiniciar } from '@/components/controles/AvisoBorrador';
 import { CampoFotos } from '@/components/controles/CampoFotos';
 import { CamposFormato } from '@/components/controles/checklist/CamposFormato';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Textarea } from '@/components/ui/Textarea';
+import { useBorrador } from '@/hooks/useBorrador';
 import { useIdioma } from '@/lib/i18n';
+import { useSesion } from '@/lib/sesion';
 import type {
   CampoFormato,
   CatalogoChecklist,
@@ -131,10 +134,37 @@ export function FormularioChecklist({
     (punto) => punto.medicion && (estado[punto.orden]?.medicion ?? '').trim() === '',
   ).length;
 
-  const faltanEncabezado = faltantes(catalogo.encabezado, encabezado);
+  // Turno y hora de inspección los calcula el servicio al guardar (ver
+  // `automatico` en el catálogo): no se piden aquí ni cuentan como
+  // pendientes.
+  const camposEncabezado = catalogo.encabezado.filter((campo) => !campo.automatico);
+
+  const faltanEncabezado = faltantes(camposEncabezado, encabezado);
   const faltanSecciones = seccionesVisibles.reduce(
     (total, seccion) => total + faltantes(seccion.campos, secciones[seccion.clave] ?? {}),
     0,
+  );
+
+  // Lo capturado sobrevive a cambiar de pestaña, salir del panel o recargar.
+  // Es la hoja donde más duele perderlo: hasta 30 puntos con fotos que solo
+  // existen en memoria hasta que se confirma.
+  const { usuario } = useSesion();
+  const hayContenido =
+    Object.keys(estado).length > 0 ||
+    Object.values(encabezado).some((valor) => valor.trim() !== '') ||
+    Object.values(secciones).some((campos) =>
+      Object.values(campos).some((valor) => valor.trim() !== ''),
+    );
+
+  const borrador = useBorrador(
+    usuario ? `${usuario.username}:checklist:${catalogo.clave}` : null,
+    { estado, encabezado, secciones },
+    hayContenido,
+    (guardado) => {
+      setEstado(guardado.estado);
+      setEncabezado(guardado.encabezado);
+      setSecciones(guardado.secciones);
+    },
   );
 
   const puedeGuardar =
@@ -195,6 +225,7 @@ export function FormularioChecklist({
     setSecciones({});
     // El encabezado se conserva: en tableros solo cambia el número entre una
     // inspección y la siguiente.
+    borrador.descartar();
   }
 
   // Los puntos se agrupan por categoría cuando la hoja las trae.
@@ -208,20 +239,25 @@ export function FormularioChecklist({
     }
   }
 
-  const etiquetaValor: Record<ValorChecklist, string> =
-    catalogo.estilo_valores === 'si_no'
-      ? { ok: t('checklist.si'), no_ok: t('checklist.no') }
-      : { ok: t('checklist.ok'), no_ok: t('checklist.noOk') };
+  // Todas las hojas rotulan igual las dos respuestas. Antes unas decían
+  // OK / NO OK y otras SÍ / NO; era una diferencia de rótulo, no de
+  // significado, y el valor guardado sigue siendo el mismo.
+  const etiquetaValor: Record<ValorChecklist, string> = {
+    ok: t('checklist.conforme'),
+    no_ok: t('checklist.inconforme'),
+  };
 
   return (
     <div className="flex flex-col gap-4">
-      {catalogo.encabezado.length > 0 && (
+      <AvisoBorrador fecha={borrador.esDeOtroDia ? borrador.fecha : null} />
+
+      {camposEncabezado.length > 0 && (
         <Card className="flex flex-col gap-4">
           <h2 className="text-base font-semibold text-texto">
             {t('checklist.encabezado')}
           </h2>
           <CamposFormato
-            campos={catalogo.encabezado}
+            campos={camposEncabezado}
             valores={encabezado}
             onCambiar={(clave, valor) =>
               setEncabezado((previo) => ({ ...previo, [clave]: valor }))
@@ -240,10 +276,7 @@ export function FormularioChecklist({
               : t('checklist.registroDelDia')}
           </h2>
           <p className="mt-1 text-sm text-texto-suave">
-            {catalogo.subtitulo ??
-              (catalogo.estilo_valores === 'si_no'
-                ? t('checklist.descripcionSiNo')
-                : t('checklist.descripcion'))}
+            {catalogo.subtitulo ?? t('checklist.descripcion')}
           </p>
         </div>
 
@@ -277,7 +310,7 @@ export function FormularioChecklist({
                 >
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <p className="text-sm font-medium text-texto">
-                      {catalogo.encabezado.length > 0 && (
+                      {catalogo.por_inspeccion && (
                         <span className="mr-2 text-texto-tenue">{punto.orden + 1}.</span>
                       )}
                       {texto(punto)}
@@ -321,7 +354,7 @@ export function FormularioChecklist({
                               onClick={() => responder(punto.orden, valor)}
                               disabled={guardando}
                               className={cn(
-                                'h-tactil w-24 rounded-md border text-sm font-semibold transition-colors',
+                                'h-tactil w-32 rounded-md border text-sm font-semibold transition-colors',
                                 'disabled:cursor-not-allowed disabled:opacity-50',
                                 activa
                                   ? SELECCIONADO[valor]
@@ -417,14 +450,27 @@ export function FormularioChecklist({
                       : `${t('comun.fecha')}: ${fecha}`}
         </p>
 
-        <Button
-          tamano="lg"
-          onClick={() => void guardar()}
-          disabled={!puedeGuardar}
-          cargando={guardando}
-        >
-          {t('checklist.confirmar')}
-        </Button>
+        <div className="flex flex-wrap items-center gap-3">
+          <BotonReiniciar
+            hayContenido={hayContenido}
+            deshabilitado={guardando}
+            onReiniciar={() => {
+              setEstado({});
+              setEncabezado({});
+              setSecciones({});
+              borrador.descartar();
+            }}
+          />
+
+          <Button
+            tamano="lg"
+            onClick={() => void guardar()}
+            disabled={!puedeGuardar}
+            cargando={guardando}
+          >
+            {t('checklist.confirmar')}
+          </Button>
+        </div>
       </div>
     </div>
   );

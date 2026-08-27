@@ -179,6 +179,22 @@ class MiddlewareRateLimit(BaseHTTPMiddleware):
                     "Espera {espera} segundos e intenta de nuevo."
                 ),
             ),
+            # La PC consulta el estado de la sesión cada dos segundos mientras
+            # espera la foto del celular: son ~30 peticiones por minuto de un
+            # solo operador, y varios pueden estar capturando a la vez desde
+            # la misma IP del NAT de planta. Con la cuota general saldría 429
+            # justo mientras se espera la foto.
+            ReglaDeTasa(
+                prefijo="/api/publico/recepcion",
+                limitador=LimitadorDeTasa(
+                    settings.RATE_LIMIT_RECEPCION_PETICIONES,
+                    settings.RATE_LIMIT_RECEPCION_VENTANA_SEGUNDOS,
+                ),
+                mensaje=(
+                    "Demasiadas peticiones de captura. "
+                    "Espera {espera} segundos e intenta de nuevo."
+                ),
+            ),
             ReglaDeTasa(
                 prefijo="/api/publico",
                 limitador=LimitadorDeTasa(),
