@@ -6,6 +6,7 @@ import { Suspense } from 'react';
 import { GuardiaModulo } from '@/components/GuardiaModulo';
 import { EnConstruccion } from '@/components/controles/EnConstruccion';
 import { PanelChecklist } from '@/components/controles/checklist/PanelChecklist';
+import { PanelIncidencias } from '@/components/controles/incidencias/PanelIncidencias';
 import { PanelPlaticas } from '@/components/controles/platicas/PanelPlaticas';
 import { PanelRayser } from '@/components/controles/rayser/PanelRayser';
 import { PanelSqp } from '@/components/controles/sqp/PanelSqp';
@@ -36,6 +37,9 @@ const CONTROLES: ReadonlyArray<{
   { clave: 'medicamento', etiqueta: 'controles.medicamento' },
   { clave: 'silos', etiqueta: 'controles.silos', checklist: 'silos' },
   { clave: 'tableros', etiqueta: 'controles.tableros', checklist: 'tableros' },
+  // Va al final porque no es un formato del recorrido, sino la vista que junta
+  // lo que salió mal en todos los demás.
+  { clave: 'incidencias', etiqueta: 'incidencias.titulo' },
 ];
 
 export default function PaginaControles() {
@@ -86,6 +90,7 @@ function ContenidoControles() {
       />
 
       {activa === 'sqp' && <PanelSqp />}
+      {activa === 'incidencias' && <PanelIncidencias />}
       {activa === 'rayser' && <PanelRayser />}
       {activa === 'platicas' && <PanelPlaticas />}
       {actual?.checklist !== undefined && (
@@ -95,7 +100,7 @@ function ContenidoControles() {
       )}
       {actual !== undefined &&
         actual.checklist === undefined &&
-        !['sqp', 'rayser', 'platicas'].includes(activa) && (
+        !['sqp', 'rayser', 'platicas', 'incidencias'].includes(activa) && (
           <EnConstruccion nombre={t(actual.etiqueta)} />
         )}
     </div>

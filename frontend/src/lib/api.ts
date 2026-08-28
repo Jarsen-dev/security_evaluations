@@ -17,6 +17,8 @@ import type {
   CatalogoEstudios,
   EscaneoRegistrado,
   CatalogoSqp,
+  CierreHallazgo,
+  CierrePayload,
   ConfigWifi,
   Credenciales,
   Cuestionario,
@@ -24,6 +26,7 @@ import type {
   CuestionarioCrearPayload,
   CuestionarioResumen,
   CuestionarioPublico,
+  DetalleCierre,
   DetalleIntento,
   ErrorApi,
   EstadisticaArea,
@@ -35,7 +38,9 @@ import type {
   FiltrosBitacora,
   FiltrosCatalogo,
   FiltrosEstadisticas,
+  FiltrosIncidencias,
   IdentidadRespondiente,
+  Incidencia,
   IntentoIniciado,
   InspeccionSqpPayload,
   InspeccionSqpResumen,
@@ -524,12 +529,14 @@ async function enviarFormulario<T>(
   ruta: string,
   cuerpo: FormData,
   senal?: AbortSignal,
+  /** El cierre de hallazgo se actualiza con PUT; el resto crea con POST. */
+  metodo: 'POST' | 'PUT' = 'POST',
 ): Promise<T> {
   let respuesta: Response;
 
   try {
     respuesta = await fetch(`${baseUrl()}${ruta}`, {
-      method: 'POST',
+      method: metodo,
       body: cuerpo,
       credentials: 'include',
       cache: 'no-store',
@@ -591,10 +598,26 @@ export const obtenerCatalogoSqp = (): Promise<CatalogoSqp> =>
 export const listarInspeccionesSqp = (): Promise<InspeccionSqpResumen[]> =>
   api.get<InspeccionSqpResumen[]>('/controles/sqp');
 
-export const registrarInspeccionSqp = (
+/**
+ * Guarda una inspección de SQP con la evidencia de sus puntos inconformes.
+ *
+ * Va como `multipart` y no como JSON porque ahora lleva fotos, igual que las
+ * listas de verificación: el JSON viaja en `datos` y las imágenes en campos
+ * `fotos_{orden}`.
+ */
+export function registrarInspeccionSqp(
   datos: InspeccionSqpPayload,
-): Promise<InspeccionSqpResumen> =>
-  api.post<InspeccionSqpResumen>('/controles/sqp', datos);
+  fotos: Record<number, File[]> = {},
+): Promise<InspeccionSqpResumen> {
+  const cuerpo = new FormData();
+  cuerpo.append('datos', JSON.stringify(datos));
+
+  for (const [orden, archivos] of Object.entries(fotos)) {
+    archivos.forEach((foto) => cuerpo.append(`fotos_${orden}`, foto));
+  }
+
+  return enviarFormulario<InspeccionSqpResumen>('/controles/sqp', cuerpo);
+}
 
 export const descargarExcelSqp = (id: string): Promise<void> =>
   descargarArchivo(`/controles/sqp/${id}/exportar/excel`, 'inspeccion_sqp.xlsx');
@@ -1010,3 +1033,71 @@ export async function subirFotoSesion(sesionId: string, archivo: File): Promise<
 /** La foto de una recepción. La cookie httpOnly viaja sola. */
 export const urlFotoRecepcion = (fotoId: string): string =>
   `/api/inventario/recepciones/foto/${fotoId}`;
+
+// --- Cierre de hallazgos e incidencias -------------------------------------
+
+/** Los hallazgos de una hoja y su cierre, si ya lo tiene. */
+export const obtenerCierre = (
+  control: string,
+  registroId: string,
+): Promise<DetalleCierre> =>
+  api.get<DetalleCierre>(`/controles/cierres/${control}/${registroId}`);
+
+/**
+ * Guarda el cierre de los hallazgos de una hoja.
+ *
+ * `POST` da de alta y `PUT` actualiza: son rutas distintas porque solo la
+ * segunda exige permiso de edición, así que un alta no puede sobrescribir un
+ * cierre ajeno. Al actualizar, las fotos solo se mandan si el operador eligió
+ * nuevas; si no, el servidor conserva las que ya estaban.
+ */
+export function guardarCierre(
+  control: string,
+  registroId: string,
+  datos: CierrePayload,
+  fotos: File[],
+  actualizando: boolean,
+): Promise<CierreHallazgo> {
+  const cuerpo = new FormData();
+  cuerpo.append('datos', JSON.stringify(datos));
+  fotos.forEach((foto) => cuerpo.append('fotos', foto));
+
+  return enviarFormulario<CierreHallazgo>(
+    `/controles/cierres/${control}/${registroId}`,
+    cuerpo,
+    undefined,
+    actualizando ? 'PUT' : 'POST',
+  );
+}
+
+function queryIncidencias(filtros: FiltrosIncidencias): string {
+  const parametros = new URLSearchParams({
+    desde: filtros.desde,
+    hasta: filtros.hasta,
+  });
+
+  if (filtros.control) {
+    parametros.set('control', filtros.control);
+  }
+  if (filtros.estado) {
+    parametros.set('estado', filtros.estado);
+  }
+
+  return parametros.toString();
+}
+
+/** Todo lo que salió mal en el periodo, de todos los controles juntos. */
+export const listarIncidencias = (
+  filtros: FiltrosIncidencias,
+  senal?: AbortSignal,
+): Promise<Incidencia[]> =>
+  api.get<Incidencia[]>(`/controles/incidencias?${queryIncidencias(filtros)}`, senal);
+
+/** El Excel de lo que los filtros dejen a la vista. */
+export const descargarExcelIncidencias = (
+  filtros: FiltrosIncidencias,
+): Promise<void> =>
+  descargarArchivo(
+    `/controles/incidencias/exportar/excel?${queryIncidencias(filtros)}`,
+    'incidencias.xlsx',
+  );

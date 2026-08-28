@@ -323,12 +323,18 @@ async def evidencias_rayser(
 
 
 async def registrar_sqp(
-    db: AsyncSession, datos: InspeccionSqpCrear, admin: AdminUser
+    db: AsyncSession,
+    datos: InspeccionSqpCrear,
+    admin: AdminUser,
+    fotos_por_punto: dict[int, list[tuple[bytes, str]]] | None = None,
 ) -> InspeccionSqp:
     """Guarda una inspección completa.
 
     Se exige el formato entero: una inspección a medias no se puede comparar
     con las anteriores ni sirve como evidencia ante una auditoría.
+
+    Un punto inconforme necesita foto, igual que en las listas de
+    verificación: la observación dice qué se encontró, la foto lo demuestra.
     """
     ordenes = [respuesta.orden for respuesta in datos.respuestas]
 
@@ -337,6 +343,27 @@ async def registrar_sqp(
             f"Hay que contestar los {TOTAL_PUNTOS_SQP} puntos de la inspección, "
             "una sola vez cada uno."
         )
+
+    fotos_por_punto = fotos_por_punto or {}
+
+    for respuesta in datos.respuestas:
+        fotos = fotos_por_punto.get(respuesta.orden, [])
+        etiqueta = PUNTOS_SQP[respuesta.orden].codigo
+
+        if respuesta.valor == "no" and not fotos:
+            raise ErrorDeNegocio(
+                f"{etiqueta}: un punto inconforme necesita al menos una foto "
+                "de evidencia."
+            )
+
+        # Una foto sobre un punto conforme no explica nada y solo ocupa
+        # espacio; mismo criterio que en las listas de verificación.
+        if respuesta.valor != "no" and fotos:
+            raise ErrorDeNegocio(
+                f"{etiqueta}: solo los puntos inconformes llevan fotos."
+            )
+
+        validar_cantidad_fotos(len(fotos), etiqueta)
 
     inspeccion = InspeccionSqp(
         fecha=datos.fecha,
@@ -352,6 +379,7 @@ async def registrar_sqp(
                 codigo=PUNTOS_SQP[respuesta.orden].codigo,
                 valor=respuesta.valor,
                 observaciones=respuesta.observaciones,
+                fotos=_construir_fotos(fotos_por_punto.get(respuesta.orden, [])),
             )
             for respuesta in sorted(datos.respuestas, key=lambda r: r.orden)
         ],
@@ -364,7 +392,11 @@ async def registrar_sqp(
 
 
 async def obtener_sqp(db: AsyncSession, inspeccion_id: uuid.UUID) -> InspeccionSqp:
-    """Inspección con sus respuestas cargadas."""
+    """Inspección con sus respuestas cargadas.
+
+    **No** trae las imágenes: navegar `respuesta.fotos` cargaría cada BYTEA.
+    Los identificadores se piden aparte con `ids_fotos_sqp`.
+    """
     inspeccion = await db.scalar(
         select(InspeccionSqp)
         .where(InspeccionSqp.id == inspeccion_id)
@@ -423,6 +455,49 @@ async def listar_sqp(
             "total_no": fila.total_no,
             "creado_at": fila.creado_at,
         }
+        for fila in filas.all()
+    ]
+
+
+async def ids_fotos_sqp(
+    db: AsyncSession, inspeccion: InspeccionSqp
+) -> dict[int, list[uuid.UUID]]:
+    """Identificadores de las fotos de cada respuesta, sin traer las imágenes."""
+    por_respuesta = await _ids_de_fotos(
+        db, FotoControl.respuesta_id, [r.id for r in inspeccion.respuestas]
+    )
+    return {
+        respuesta.orden: por_respuesta.get(respuesta.id, [])
+        for respuesta in inspeccion.respuestas
+    }
+
+
+async def evidencias_sqp(
+    db: AsyncSession, inspeccion_id: uuid.UUID
+) -> list[Evidencia]:
+    """Fotos de una inspección de SQP, para su hoja de evidencias."""
+    filas = await db.execute(
+        select(
+            InspeccionSqp.fecha,
+            InspeccionSqp.responsable,
+            RespuestaSqp.codigo,
+            FotoControl.imagen,
+        )
+        .join(RespuestaSqp, RespuestaSqp.inspeccion_id == InspeccionSqp.id)
+        .join(FotoControl, FotoControl.respuesta_id == RespuestaSqp.id)
+        .where(InspeccionSqp.id == inspeccion_id)
+        .order_by(RespuestaSqp.orden, FotoControl.orden)
+    )
+
+    textos = {punto.codigo: punto.texto for punto in PUNTOS_SQP}
+
+    return [
+        Evidencia(
+            fecha=fila.fecha,
+            detalle=f"{fila.codigo} {textos.get(fila.codigo, '')}".strip(),
+            responsable=fila.responsable,
+            imagen=fila.imagen,
+        )
         for fila in filas.all()
     ]
 
@@ -545,15 +620,9 @@ async def registrar_checklist(
             valores_encabezado[campo.clave] = _valor_automatico(campo.automatico, momento)
 
     encabezado = _validar_campos(definicion.encabezado, valores_encabezado, "")
-    hay_hallazgos = any(punto.valor == "no_ok" for punto in datos.puntos)
 
     secciones: dict[str, dict[str, str]] = {}
     for seccion in definicion.secciones:
-        # El bloque de acción ante anomalía solo se exige cuando algo salió
-        # mal; en un recorrido limpio ni siquiera se muestra.
-        if seccion.solo_con_hallazgos and not hay_hallazgos:
-            continue
-
         secciones[seccion.clave] = _validar_campos(
             seccion.campos, datos.secciones.get(seccion.clave, {}), f"{seccion.titulo} — "
         )

@@ -260,9 +260,6 @@ class SeccionFormato(NamedTuple):
     titulo: str
     titulo_ko: str | None = None
     campos: tuple[CampoFormato, ...] = ()
-    # El bloque de acción ante anomalía solo tiene sentido cuando algo salió
-    # mal: se muestra y se exige únicamente si hay algún punto en NO.
-    solo_con_hallazgos: bool = False
 
 
 class DefinicionChecklist(NamedTuple):
@@ -296,9 +293,6 @@ class DefinicionChecklist(NamedTuple):
     # Campos del encabezado que, junto con la fecha, identifican una
     # inspección. Vacío = una sola por día.
     clave_unicidad: tuple[str, ...] = ()
-    # Aviso al pie de la hoja impresa.
-    nota: str | None = None
-    nota_ko: str | None = None
 
 
 CONTROLES_CHECKLIST: Final[dict[str, DefinicionChecklist]] = {
@@ -372,61 +366,6 @@ CONTROLES_CHECKLIST: Final[dict[str, DefinicionChecklist]] = {
         # de captura, no una inspección nueva.
         clave_unicidad=("turno",),
         secciones=(
-            SeccionFormato(
-                clave="anomalia",
-                titulo="Acción en caso de anomalía",
-                titulo_ko="이상 발생 시 조치",
-                solo_con_hallazgos=True,
-                campos=(
-                    CampoFormato(
-                        clave="hora_deteccion", etiqueta="Hora de detección",
-                        etiqueta_ko="이상 발견 시간", tipo="hora",
-                    ),
-                    CampoFormato(
-                        clave="equipo", etiqueta="Equipo y ubicación",
-                        etiqueta_ko="설비 및 위치",
-                    ),
-                    CampoFormato(
-                        clave="descripcion", etiqueta="Descripción de la anomalía",
-                        etiqueta_ko="이상 내용", tipo="texto_largo",
-                    ),
-                    CampoFormato(
-                        clave="accion_inmediata",
-                        etiqueta="Acción inmediata realizada",
-                        etiqueta_ko="즉시 조치 내용", tipo="texto_largo",
-                    ),
-                    CampoFormato(
-                        clave="responsable_accion",
-                        etiqueta="Departamento o persona responsable",
-                        etiqueta_ko="담당 부서·담당자",
-                    ),
-                    CampoFormato(
-                        clave="hora_cierre", etiqueta="Hora de cierre",
-                        etiqueta_ko="조치 완료 시간", tipo="hora", obligatorio=False,
-                    ),
-                    CampoFormato(
-                        clave="pendiente", etiqueta="Acción pendiente",
-                        etiqueta_ko="미조치 사항", tipo="texto_largo",
-                        obligatorio=False,
-                    ),
-                ),
-            ),
-            SeccionFormato(
-                clave="cierre",
-                titulo="Confirmación diaria",
-                titulo_ko="일일 최종 확인",
-                campos=(
-                    CampoFormato(
-                        clave="resultado", etiqueta="Resultado final",
-                        etiqueta_ko="점검 결과", tipo="opcion",
-                        opciones=(
-                            "Sin anomalías",
-                            "Anomalía detectada y corregida",
-                            "Acción pendiente",
-                        ),
-                    ),
-                ),
-            ),
         ),
         puntos=(
         PuntoControl(
@@ -732,39 +671,8 @@ CONTROLES_CHECKLIST: Final[dict[str, DefinicionChecklist]] = {
                         etiqueta_ko="측정장비", tipo="opcion",
                         opciones=("IR", "Cámara termográfica"),
                     ),
-                    CampoFormato(
-                        clave="resultado", etiqueta="Resultado",
-                        etiqueta_ko="판정", tipo="opcion",
-                        opciones=("Normal", "Anormal"),
-                    ),
-                    CampoFormato(
-                        clave="requiere_accion", etiqueta="Requiere acción",
-                        etiqueta_ko="조치 필요", tipo="opcion",
-                        opciones=("Sí", "No"),
-                    ),
                 ),
             ),
-            SeccionFormato(
-                clave="anomalia",
-                titulo="Acción en caso de anomalía",
-                titulo_ko="이상 발견 시 조치",
-                solo_con_hallazgos=True,
-                campos=(
-                    CampoFormato(
-                        clave="accion", etiqueta="Acción tomada",
-                        etiqueta_ko="조치 내용", tipo="texto_largo",
-                    ),
-                ),
-            ),
-        ),
-        nota=(
-            "IMPORTANTE: en caso de marcar \u201cNo\u201d o detectar temperatura "
-            "anormal o puntos calientes, reportar de inmediato a Seguridad y "
-            "Mantenimiento, y restringir el acceso cuando sea necesario."
-        ),
-        nota_ko=(
-            "중요: \u201cNo\u201d 항목 또는 비정상 온도/Hot Spot 발견 시 즉시 "
-            "안전·유지보수 담당자에게 보고하고 필요한 경우 접근을 통제하십시오."
         ),
         puntos=(
         PuntoControl(

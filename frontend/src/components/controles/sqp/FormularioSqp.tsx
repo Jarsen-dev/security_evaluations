@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react';
 
 import { AvisoBorrador, BotonReiniciar } from '@/components/controles/AvisoBorrador';
+import { CampoFotos } from '@/components/controles/CampoFotos';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Input';
@@ -22,14 +23,20 @@ import { cn, fechaDeHoy } from '@/lib/utils';
 interface FormularioSqpProps {
   catalogo: CatalogoSqp;
   areas: Area[];
-  onGuardar: (datos: InspeccionSqpPayload) => Promise<void>;
+  onGuardar: (datos: InspeccionSqpPayload, fotos: Record<number, File[]>) => Promise<void>;
+  onError: (mensaje: string) => void;
   guardando: boolean;
 }
 
 interface EstadoRespuesta {
   valor: ValorSqp | null;
   observaciones: string;
+  /** Obligatoria en los puntos inconformes, igual que en las listas. */
+  fotos: File[];
 }
+
+/** Tope de fotos por punto; el servidor aplica el mismo. */
+const MAX_FOTOS = 4;
 
 const OPCIONES: ReadonlyArray<{
   valor: ValorSqp;
@@ -51,6 +58,7 @@ export function FormularioSqp({
   catalogo,
   areas,
   onGuardar,
+  onError,
   guardando,
 }: FormularioSqpProps) {
   const t = useTraduccion();
@@ -111,19 +119,43 @@ export function FormularioSqp({
   }).length;
 
   const faltanPuntos = catalogo.puntos.length - contestados;
+
+  const noSinFotos = catalogo.puntos.filter((punto) => {
+    const respuesta = respuestas[punto.orden];
+    return respuesta?.valor === 'no' && respuesta.fotos.length === 0;
+  }).length;
   const faltaEncabezado = area === '' || encargado.trim() === '';
   const sinSustancias = lineasSustancias.length === 0;
 
   const puedeGuardar =
-    !faltaEncabezado && faltanPuntos === 0 && noSinObservaciones === 0 && !sinSustancias;
+    !faltaEncabezado &&
+    faltanPuntos === 0 &&
+    noSinObservaciones === 0 &&
+    noSinFotos === 0 &&
+    !sinSustancias;
 
   function responder(orden: number, valor: ValorSqp) {
     setRespuestas((previas) => ({
       ...previas,
       [orden]: {
+        ...previas[orden],
         valor,
         // Al dejar de ser "NO", la observación deja de tener sentido.
+        // Al volver a conforme se descartan observaciones y fotos: ya no
+        // explican nada y el servidor rechaza fotos sin hallazgo.
         observaciones: valor === 'no' ? (previas[orden]?.observaciones ?? '') : '',
+        fotos: valor === 'no' ? (previas[orden]?.fotos ?? []) : [],
+      },
+    }));
+  }
+
+  function cambiarFotos(orden: number, fotos: File[]) {
+    setRespuestas((previas) => ({
+      ...previas,
+      [orden]: {
+        valor: previas[orden]?.valor ?? null,
+        observaciones: previas[orden]?.observaciones ?? '',
+        fotos,
       },
     }));
   }
@@ -131,7 +163,11 @@ export function FormularioSqp({
   function observar(orden: number, texto: string) {
     setRespuestas((previas) => ({
       ...previas,
-      [orden]: { valor: previas[orden]?.valor ?? null, observaciones: texto },
+      [orden]: {
+        valor: previas[orden]?.valor ?? null,
+        observaciones: texto,
+        fotos: previas[orden]?.fotos ?? [],
+      },
     }));
   }
 
@@ -158,15 +194,28 @@ export function FormularioSqp({
       });
     }
 
+    // Las fotos viajan aparte del JSON: son campos `fotos_{orden}` del
+    // multipart, uno por punto inconforme.
+    const fotos: Record<number, File[]> = {};
+    for (const punto of catalogo.puntos) {
+      const respuesta = respuestas[punto.orden];
+      if (respuesta?.valor === 'no' && respuesta.fotos.length > 0) {
+        fotos[punto.orden] = respuesta.fotos;
+      }
+    }
+
     try {
-      await onGuardar({
-        fecha,
-        area,
-        encargado: encargado.trim(),
-        cargo: cargo.trim() || null,
-        sustancias: lineasSustancias.join('\n'),
-        respuestas: payload,
-      });
+      await onGuardar(
+        {
+          fecha,
+          area,
+          encargado: encargado.trim(),
+          cargo: cargo.trim() || null,
+          sustancias: lineasSustancias.join('\n'),
+          respuestas: payload,
+        },
+        fotos,
+      );
     } catch {
       // El panel ya mostró el error; se conserva lo capturado.
       return;
@@ -307,6 +356,25 @@ export function FormularioSqp({
                         : undefined
                     }
                   />
+                )}
+
+                {respuesta?.valor === 'no' && (
+                  <div className="flex flex-col gap-2 rounded-md border border-error bg-error-suave/40 p-4">
+                    <CampoFotos
+                      id={`fotos-sqp-${punto.orden}`}
+                      fotos={respuesta.fotos}
+                      onCambiar={(fotos) => cambiarFotos(punto.orden, fotos)}
+                      onError={onError}
+                      maximo={MAX_FOTOS}
+                      deshabilitado={guardando}
+                    />
+
+                    {respuesta.fotos.length === 0 && (
+                      <p role="alert" className="text-sm text-error">
+                        {t('sqp.faltaFoto')}
+                      </p>
+                    )}
+                  </div>
                 )}
               </div>
             );

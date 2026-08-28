@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useState } from 'react';
 
+import { ModalCierreHallazgo } from '@/components/controles/ModalCierreHallazgo';
+import { ModalDetalleRegistro } from '@/components/controles/ModalDetalleRegistro';
 import { FormularioRayser } from '@/components/controles/rayser/FormularioRayser';
 import { TablaRayser } from '@/components/controles/rayser/TablaRayser';
 import { Button } from '@/components/ui/Button';
@@ -11,6 +13,7 @@ import {
   ErrorDeApi,
   descargarExcelRayser,
   eliminarRegistroRayser,
+  listarIncidencias,
   listarRayser,
   obtenerRangoRayser,
   registrarRayser,
@@ -25,6 +28,11 @@ export function PanelRayser() {
   const { t, locale } = useIdioma();
   const { puede } = useSesion();
   const { mostrarToast } = useToast();
+
+  // Qué hojas ya tienen cierre, para pintar el botón de la columna.
+  const [cerrados, setCerrados] = useState<ReadonlySet<string>>(new Set());
+  const [detalleId, setDetalleId] = useState<string | null>(null);
+  const [cierreId, setCierreId] = useState<string | null>(null);
 
   const [rango, setRango] = useState<RangoRayser | null>(null);
   const [registros, setRegistros] = useState<RegistroRayser[]>([]);
@@ -42,7 +50,13 @@ export function PanelRayser() {
     const { desde, hasta } = rangoDelMes(`${mes}-01`);
 
     try {
-      setRegistros(await listarRayser(desde, hasta));
+      const [lista, incidencias] = await Promise.all([
+        listarRayser(desde, hasta),
+        // Una sola llamada para el mes en vez de una por renglón.
+        listarIncidencias({ desde, hasta, control: 'rayser', estado: 'cerrado' }),
+      ]);
+      setRegistros(lista);
+      setCerrados(new Set(incidencias.map((incidencia) => incidencia.registro_id)));
       setErrorCarga('');
     } catch (error) {
       setErrorCarga(
@@ -207,6 +221,9 @@ export function PanelRayser() {
           <p className="text-sm text-texto-suave">{t('comun.cargando')}</p>
         ) : (
           <TablaRayser
+            onVerDetalle={(registro) => setDetalleId(registro.id)}
+            onCerrarHallazgo={(registro) => setCierreId(registro.id)}
+            cerrados={cerrados}
             registros={registros}
             onEliminar={setPorEliminar}
             totalManometros={rango?.manometros ?? 4}
@@ -224,6 +241,26 @@ export function PanelRayser() {
         procesando={eliminando}
         onConfirmar={() => void eliminar()}
         onCancelar={() => setPorEliminar(null)}
+      />
+
+      <ModalDetalleRegistro
+        abierto={detalleId !== null}
+        control="rayser"
+        registroId={detalleId}
+        onCerrar={() => setDetalleId(null)}
+        onError={(mensaje) => mostrarToast(mensaje, 'error')}
+      />
+
+      <ModalCierreHallazgo
+        abierto={cierreId !== null}
+        control="rayser"
+        registroId={cierreId}
+        onCerrar={() => setCierreId(null)}
+        onGuardado={(mensaje) => {
+          mostrarToast(mensaje, 'exito');
+          void cargar();
+        }}
+        onError={(mensaje) => mostrarToast(mensaje, 'error')}
       />
     </div>
   );

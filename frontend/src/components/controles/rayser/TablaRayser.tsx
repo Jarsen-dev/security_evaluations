@@ -4,7 +4,7 @@ import {
   CLASES_SEMAFORO,
   CLAVES_SEMAFORO,
 } from '@/components/controles/rayser/semaforo';
-import { Button } from '@/components/ui/Button';
+import { AccionesRegistro } from '@/components/controles/AccionesRegistro';
 import { useIdioma } from '@/lib/i18n';
 import { urlFotoControl } from '@/lib/api';
 import type { RegistroRayser } from '@/lib/types';
@@ -13,6 +13,10 @@ import { cn, formatearFechaIso } from '@/lib/utils';
 interface TablaRayserProps {
   registros: RegistroRayser[];
   onEliminar: (registro: RegistroRayser) => void;
+  onVerDetalle: (registro: RegistroRayser) => void;
+  onCerrarHallazgo: (registro: RegistroRayser) => void;
+  /** Ids de los registros que ya tienen cierre. */
+  cerrados: ReadonlySet<string>;
   totalManometros: number;
   /**
    * Si el usuario tiene permiso de edición en Controles. Sin él se esconde
@@ -24,6 +28,9 @@ interface TablaRayserProps {
 export function TablaRayser({
   registros,
   onEliminar,
+  onVerDetalle,
+  onCerrarHallazgo,
+  cerrados,
   totalManometros,
   puedeEditar,
 }: TablaRayserProps) {
@@ -51,8 +58,8 @@ export function TablaRayser({
             <th className="px-3 py-2 font-medium">{t('comun.observaciones')}</th>
             <th className="px-3 py-2 font-medium">{t('comun.responsable')}</th>
             <th className="px-3 py-2 font-medium">{t('rayser.evidencia')}</th>
-            <th className="px-3 py-2 font-medium">
-              <span className="sr-only">{t('comun.acciones')}</span>
+            <th className="px-3 py-2 text-right font-medium">
+              {t('comun.acciones')}
             </th>
           </tr>
         </thead>
@@ -120,15 +127,17 @@ export function TablaRayser({
               </td>
 
               <td className="px-3 py-2 text-right">
-                {puedeEditar && (
-                  <Button
-                    variante="fantasma"
-                    tamano="sm"
-                    onClick={() => onEliminar(registro)}
-                  >
-                    {t('comun.eliminar')}
-                  </Button>
-                )}
+                <AccionesRegistro
+                  onVerDetalle={() => onVerDetalle(registro)}
+                  // El hallazgo de Rayser es la lectura fuera de rango.
+                  onCerrarHallazgo={
+                    registro.fuera_de_rango
+                      ? () => onCerrarHallazgo(registro)
+                      : undefined
+                  }
+                  cerrado={cerrados.has(registro.id)}
+                  onEliminar={puedeEditar ? () => onEliminar(registro) : undefined}
+                />
               </td>
             </tr>
           ))}

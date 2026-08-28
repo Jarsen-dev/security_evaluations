@@ -172,6 +172,13 @@ class RespuestaSqp(Base):
 
     inspeccion: Mapped["InspeccionSqp"] = relationship(back_populates="respuestas")
 
+    fotos: Mapped[list["FotoControl"]] = relationship(
+        back_populates="respuesta",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+        order_by="FotoControl.orden",
+    )
+
     def __repr__(self) -> str:
         return f"<RespuestaSqp {self.codigo}={self.valor}>"
 
@@ -366,7 +373,7 @@ class AreaPlatica(Base):
 class FotoControl(Base):
     """Evidencia fotográfica de cualquier control.
 
-    Una sola tabla para las tres procedencias posibles, con un ``CHECK`` que
+    Una sola tabla para las cuatro procedencias posibles, con un ``CHECK`` que
     obliga a que exactamente una llave foránea venga llena. Así hay un único
     endpoint que sirve las imágenes y una sola forma de guardarlas.
 
@@ -377,12 +384,15 @@ class FotoControl(Base):
     __tablename__ = "controles_fotos"
     __table_args__ = (
         CheckConstraint(
-            "num_nonnulls(punto_id, platica_id, rayser_id) = 1",
+            "num_nonnulls(punto_id, platica_id, rayser_id, cierre_id, "
+            "respuesta_id) = 1",
             name="ck_foto_un_solo_dueno",
         ),
         Index("ix_controles_fotos_punto", "punto_id"),
         Index("ix_controles_fotos_platica", "platica_id"),
         Index("ix_controles_fotos_rayser", "rayser_id"),
+        Index("ix_controles_fotos_cierre", "cierre_id"),
+        Index("ix_controles_fotos_respuesta", "respuesta_id"),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(
@@ -405,6 +415,17 @@ class FotoControl(Base):
         ForeignKey("registros_rayser.id", ondelete="CASCADE"),
         nullable=True,
     )
+    # Evidencia de que el hallazgo quedó resuelto, no de que ocurrió.
+    cierre_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("cierres_hallazgo.id", ondelete="CASCADE"),
+        nullable=True,
+    )
+    respuesta_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("inspecciones_sqp_respuestas.id", ondelete="CASCADE"),
+        nullable=True,
+    )
 
     imagen: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
     tipo: Mapped[str] = mapped_column(String(60), nullable=False)
@@ -416,6 +437,95 @@ class FotoControl(Base):
     punto: Mapped["PuntoChecklist | None"] = relationship(back_populates="fotos")
     platica: Mapped["PlaticaEsh | None"] = relationship(back_populates="fotos")
     rayser: Mapped["RegistroRayser | None"] = relationship(back_populates="fotos")
+    cierre: Mapped["CierreHallazgo | None"] = relationship(back_populates="fotos")
+    respuesta: Mapped["RespuestaSqp | None"] = relationship(back_populates="fotos")
 
     def __repr__(self) -> str:
         return f"<FotoControl {self.id}>"
+
+
+class CierreHallazgo(Base):
+    """Qué se hizo con los problemas que encontró una hoja de control.
+
+    Uno por hoja, no uno por problema: reproduce el bloque "Acción en caso de
+    anomalía" del formato en papel, que cubre la inspección entera.
+
+    Tres llaves foráneas anulables con un ``CHECK`` de que solo una viene
+    llena, igual que ``FotoControl``. Un par ``(control, registro_id)``
+    polimórfico no podría tener FK de verdad y dejaría cierres huérfanos al
+    borrar la hoja; así el ``ON DELETE CASCADE`` lo resuelve la base.
+
+    **La descripción del problema no está aquí.** Se deriva de las
+    observaciones de los hallazgos al leer: los registros no se editan, solo
+    se borran, así que no puede desincronizarse.
+    """
+
+    __tablename__ = "cierres_hallazgo"
+    __table_args__ = (
+        CheckConstraint(
+            "num_nonnulls(checklist_id, rayser_id, sqp_id) = 1",
+            name="ck_cierre_un_solo_dueno",
+        ),
+        # Los índices de unicidad son PARCIALES y se crean en la migración:
+        # un UNIQUE normal sobre una columna anulable dejaría pasar un solo
+        # NULL y bloquearía todos los demás cierres.
+        Index("ix_cierres_hallazgo_checklist", "checklist_id"),
+        Index("ix_cierres_hallazgo_rayser", "rayser_id"),
+        Index("ix_cierres_hallazgo_sqp", "sqp_id"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        primary_key=True,
+        server_default=text("gen_random_uuid()"),
+    )
+
+    checklist_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("registros_checklist.id", ondelete="CASCADE"),
+        nullable=True,
+    )
+    rayser_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("registros_rayser.id", ondelete="CASCADE"),
+        nullable=True,
+    )
+    sqp_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("inspecciones_sqp.id", ondelete="CASCADE"),
+        nullable=True,
+    )
+
+    # "HH:MM", como los campos de tipo `hora` del catálogo de los formatos.
+    hora_hallazgo: Mapped[str] = mapped_column(String(5), nullable=False)
+    ubicacion: Mapped[str] = mapped_column(String(200), nullable=False)
+    accion_inmediata: Mapped[str] = mapped_column(Text, nullable=False)
+    responsable_accion: Mapped[str] = mapped_column(String(150), nullable=False)
+    hora_cierre: Mapped[str] = mapped_column(String(5), nullable=False)
+    # Lo que quedó sin resolver por algo ajeno a quien atendió el hallazgo.
+    accion_pendiente: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    # Desnormalizado, misma razón que en el resto de los controles: borrar al
+    # usuario pone el FK en NULL y el histórico quedaría anónimo.
+    responsable: Mapped[str] = mapped_column(String(150), nullable=False)
+    admin_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("admin_users.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    creado_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    actualizado_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+
+    fotos: Mapped[list["FotoControl"]] = relationship(
+        back_populates="cierre",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+        order_by="FotoControl.orden",
+    )
+
+    def __repr__(self) -> str:
+        return f"<CierreHallazgo {self.id}>"

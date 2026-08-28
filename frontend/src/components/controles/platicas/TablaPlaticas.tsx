@@ -1,7 +1,7 @@
 'use client';
 
+import { AccionesRegistro } from '@/components/controles/AccionesRegistro';
 import { Badge } from '@/components/ui/Badge';
-import { Button } from '@/components/ui/Button';
 import { urlFotoControl } from '@/lib/api';
 import { useIdioma } from '@/lib/i18n';
 import type { Platica } from '@/lib/types';
@@ -33,8 +33,8 @@ export function TablaPlaticas({ platicas, onEliminar }: TablaPlaticasProps) {
             <th className="px-3 py-2 font-medium">{t('platicas.areas')}</th>
             <th className="px-3 py-2 font-medium">{t('fotos.titulo')}</th>
             <th className="px-3 py-2 font-medium">{t('comun.responsable')}</th>
-            <th className="px-3 py-2 font-medium">
-              <span className="sr-only">{t('comun.acciones')}</span>
+            <th className="px-3 py-2 text-right font-medium">
+              {t('comun.acciones')}
             </th>
           </tr>
         </thead>
@@ -86,13 +86,7 @@ export function TablaPlaticas({ platicas, onEliminar }: TablaPlaticasProps) {
               </td>
 
               <td className="px-3 py-2 text-right">
-                <Button
-                  variante="fantasma"
-                  tamano="sm"
-                  onClick={() => onEliminar(platica)}
-                >
-                  {t('comun.eliminar')}
-                </Button>
+                <AccionesRegistro onEliminar={() => onEliminar(platica)} />
               </td>
             </tr>
           ))}

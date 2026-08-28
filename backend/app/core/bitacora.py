@@ -201,6 +201,20 @@ CATALOGO: Final[tuple[EntradaCatalogo, ...]] = (
     ),
     EntradaCatalogo(
         "POST",
+        _ruta("/api/controles/cierres/{}/{}"),
+        "cierre.registrar",
+        "controles",
+        "Registró el cierre de los hallazgos de un control",
+    ),
+    EntradaCatalogo(
+        "PUT",
+        _ruta("/api/controles/cierres/{}/{}"),
+        "cierre.actualizar",
+        "controles",
+        "Actualizó el cierre de los hallazgos de un control",
+    ),
+    EntradaCatalogo(
+        "POST",
         _ruta("/api/controles/platicas"),
         "platica.registrar",
         "controles",

@@ -1,7 +1,7 @@
 'use client';
 
 import { Badge } from '@/components/ui/Badge';
-import { Button } from '@/components/ui/Button';
+import { AccionesRegistro } from '@/components/controles/AccionesRegistro';
 import { useIdioma } from '@/lib/i18n';
 import type { InspeccionSqpResumen } from '@/lib/types';
 import { formatearFechaIso } from '@/lib/utils';
@@ -9,12 +9,19 @@ import { formatearFechaIso } from '@/lib/utils';
 interface TablaInspeccionesSqpProps {
   inspecciones: InspeccionSqpResumen[];
   onDescargar: (inspeccion: InspeccionSqpResumen) => void;
+  onVerDetalle: (inspeccion: InspeccionSqpResumen) => void;
+  onCerrarHallazgo: (inspeccion: InspeccionSqpResumen) => void;
+  /** Ids de las inspecciones que ya tienen cierre. */
+  cerrados: ReadonlySet<string>;
   descargandoId: string | null;
 }
 
 export function TablaInspeccionesSqp({
   inspecciones,
   onDescargar,
+  onVerDetalle,
+  onCerrarHallazgo,
+  cerrados,
   descargandoId,
 }: TablaInspeccionesSqpProps) {
   const { t, locale } = useIdioma();
@@ -37,8 +44,8 @@ export function TablaInspeccionesSqp({
             <th className="px-3 py-2 font-medium">{t('sqp.encargado')}</th>
             <th className="px-3 py-2 font-medium">{t('comun.responsable')}</th>
             <th className="px-3 py-2 font-medium">{t('sqp.hallazgos')}</th>
-            <th className="px-3 py-2 font-medium">
-              <span className="sr-only">{t('comun.acciones')}</span>
+            <th className="px-3 py-2 text-right font-medium">
+              {t('comun.acciones')}
             </th>
           </tr>
         </thead>
@@ -58,14 +65,18 @@ export function TablaInspeccionesSqp({
                 </Badge>
               </td>
               <td className="px-3 py-2 text-right">
-                <Button
-                  variante="secundario"
-                  tamano="sm"
-                  onClick={() => onDescargar(inspeccion)}
-                  cargando={descargandoId === inspeccion.id}
-                >
-                  {t('sqp.descargarExcel')}
-                </Button>
+                <AccionesRegistro
+                  onDescargar={() => onDescargar(inspeccion)}
+                  descargando={descargandoId === inspeccion.id}
+                  onVerDetalle={() => onVerDetalle(inspeccion)}
+                  // El hallazgo de SQP es cada punto contestado con NO.
+                  onCerrarHallazgo={
+                    inspeccion.total_no > 0
+                      ? () => onCerrarHallazgo(inspeccion)
+                      : undefined
+                  }
+                  cerrado={cerrados.has(inspeccion.id)}
+                />
               </td>
             </tr>
           ))}

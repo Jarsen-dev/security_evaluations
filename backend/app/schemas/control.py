@@ -6,7 +6,7 @@ schemas del formulario público siguen viviendo aparte, en
 """
 
 import uuid
-from datetime import date, datetime
+from datetime import date, datetime, time
 from decimal import Decimal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
@@ -157,6 +157,7 @@ class RespuestaSqpOut(BaseModel):
     texto: str
     valor: str
     observaciones: str | None
+    fotos: list[uuid.UUID] = Field(default_factory=list)
 
 
 class InspeccionSqpResumen(BaseModel):
@@ -221,7 +222,6 @@ class SeccionFormatoOut(BaseModel):
     titulo: str
     titulo_ko: str | None
     campos: list[CampoFormatoOut]
-    solo_con_hallazgos: bool
 
 
 class CatalogoChecklist(BaseModel):
@@ -235,8 +235,6 @@ class CatalogoChecklist(BaseModel):
     max_fotos: int = Field(description="Cuántas fotos admite un punto en NO OK.")
     encabezado: list[CampoFormatoOut] = Field(default_factory=list)
     secciones: list[SeccionFormatoOut] = Field(default_factory=list)
-    nota: str | None = None
-    nota_ko: str | None = None
     por_inspeccion: bool = Field(
         description=(
             "True cuando el control es un formato por inspección: lleva "
@@ -353,3 +351,98 @@ class PlaticaOut(BaseModel):
     fotos: list[uuid.UUID]
     responsable: str
     creado_at: datetime
+
+
+# --- Cierre de hallazgos e incidencias -------------------------------------
+
+
+def _hora_valida(valor: str) -> str:
+    """Comprueba el formato ``HH:MM`` que manda el input `type="time"`."""
+    limpio = valor.strip()
+
+    try:
+        time.fromisoformat(limpio)
+    except ValueError as exc:
+        raise ValueError("La hora debe tener el formato HH:MM.") from exc
+
+    return limpio[:5]
+
+
+class CierreCrear(BaseModel):
+    """Parte estructurada de ``POST``/``PUT`` de un cierre de hallazgo.
+
+    Viaja como JSON dentro del multipart, igual que ``puntos`` en el registro
+    de una lista de verificación: el cuerpo trae también las evidencias.
+    """
+
+    hora_hallazgo: str
+    ubicacion: str = Field(min_length=1, max_length=200)
+    accion_inmediata: str = Field(min_length=1, max_length=2000)
+    responsable_accion: str = Field(min_length=1, max_length=150)
+    hora_cierre: str
+    # Lo único opcional: solo se llena si algo quedó sin resolver.
+    accion_pendiente: str | None = Field(default=None, max_length=2000)
+
+    _limpiar_ubicacion = field_validator("ubicacion")(_sin_espacios)
+    _limpiar_accion = field_validator("accion_inmediata")(_sin_espacios)
+    _limpiar_responsable = field_validator("responsable_accion")(_sin_espacios)
+    _limpiar_pendiente = field_validator("accion_pendiente")(_texto_opcional)
+
+    _validar_hallazgo = field_validator("hora_hallazgo")(_hora_valida)
+    _validar_cierre = field_validator("hora_cierre")(_hora_valida)
+
+
+class HallazgoOut(BaseModel):
+    """Un problema de la hoja, ya normalizado entre los tres controles."""
+
+    orden: int | None = Field(
+        description="Punto dentro de la hoja; None en Rayser, que no los tiene."
+    )
+    etiqueta: str
+    observaciones: str | None
+    fotos: list[uuid.UUID]
+
+
+class CierreOut(BaseModel):
+    """Un cierre guardado."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    hora_hallazgo: str
+    ubicacion: str
+    accion_inmediata: str
+    responsable_accion: str
+    hora_cierre: str
+    accion_pendiente: str | None
+    responsable: str
+    creado_at: datetime
+    actualizado_at: datetime | None
+    fotos: list[uuid.UUID] = Field(
+        default_factory=list, description="Evidencias de la verificación."
+    )
+
+
+class DetalleCierre(BaseModel):
+    """Lo que necesita el modal: los problemas y el cierre, si ya lo tiene."""
+
+    control: str
+    registro_id: uuid.UUID
+    fecha: date
+    hallazgos: list[HallazgoOut]
+    cierre: CierreOut | None
+
+
+class IncidenciaOut(BaseModel):
+    """Un renglón de la pestaña de Incidencias."""
+
+    control: str
+    registro_id: uuid.UUID
+    fecha: date
+    identificacion: str = Field(
+        description="Lo que distingue la hoja: el área, el tablero, el turno."
+    )
+    total_hallazgos: int
+    responsable: str
+    estado: str = Field(description="'pendiente' o 'cerrado'.")
+    cierre: CierreOut | None

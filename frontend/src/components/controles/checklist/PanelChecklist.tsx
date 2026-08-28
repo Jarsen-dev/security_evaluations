@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useState } from 'react';
 
+import { ModalCierreHallazgo } from '@/components/controles/ModalCierreHallazgo';
+import { ModalDetalleRegistro } from '@/components/controles/ModalDetalleRegistro';
 import { FormularioChecklist } from '@/components/controles/checklist/FormularioChecklist';
 import { TablaChecklist } from '@/components/controles/checklist/TablaChecklist';
 import { Button } from '@/components/ui/Button';
@@ -13,6 +15,7 @@ import {
   descargarExcelInspeccion,
   eliminarRegistroChecklist,
   listarChecklist,
+  listarIncidencias,
   obtenerCatalogoChecklist,
   registrarChecklist,
 } from '@/lib/api';
@@ -38,6 +41,10 @@ export function PanelChecklist({ control }: { control: string }) {
   const [descargando, setDescargando] = useState(false);
   const [errorCarga, setErrorCarga] = useState('');
   const [porEliminar, setPorEliminar] = useState<RegistroChecklist | null>(null);
+  // Qué hojas ya tienen cierre, para pintar el botón de la columna.
+  const [cerrados, setCerrados] = useState<ReadonlySet<string>>(new Set());
+  const [detalleId, setDetalleId] = useState<string | null>(null);
+  const [cierreId, setCierreId] = useState<string | null>(null);
   const [eliminando, setEliminando] = useState(false);
   const [descargandoId, setDescargandoId] = useState<string | null>(null);
 
@@ -47,7 +54,14 @@ export function PanelChecklist({ control }: { control: string }) {
     const { desde, hasta } = rangoDelMes(`${mes}-01`);
 
     try {
-      setRegistros(await listarChecklist(control, desde, hasta));
+      const [lista, incidencias] = await Promise.all([
+        listarChecklist(control, desde, hasta),
+        // Una sola llamada para todo el mes: preguntar el cierre por renglón
+        // serían 31 peticiones.
+        listarIncidencias({ desde, hasta, control, estado: 'cerrado' }),
+      ]);
+      setRegistros(lista);
+      setCerrados(new Set(incidencias.map((incidencia) => incidencia.registro_id)));
       setErrorCarga('');
     } catch (error) {
       setErrorCarga(
@@ -257,6 +271,9 @@ export function PanelChecklist({ control }: { control: string }) {
             catalogo={catalogo}
             registros={registros}
             onEliminar={setPorEliminar}
+            onVerDetalle={(registro) => setDetalleId(registro.id)}
+            onCerrarHallazgo={(registro) => setCierreId(registro.id)}
+            cerrados={cerrados}
             onDescargar={
               catalogo.por_inspeccion
                 ? (registro) => void descargarInspeccion(registro)
@@ -266,6 +283,26 @@ export function PanelChecklist({ control }: { control: string }) {
           />
         )}
       </div>
+
+      <ModalDetalleRegistro
+        abierto={detalleId !== null}
+        control={control}
+        registroId={detalleId}
+        onCerrar={() => setDetalleId(null)}
+        onError={(mensaje) => mostrarToast(mensaje, 'error')}
+      />
+
+      <ModalCierreHallazgo
+        abierto={cierreId !== null}
+        control={control}
+        registroId={cierreId}
+        onCerrar={() => setCierreId(null)}
+        onGuardado={(mensaje) => {
+          mostrarToast(mensaje, 'exito');
+          void cargar();
+        }}
+        onError={(mensaje) => mostrarToast(mensaje, 'error')}
+      />
 
       <DialogoConfirmacion
         abierto={porEliminar !== null}

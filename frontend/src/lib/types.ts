@@ -519,6 +519,15 @@ export interface RespuestaSqpPayload {
   observaciones?: string | null;
 }
 
+/** Respuesta ya guardada, con los ids de su evidencia. */
+export interface RespuestaSqp extends RespuestaSqpPayload {
+  codigo: string;
+  seccion: string;
+  texto: string;
+  observaciones: string | null;
+  fotos: string[];
+}
+
 export interface InspeccionSqpPayload {
   fecha: string;
   area: string;
@@ -578,8 +587,6 @@ export interface SeccionFormato {
   titulo: string;
   titulo_ko: string | null;
   campos: CampoFormato[];
-  /** El bloque de anomalía solo aplica cuando hay algún punto en NO. */
-  solo_con_hallazgos: boolean;
 }
 
 /** Definición de un control: sus puntos y sus límites, servida por la API. */
@@ -593,8 +600,6 @@ export interface CatalogoChecklist {
   /** Cómo se rotulan las dos respuestas: OK/NO OK o SÍ/NO. */
   encabezado: CampoFormato[];
   secciones: SeccionFormato[];
-  nota: string | null;
-  nota_ko: string | null;
   /**
    * Formato por inspección: lleva encabezado, admite varios registros el mismo
    * día y su Excel se descarga por registro, no por mes.
@@ -940,3 +945,72 @@ export interface SesionQr {
 
 /** Estados por los que pasa una sesión de captura. */
 export type EstadoSesionQr = 'pendiente' | 'subida' | 'usada';
+
+// --- Cierre de hallazgos e incidencias -------------------------------------
+
+/** Un problema detectado, ya normalizado entre los tres controles. */
+export interface Hallazgo {
+  /** Punto dentro de la hoja; `null` en Rayser, que no los tiene. */
+  orden: number | null;
+  etiqueta: string;
+  observaciones: string | null;
+  fotos: string[];
+}
+
+/** El cierre guardado de una hoja. */
+export interface CierreHallazgo {
+  id: string;
+  hora_hallazgo: string;
+  ubicacion: string;
+  accion_inmediata: string;
+  responsable_accion: string;
+  hora_cierre: string;
+  accion_pendiente: string | null;
+  responsable: string;
+  creado_at: string;
+  actualizado_at: string | null;
+  /** Evidencias de la verificación. */
+  fotos: string[];
+}
+
+/** Lo que el modal necesita para abrirse. */
+export interface DetalleCierre {
+  control: string;
+  registro_id: string;
+  fecha: string;
+  hallazgos: Hallazgo[];
+  cierre: CierreHallazgo | null;
+}
+
+/** Lo que se manda al crear o actualizar un cierre. */
+export interface CierrePayload {
+  hora_hallazgo: string;
+  ubicacion: string;
+  accion_inmediata: string;
+  responsable_accion: string;
+  hora_cierre: string;
+  accion_pendiente: string | null;
+}
+
+export type EstadoIncidencia = 'pendiente' | 'cerrado';
+
+/** Un renglón de la pestaña de Incidencias. */
+export interface Incidencia {
+  control: string;
+  registro_id: string;
+  fecha: string;
+  /** Lo que distingue la hoja: el área, el tablero, el turno. */
+  identificacion: string;
+  total_hallazgos: number;
+  responsable: string;
+  estado: EstadoIncidencia;
+  cierre: CierreHallazgo | null;
+}
+
+/** Filtros de la pestaña de Incidencias. */
+export interface FiltrosIncidencias {
+  desde: string;
+  hasta: string;
+  control?: string;
+  estado?: EstadoIncidencia;
+}

@@ -2,12 +2,15 @@
 
 import { useCallback, useEffect, useState } from 'react';
 
+import { ModalCierreHallazgo } from '@/components/controles/ModalCierreHallazgo';
+import { ModalDetalleRegistro } from '@/components/controles/ModalDetalleRegistro';
 import { FormularioSqp } from '@/components/controles/sqp/FormularioSqp';
 import { TablaInspeccionesSqp } from '@/components/controles/sqp/TablaInspeccionesSqp';
 import { useToast } from '@/components/ui/Toast';
 import {
   ErrorDeApi,
   descargarExcelSqp,
+  listarIncidencias,
   listarInspeccionesSqp,
   obtenerAreas,
   obtenerCatalogoSqp,
@@ -26,6 +29,11 @@ export function PanelSqp() {
   const t = useTraduccion();
   const { mostrarToast } = useToast();
 
+  // Qué hojas ya tienen cierre, para pintar el botón de la columna.
+  const [cerrados, setCerrados] = useState<ReadonlySet<string>>(new Set());
+  const [detalleId, setDetalleId] = useState<string | null>(null);
+  const [cierreId, setCierreId] = useState<string | null>(null);
+
   const [catalogo, setCatalogo] = useState<CatalogoSqp | null>(null);
   const [areas, setAreas] = useState<Area[]>([]);
   const [inspecciones, setInspecciones] = useState<InspeccionSqpResumen[]>([]);
@@ -35,8 +43,43 @@ export function PanelSqp() {
   const [errorCarga, setErrorCarga] = useState('');
 
   const cargarInspecciones = useCallback(async () => {
-    setInspecciones(await listarInspeccionesSqp());
+    const lista = await listarInspeccionesSqp();
+    setInspecciones(lista);
+    await cargarCierres(lista);
   }, []);
+
+  /**
+   * Qué inspecciones ya tienen cierre.
+   *
+   * El historial de SQP no se filtra por fechas, así que el rango se deduce de
+   * lo que se está mostrando: preguntar por un periodo fijo dejaría fuera las
+   * inspecciones viejas que siguen en la tabla.
+   */
+  const cargarCierres = useCallback(
+    async (lista: InspeccionSqpResumen[]) => {
+      if (lista.length === 0) {
+        setCerrados(new Set());
+        return;
+      }
+
+      const fechas = lista.map((inspeccion) => inspeccion.fecha).sort();
+
+      try {
+        const incidencias = await listarIncidencias({
+          desde: fechas[0] as string,
+          hasta: fechas[fechas.length - 1] as string,
+          control: 'sqp',
+          estado: 'cerrado',
+        });
+        setCerrados(new Set(incidencias.map((i) => i.registro_id)));
+      } catch {
+        // Sin esto la tabla solo pierde la marca de "cerrado"; no vale la
+        // pena romper el historial completo por ello.
+        setCerrados(new Set());
+      }
+    },
+    [],
+  );
 
   useEffect(() => {
     let cancelado = false;
@@ -51,6 +94,7 @@ export function PanelSqp() {
         setCatalogo(puntos);
         setAreas(listaAreas);
         setInspecciones(historial);
+        void cargarCierres(historial);
       })
       .catch((error: unknown) => {
         if (!cancelado) {
@@ -70,11 +114,14 @@ export function PanelSqp() {
     };
   }, [t]);
 
-  async function guardar(datos: InspeccionSqpPayload) {
+  async function guardar(
+    datos: InspeccionSqpPayload,
+    fotos: Record<number, File[]>,
+  ) {
     setGuardando(true);
 
     try {
-      await registrarInspeccionSqp(datos);
+      await registrarInspeccionSqp(datos, fotos);
       await cargarInspecciones();
       mostrarToast(t('sqp.guardada'), 'exito');
     } catch (error) {
@@ -132,6 +179,7 @@ export function PanelSqp() {
             catalogo={catalogo}
             areas={areas}
             onGuardar={guardar}
+            onError={(mensaje) => mostrarToast(mensaje, 'error')}
             guardando={guardando}
           />
         )
@@ -140,11 +188,34 @@ export function PanelSqp() {
       <div className="flex flex-col gap-3">
         <h3 className="text-base font-semibold text-texto">{t('sqp.historial')}</h3>
         <TablaInspeccionesSqp
+            onVerDetalle={(registro) => setDetalleId(registro.id)}
+            onCerrarHallazgo={(registro) => setCierreId(registro.id)}
+            cerrados={cerrados}
           inspecciones={inspecciones}
           onDescargar={(inspeccion) => void descargar(inspeccion)}
           descargandoId={descargandoId}
         />
       </div>
+
+      <ModalDetalleRegistro
+        abierto={detalleId !== null}
+        control="sqp"
+        registroId={detalleId}
+        onCerrar={() => setDetalleId(null)}
+        onError={(mensaje) => mostrarToast(mensaje, 'error')}
+      />
+
+      <ModalCierreHallazgo
+        abierto={cierreId !== null}
+        control="sqp"
+        registroId={cierreId}
+        onCerrar={() => setCierreId(null)}
+        onGuardado={(mensaje) => {
+          mostrarToast(mensaje, 'exito');
+          void cargarInspecciones();
+        }}
+        onError={(mensaje) => mostrarToast(mensaje, 'error')}
+      />
     </div>
   );
 }

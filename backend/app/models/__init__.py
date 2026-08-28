@@ -9,6 +9,7 @@ from app.models.admin_user import AdminUser
 from app.models.bitacora import Bitacora
 from app.models.control import (
     AreaPlatica,
+    CierreHallazgo,
     FotoControl,
     InspeccionSqp,
     PlaticaEsh,
@@ -37,6 +38,7 @@ __all__ = [
     "AreaPlatica",
     "Base",
     "Bitacora",
+    "CierreHallazgo",
     "Cuestionario",
     "EjemploPlantillaRecepcion",
     "Estudio",

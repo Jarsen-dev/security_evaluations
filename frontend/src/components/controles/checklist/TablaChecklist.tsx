@@ -1,7 +1,7 @@
 'use client';
 
+import { AccionesRegistro } from '@/components/controles/AccionesRegistro';
 import { Badge } from '@/components/ui/Badge';
-import { Button } from '@/components/ui/Button';
 import { urlFotoControl } from '@/lib/api';
 import { useIdioma } from '@/lib/i18n';
 import type { CatalogoChecklist, PuntoChecklist, RegistroChecklist } from '@/lib/types';
@@ -11,6 +11,10 @@ interface TablaChecklistProps {
   catalogo: CatalogoChecklist;
   registros: RegistroChecklist[];
   onEliminar: (registro: RegistroChecklist) => void;
+  onVerDetalle: (registro: RegistroChecklist) => void;
+  onCerrarHallazgo: (registro: RegistroChecklist) => void;
+  /** Ids de los registros que ya tienen cierre, para pintar el botón. */
+  cerrados: ReadonlySet<string>;
   /** Solo en los formatos por inspección: descarga esa hoja en Excel. */
   onDescargar?: (registro: RegistroChecklist) => void;
   descargandoId?: string | null;
@@ -26,6 +30,9 @@ export function TablaChecklist({
   catalogo,
   registros,
   onEliminar,
+  onVerDetalle,
+  onCerrarHallazgo,
+  cerrados,
   onDescargar,
   descargandoId,
 }: TablaChecklistProps) {
@@ -121,8 +128,8 @@ export function TablaChecklist({
 
             <th className="px-3 py-2 font-medium">{t('comun.observaciones')}</th>
             <th className="px-3 py-2 font-medium">{t('comun.responsable')}</th>
-            <th className="px-3 py-2 font-medium">
-              <span className="sr-only">{t('comun.acciones')}</span>
+            <th className="px-3 py-2 text-right font-medium">
+              {t('comun.acciones')}
             </th>
           </tr>
         </thead>
@@ -175,25 +182,19 @@ export function TablaChecklist({
               </td>
 
               <td className="px-3 py-2 text-right">
-                <span className="flex justify-end gap-2">
-                  {onDescargar && (
-                    <Button
-                      variante="secundario"
-                      tamano="sm"
-                      onClick={() => onDescargar(registro)}
-                      cargando={descargandoId === registro.id}
-                    >
-                      {t('comun.descargarExcel')}
-                    </Button>
-                  )}
-                  <Button
-                    variante="fantasma"
-                    tamano="sm"
-                    onClick={() => onEliminar(registro)}
-                  >
-                    {t('comun.eliminar')}
-                  </Button>
-                </span>
+                <AccionesRegistro
+                  onDescargar={onDescargar ? () => onDescargar(registro) : undefined}
+                  descargando={descargandoId === registro.id}
+                  onVerDetalle={() => onVerDetalle(registro)}
+                  // El cierre solo aplica si la hoja tiene algo que cerrar.
+                  onCerrarHallazgo={
+                    registro.hay_hallazgos
+                      ? () => onCerrarHallazgo(registro)
+                      : undefined
+                  }
+                  cerrado={cerrados.has(registro.id)}
+                  onEliminar={() => onEliminar(registro)}
+                />
               </td>
             </tr>
           ))}

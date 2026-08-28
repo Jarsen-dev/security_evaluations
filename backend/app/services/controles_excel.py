@@ -87,7 +87,12 @@ def _mismo_mes(desde: date, hasta: date) -> bool:
 
 
 def _hoja_rayser(
-    hoja: Worksheet, registros: list[dict[str, Any]], desde: date, hasta: date, periodo: str
+    hoja: Worksheet,
+    registros: list[dict[str, Any]],
+    desde: date,
+    hasta: date,
+    periodo: str,
+    cierres: dict[Any, Any],
 ) -> None:
     """Reproduce la hoja mensual de presiones."""
     hoja.title = "Rayser"
@@ -95,7 +100,7 @@ def _hoja_rayser(
     hoja["A1"] = "CONTROL DE PRESIONES DE RAYSER"
     hoja["A1"].font = FUENTE_TITULO
     hoja.merge_cells("A1:E1")
-    hoja["F1"] = f"Mes: {periodo}"
+    hoja["N1"] = f"Mes: {periodo}"
     hoja["F1"].font = Font(bold=True)
 
     # Con un rango dentro de un mismo mes basta el número de día, como en la
@@ -110,7 +115,7 @@ def _hoja_rayser(
         "Observaciones",
         "Responsable",
         "Evidencia",
-    ]
+    ] + list(COLUMNAS_CIERRE)
     escribir_encabezados(hoja, encabezados, fila=2)
 
     registros_por_fecha = {registro["fecha"]: registro for registro in registros}
@@ -154,6 +159,14 @@ def _hoja_rayser(
         celda_evidencia.alignment = Alignment(horizontal="center")
         celda_evidencia.border = BORDE_FINO
 
+        _celdas_cierre(
+            hoja,
+            fila,
+            9,
+            cierres.get(registro["id"]) if registro else None,
+            bool(registro) and registro["fuera_de_rango"],
+        )
+
         fila += 1
 
     fila += 1
@@ -168,7 +181,7 @@ def _hoja_rayser(
         row=fila, column=1, value="Nombre y firma de quien realiza la inspección:"
     ).font = Font(bold=True)
 
-    ajustar_anchos(hoja, [12, 14, 14, 14, 14, 45, 20, 12])
+    ajustar_anchos(hoja, [12, 14, 14, 14, 14, 45, 20, 12] + ANCHOS_CIERRE)
     hoja.freeze_panes = "A3"
 
 
@@ -232,6 +245,7 @@ def generar_excel_rayser(
     desde: date,
     hasta: date,
     periodo: str,
+    cierres: dict[Any, Any] | None = None,
 ) -> BytesIO:
     """Arma el libro del control de presiones y lo devuelve en memoria."""
     libro = Workbook()
@@ -239,7 +253,7 @@ def generar_excel_rayser(
     if hoja is None:  # pragma: no cover
         hoja = libro.create_sheet()
 
-    _hoja_rayser(hoja, registros, desde, hasta, periodo)
+    _hoja_rayser(hoja, registros, desde, hasta, periodo, cierres or {})
 
     if evidencias:
         _hoja_evidencias(libro, evidencias)
@@ -397,7 +411,12 @@ def _tabla_sustancias(hoja: Worksheet, sustancias: list[str], fila: int) -> int:
     return fila
 
 
-def generar_excel_sqp(inspeccion: InspeccionSqp, sustancias: list[str]) -> BytesIO:
+def generar_excel_sqp(
+    inspeccion: InspeccionSqp,
+    sustancias: list[str],
+    cierre: Any | None = None,
+    evidencias: list[Evidencia] | None = None,
+) -> BytesIO:
     """Arma la hoja de una inspección de SQP."""
     libro = Workbook()
     hoja = libro.active
@@ -409,6 +428,10 @@ def generar_excel_sqp(inspeccion: InspeccionSqp, sustancias: list[str]) -> Bytes
     fila = _tabla_puntos(hoja, inspeccion, fila)
     fila = _tabla_sustancias(hoja, sustancias, fila)
 
+    # El cierre solo se imprime si algún punto salió inconforme.
+    if any(respuesta.valor == "no" for respuesta in inspeccion.respuestas):
+        fila = _bloque_cierre(hoja, fila + 1, cierre, 7)
+
     fila += 1
     hoja.cell(
         row=fila,
@@ -418,6 +441,11 @@ def generar_excel_sqp(inspeccion: InspeccionSqp, sustancias: list[str]) -> Bytes
     hoja.merge_cells(start_row=fila, start_column=1, end_row=fila, end_column=5)
 
     ajustar_anchos(hoja, [8, 60, 12, 13, 7, 35, 12])
+
+    # Las fotos de los puntos inconformes, en su propia hoja: el Excel se
+    # comparte y tiene que viajar completo, sin depender de ninguna liga.
+    if evidencias:
+        _hoja_evidencias(libro, evidencias)
 
     flujo = BytesIO()
     libro.save(flujo)
@@ -442,6 +470,61 @@ def _observaciones_del_dia(registro: dict[str, Any]) -> str | None:
     return " · ".join(partes) or None
 
 
+#: Columnas del cierre que se añaden a las hojas mensuales.
+#:
+#: El Excel se comparte, no se imprime, así que ensanchar la hoja no cuesta
+#: nada y a cambio el archivo cuenta la historia completa: qué salió mal y qué
+#: se hizo. Las hojas por inspección usan el bloque `_bloque_cierre`, que sí
+#: respeta la maqueta del formato.
+COLUMNAS_CIERRE = (
+    "Estado del hallazgo",
+    "Hora de hallazgo",
+    "Ubicación",
+    "Acción inmediata realizada",
+    "Departamento o responsable",
+    "Hora de cierre",
+    "Acción pendiente",
+)
+
+ANCHOS_CIERRE = [20, 14, 26, 45, 26, 12, 35]
+
+
+def _celdas_cierre(hoja: Worksheet, fila: int, columna: int, cierre: Any | None,
+                   con_hallazgos: bool) -> None:
+    """Escribe las columnas del cierre de un renglón mensual.
+
+    Un día sin hallazgos las deja vacías: no hay nada que cerrar y marcarlo
+    como "pendiente" sería una falsa alarma en el reporte.
+    """
+    if cierre is None:
+        estado, color = ("Pendiente", "rojo") if con_hallazgos else ("", None)
+        valores = (estado, "", "", "", "", "", "")
+    else:
+        if cierre.accion_pendiente:
+            estado, color = "Cerrado con pendiente", "naranja"
+        else:
+            estado, color = "Cerrado", "verde"
+        valores = (
+            estado,
+            cierre.hora_hallazgo,
+            cierre.ubicacion,
+            cierre.accion_inmediata,
+            cierre.responsable_accion,
+            cierre.hora_cierre,
+            cierre.accion_pendiente or "",
+        )
+
+    for desplazamiento, valor in enumerate(valores):
+        celda = hoja.cell(row=fila, column=columna + desplazamiento, value=valor or None)
+        celda.border = BORDE_FINO
+        celda.alignment = Alignment(wrap_text=True, vertical="top")
+
+    if color is not None:
+        celda_estado = hoja.cell(row=fila, column=columna)
+        celda_estado.fill = RELLENOS_SEMAFORO[color]
+        celda_estado.font = FUENTES_SEMAFORO[color]
+
+
 def generar_excel_checklist(
     definicion: DefinicionChecklist,
     registros: list[dict[str, Any]],
@@ -449,6 +532,7 @@ def generar_excel_checklist(
     desde: date,
     hasta: date,
     periodo: str,
+    cierres: dict[Any, Any] | None = None,
 ) -> BytesIO:
     """Arma la hoja mensual de un control de OK / NO OK.
 
@@ -461,7 +545,9 @@ def generar_excel_checklist(
         hoja = libro.create_sheet()
     hoja.title = definicion.hoja
 
-    total_columnas = len(definicion.puntos) + 3  # día, observaciones, responsable
+    cierres = cierres or {}
+    # día + puntos + observaciones + responsable + las columnas del cierre
+    total_columnas = len(definicion.puntos) + 3 + len(COLUMNAS_CIERRE)
 
     hoja["A1"] = definicion.titulo
     hoja["A1"].font = FUENTE_TITULO
@@ -482,6 +568,7 @@ def generar_excel_checklist(
         ["Día" if por_dia else "Fecha"]
         + [punto.etiqueta for punto in definicion.puntos]
         + ["Observaciones", "Responsable"]
+        + list(COLUMNAS_CIERRE)
     )
     escribir_encabezados(hoja, encabezados, fila=fila_encabezados)
 
@@ -516,9 +603,17 @@ def generar_excel_checklist(
         celda_obs.alignment = Alignment(wrap_text=True, vertical="top")
         celda_obs.border = BORDE_FINO
 
-        celda_resp = hoja.cell(row=fila, column=total_columnas)
+        celda_resp = hoja.cell(row=fila, column=len(definicion.puntos) + 3)
         celda_resp.value = registro["responsable"] if registro else None
         celda_resp.border = BORDE_FINO
+
+        _celdas_cierre(
+            hoja,
+            fila,
+            len(definicion.puntos) + 4,
+            cierres.get(registro["id"]) if registro else None,
+            bool(registro) and any(p["valor"] == "no_ok" for p in registro["puntos"]),
+        )
 
         fila += 1
 
@@ -529,7 +624,7 @@ def generar_excel_checklist(
 
     ajustar_anchos(
         hoja,
-        [12] + [18] * len(definicion.puntos) + [50, 20],
+        [12] + [18] * len(definicion.puntos) + [50, 20] + ANCHOS_CIERRE,
     )
     hoja.freeze_panes = hoja.cell(row=fila_encabezados + 1, column=1).coordinate
 
@@ -603,10 +698,81 @@ def _bloque_campos(
     return fila + 1 if columna != 1 else fila
 
 
+def resultado_diario(con_hallazgos: bool, cierre: Any | None) -> str:
+    """La "Confirmación diaria" del formato, deducida en vez de preguntada.
+
+    Antes era un campo que el inspector contestaba a mano al pie de la hoja,
+    y podía contradecir lo que la propia hoja decía: marcar "Sin anomalías"
+    con tres puntos inconformes. Ahora se deduce de los hechos, y por eso el
+    campo desapareció del formulario.
+    """
+    if not con_hallazgos:
+        return "Sin anomalías"
+    if cierre is None or cierre.accion_pendiente:
+        return "Acción pendiente"
+    return "Anomalía detectada y corregida"
+
+
+def _bloque_cierre(hoja: Worksheet, fila: int, cierre: Any | None, ancho: int) -> int:
+    """El cierre del hallazgo, al pie de la hoja impresa.
+
+    Sustituye al bloque "Acción en caso de anomalía" que antes se llenaba
+    dentro del formulario: la solución rara vez ocurre durante la inspección,
+    así que ahora se captura después y aquí solo se imprime lo que quedó.
+
+    Con ``None`` se anota que sigue pendiente: una hoja con hallazgos y sin
+    cierre es justo lo que un auditor querría ver señalado.
+    """
+    fila += 1
+    fila = _fila_titulo(hoja, fila, "Cierre de hallazgo", ancho)
+
+    if cierre is None:
+        celda = hoja.cell(
+            row=fila, column=1, value="Pendiente: este hallazgo todavía no se cierra."
+        )
+        celda.font = Font(italic=True, color="9C0006")
+        hoja.merge_cells(start_row=fila, start_column=1, end_row=fila, end_column=ancho)
+        return fila + 1
+
+    campos = [
+        ("Hora de hallazgo", cierre.hora_hallazgo),
+        ("Ubicación", cierre.ubicacion),
+        ("Acción inmediata realizada", cierre.accion_inmediata),
+        ("Departamento o persona responsable", cierre.responsable_accion),
+        ("Hora de cierre", cierre.hora_cierre),
+    ]
+    if cierre.accion_pendiente:
+        campos.append(("Acción pendiente", cierre.accion_pendiente))
+
+    for etiqueta, valor in campos:
+        celda_etiqueta = hoja.cell(row=fila, column=1, value=etiqueta)
+        celda_etiqueta.font = Font(bold=True)
+        celda_etiqueta.alignment = Alignment(vertical="top", wrap_text=True)
+        celda_etiqueta.border = BORDE_FINO
+
+        celda_valor = hoja.cell(row=fila, column=2, value=valor)
+        celda_valor.alignment = Alignment(vertical="top", wrap_text=True)
+        celda_valor.border = BORDE_FINO
+        if ancho > 2:
+            hoja.merge_cells(
+                start_row=fila, start_column=2, end_row=fila, end_column=ancho
+            )
+
+        fila += 1
+
+    celda_quien = hoja.cell(
+        row=fila, column=1, value=f"Cerró en el sistema: {cierre.responsable}"
+    )
+    celda_quien.font = Font(italic=True)
+
+    return fila + 1
+
+
 def generar_excel_formato(
     definicion: DefinicionChecklist,
     registro: dict[str, Any],
     evidencias: list[Evidencia],
+    cierre: Any | None = None,
 ) -> BytesIO:
     """Reproduce la hoja de una inspección: encabezado, puntos y bloques.
 
@@ -713,7 +879,6 @@ def generar_excel_formato(
     for indice, seccion in enumerate(definicion.secciones, start=2):
         valores = registro["secciones"].get(seccion.clave)
         if valores is None:
-            # El bloque de anomalía no se llenó porque no hubo hallazgos.
             continue
 
         fila += 1
@@ -724,6 +889,27 @@ def generar_excel_formato(
             ancho,
         )
         fila = _bloque_campos(hoja, fila, seccion.campos, valores, ancho)
+
+    con_hallazgos = any(punto["valor"] == "no_ok" for punto in registro["puntos"])
+
+    # El cierre solo se imprime si la hoja tuvo algo que cerrar.
+    if con_hallazgos:
+        fila = _bloque_cierre(hoja, fila, cierre, ancho)
+
+    # La confirmación diaria ya no se captura: se deduce de la hoja y de su
+    # cierre, así que aquí solo se imprime el resultado.
+    fila += 1
+    fila = _fila_titulo(hoja, fila, "Confirmación diaria", ancho)
+    celda_resultado = hoja.cell(row=fila, column=1, value="Resultado final")
+    celda_resultado.font = Font(bold=True)
+    celda_resultado.border = BORDE_FINO
+    celda_valor = hoja.cell(
+        row=fila, column=2, value=resultado_diario(con_hallazgos, cierre)
+    )
+    celda_valor.border = BORDE_FINO
+    if ancho > 2:
+        hoja.merge_cells(start_row=fila, start_column=2, end_row=fila, end_column=ancho)
+    fila += 1
 
     fila += 1
     hoja.cell(
@@ -740,15 +926,6 @@ def generar_excel_formato(
         value=f"Capturó en el sistema: {registro['responsable']}",
     ).font = Font(italic=True)
 
-    if definicion.nota:
-        fila += 2
-        celda_nota = hoja.cell(
-            row=fila, column=1, value=_texto_bilingue(definicion.nota, definicion.nota_ko)
-        )
-        celda_nota.font = Font(bold=True, color="9C0006")
-        celda_nota.alignment = Alignment(vertical="top", wrap_text=True)
-        hoja.merge_cells(start_row=fila, start_column=1, end_row=fila, end_column=ancho)
-        hoja.row_dimensions[fila].height = 46
 
     anchos = [6]
     if con_categoria:

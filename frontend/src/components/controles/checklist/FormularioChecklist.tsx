@@ -105,14 +105,10 @@ export function FormularioChecklist({
     }));
   }
 
-  const hayHallazgos = catalogo.puntos.some(
-    (punto) => estado[punto.orden]?.valor === 'no_ok',
-  );
-
-  // El bloque de acción ante anomalía solo aparece cuando algo salió mal.
-  const seccionesVisibles = catalogo.secciones.filter(
-    (seccion) => !seccion.solo_con_hallazgos || hayHallazgos,
-  );
+  // Todas las secciones del catálogo se muestran siempre. El bloque de
+  // anomalía dejó de vivir aquí: ahora es el modal de cierre de hallazgo,
+  // que se abre desde la tabla de registros cuando la solución ocurre.
+  const seccionesVisibles = catalogo.secciones;
 
   const contestados = catalogo.puntos.filter(
     (punto) => estado[punto.orden]?.valor != null,
@@ -208,8 +204,6 @@ export function FormularioChecklist({
       }
     }
 
-    // Solo viajan las secciones que estaban a la vista: mandar el bloque de
-    // anomalía en un recorrido limpio guardaría campos que nadie llenó.
     const aEnviar = Object.fromEntries(
       seccionesVisibles.map((seccion) => [seccion.clave, secciones[seccion.clave] ?? {}]),
     );
@@ -426,12 +420,6 @@ export function FormularioChecklist({
           />
         </Card>
       ))}
-
-      {catalogo.nota && (
-        <p className="rounded-md border border-alerta bg-alerta-suave px-4 py-3 text-sm text-texto-suave">
-          {idioma === 'ko' && catalogo.nota_ko ? catalogo.nota_ko : catalogo.nota}
-        </p>
-      )}
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-sm text-texto-tenue">

@@ -61,6 +61,11 @@ from app.schemas.control import (
     CatalogoChecklist,
     CatalogoSqp,
     ChecklistCrear,
+    CierreCrear,
+    CierreOut,
+    DetalleCierre,
+    HallazgoOut,
+    IncidenciaOut,
     InspeccionSqpCrear,
     InspeccionSqpDetalle,
     InspeccionSqpResumen,
@@ -74,7 +79,12 @@ from app.schemas.control import (
     RegistroChecklistOut,
     RegistroRayserOut,
 )
-from app.services import control_service, controles_excel
+from app.services import (
+    cierre_service,
+    control_service,
+    controles_excel,
+    incidencias_excel,
+)
 from app.services.exportacion_comun import cabecera_descarga
 
 router = APIRouter(
@@ -176,12 +186,22 @@ async def exportar_rayser(
     registros = await control_service.listar_rayser(db, desde, hasta)
     evidencias = await control_service.evidencias_rayser(db, desde, hasta)
 
+    # Los cierres del periodo, en una consulta, más sus fotos de verificación:
+    # el Excel se comparte, así que debe contar el problema y su solución.
+    cierres = await cierre_service.cierres_por_registro(
+        db, "rayser", [registro["id"] for registro in registros]
+    )
+    evidencias += await cierre_service.evidencias_de_cierres(
+        db, cierres, {registro["id"]: registro["fecha"] for registro in registros}
+    )
+
     flujo = controles_excel.generar_excel_rayser(
         registros,
         evidencias,
         desde,
         hasta,
         controles_excel.titulo_periodo(desde, hasta),
+        cierres,
     )
 
     nombre = f"rayser_{desde:%Y%m%d}_{hasta:%Y%m%d}.xlsx"
@@ -279,7 +299,10 @@ async def eliminar_rayser(
 # --- Inspección de SQP -----------------------------------------------------
 
 
-def _detalle(inspeccion: InspeccionSqp) -> InspeccionSqpDetalle:
+def _detalle(
+    inspeccion: InspeccionSqp,
+    fotos: dict[int, list[uuid.UUID]] | None = None,
+) -> InspeccionSqpDetalle:
     """Arma la respuesta de una inspección resolviendo el texto de cada punto.
 
     El texto no se guarda con la respuesta: vive en el catálogo y se resuelve
@@ -305,6 +328,7 @@ def _detalle(inspeccion: InspeccionSqp) -> InspeccionSqpDetalle:
                 texto=PUNTOS_SQP[respuesta.orden].texto,
                 valor=respuesta.valor,
                 observaciones=respuesta.observaciones,
+                fotos=(fotos or {}).get(respuesta.orden, []),
             )
             for respuesta in inspeccion.respuestas
         ],
@@ -359,18 +383,44 @@ async def listar_sqp(
     summary="Guarda una inspección de SQP completa",
 )
 async def registrar_sqp(
-    datos: InspeccionSqpCrear,
     request: Request,
+    datos: str = Form(description="JSON con la inspección completa."),
     db: AsyncSession = Depends(get_db),
     admin: AdminUser = Depends(obtener_admin_actual),
 ) -> InspeccionSqpDetalle:
-    """Exige el formato entero: los 23 puntos y observaciones en cada NO."""
-    inspeccion = await control_service.registrar_sqp(db, datos, admin)
+    """Exige el formato entero: los 23 puntos, observaciones y foto en cada NO.
+
+    Llega como ``multipart`` porque cada punto inconforme trae su evidencia,
+    igual que las listas de verificación: la parte estructurada viaja como
+    JSON en ``datos`` y las imágenes en campos ``fotos_{orden}``.
+    """
+    try:
+        limpio = InspeccionSqpCrear.model_validate(json.loads(datos))
+    except (ValidationError, json.JSONDecodeError) as exc:
+        raise ErrorDeNegocio(_primer_error(exc)) from exc
+
+    formulario = await request.form()
+    fotos_por_punto: dict[int, list[tuple[bytes, str]]] = {}
+
+    for respuesta in limpio.respuestas:
+        archivos = [
+            archivo
+            for archivo in formulario.getlist(f"fotos_{respuesta.orden}")
+            if isinstance(archivo, ArchivoSubido)
+        ]
+        if archivos:
+            fotos_por_punto[respuesta.orden] = await _leer_fotos(
+                archivos, PUNTOS_SQP[respuesta.orden].codigo
+            )
+
+    inspeccion = await control_service.registrar_sqp(
+        db, limpio, admin, fotos_por_punto
+    )
     anotar(
         request,
         detalle=f"{etiqueta_area(inspeccion.area)}, {inspeccion.fecha:%Y-%m-%d}",
     )
-    return _detalle(inspeccion)
+    return _detalle(inspeccion, await control_service.ids_fotos_sqp(db, inspeccion))
 
 
 @router.get(
@@ -384,7 +434,7 @@ async def obtener_sqp(
 ) -> InspeccionSqpDetalle:
     """Detalle de una inspección guardada."""
     inspeccion = await control_service.obtener_sqp(db, inspeccion_id)
-    return _detalle(inspeccion)
+    return _detalle(inspeccion, await control_service.ids_fotos_sqp(db, inspeccion))
 
 
 @router.get(
@@ -399,7 +449,17 @@ async def exportar_sqp(
     inspeccion = await control_service.obtener_sqp(db, inspeccion_id)
     sustancias = control_service.separar_sustancias(inspeccion.sustancias)
 
-    flujo = controles_excel.generar_excel_sqp(inspeccion, sustancias)
+    cierre = await cierre_service.obtener_cierre(db, "sqp", inspeccion.id)
+    evidencias = await control_service.evidencias_sqp(db, inspeccion.id)
+
+    if cierre is not None:
+        evidencias += await cierre_service.evidencias_de_cierres(
+            db, {inspeccion.id: cierre}, {inspeccion.id: inspeccion.fecha}
+        )
+
+    flujo = controles_excel.generar_excel_sqp(
+        inspeccion, sustancias, cierre, evidencias
+    )
     nombre = f"inspeccion_sqp_{inspeccion.area.lower()}_{inspeccion.fecha:%Y%m%d}.xlsx"
 
     return StreamingResponse(
@@ -470,12 +530,9 @@ async def catalogo_checklist(control: str) -> CatalogoChecklist:
                 titulo=seccion.titulo,
                 titulo_ko=seccion.titulo_ko,
                 campos=[_campo(campo) for campo in seccion.campos],
-                solo_con_hallazgos=seccion.solo_con_hallazgos,
             )
             for seccion in definicion.secciones
         ],
-        nota=definicion.nota,
-        nota_ko=definicion.nota_ko,
         # Lo que decide la forma del control: con encabezado es un formato por
         # inspección y admite varios registros el mismo día.
         por_inspeccion=bool(definicion.encabezado),
@@ -498,6 +555,13 @@ async def exportar_checklist(
     registros = await control_service.listar_checklist(db, definicion, desde, hasta)
     evidencias = await control_service.evidencias_checklist(db, definicion, desde, hasta)
 
+    cierres = await cierre_service.cierres_por_registro(
+        db, control, [registro["id"] for registro in registros]
+    )
+    evidencias += await cierre_service.evidencias_de_cierres(
+        db, cierres, {registro["id"]: registro["fecha"] for registro in registros}
+    )
+
     flujo = controles_excel.generar_excel_checklist(
         definicion,
         registros,
@@ -505,6 +569,7 @@ async def exportar_checklist(
         desde,
         hasta,
         controles_excel.titulo_periodo(desde, hasta),
+        cierres,
     )
 
     nombre = f"{definicion.clave}_{desde:%Y%m%d}_{hasta:%Y%m%d}.xlsx"
@@ -611,7 +676,19 @@ async def exportar_inspeccion(
     registro = await control_service.obtener_checklist(db, definicion, registro_id)
     evidencias = await control_service.evidencias_registro(db, definicion, registro_id)
 
-    flujo = controles_excel.generar_excel_formato(definicion, registro, evidencias)
+    cierre = await cierre_service.obtener_cierre(db, control, registro_id)
+
+    # Las fotos de la verificación van a la misma hoja de evidencias que las
+    # del hallazgo: el Excel se comparte y tiene que mostrar el problema y la
+    # prueba de que se resolvió.
+    if cierre is not None:
+        evidencias += await cierre_service.evidencias_de_cierres(
+            db, {registro_id: cierre}, {registro_id: registro["fecha"]}
+        )
+
+    flujo = controles_excel.generar_excel_formato(
+        definicion, registro, evidencias, cierre
+    )
     nombre = f"{definicion.clave}_{registro['fecha']:%Y%m%d}_{str(registro_id)[:8]}.xlsx"
 
     return StreamingResponse(
@@ -739,3 +816,232 @@ async def eliminar_platica(
 ) -> None:
     """Borra el registro y sus fotos."""
     await control_service.eliminar_platica(db, platica_id)
+
+
+# --- Cierre de hallazgos e incidencias -------------------------------------
+#
+# Cuelgan del mismo prefijo `/api/controles`, ya cubierto por
+# `requiere("controles")` y por su aplicación de Cloudflare Access.
+
+
+def _control_con_cierre(control: str) -> str:
+    """Comprueba que el control admita cierre, o responde 404.
+
+    Pláticas queda fuera a propósito: una plática impartida no es una
+    inspección y no puede tener hallazgos.
+    """
+    if not cierre_service.es_control_valido(control):
+        raise RecursoNoEncontrado("El control solicitado no existe.")
+    return control
+
+
+def _a_cierre_out(cierre) -> CierreOut | None:
+    """Traduce el cierre del ORM, resolviendo los ids de sus evidencias."""
+    if cierre is None:
+        return None
+
+    return CierreOut(
+        id=cierre.id,
+        hora_hallazgo=cierre.hora_hallazgo,
+        ubicacion=cierre.ubicacion,
+        accion_inmediata=cierre.accion_inmediata,
+        responsable_accion=cierre.responsable_accion,
+        hora_cierre=cierre.hora_cierre,
+        accion_pendiente=cierre.accion_pendiente,
+        responsable=cierre.responsable,
+        creado_at=cierre.creado_at,
+        actualizado_at=cierre.actualizado_at,
+        fotos=[foto.id for foto in cierre.fotos],
+    )
+
+
+async def _leer_cierre_del_formulario(
+    request: Request, datos_json: str
+) -> tuple[CierreCrear, list[tuple[bytes, str]]]:
+    """Valida la parte estructurada y lee las evidencias del multipart."""
+    try:
+        datos = CierreCrear.model_validate(json.loads(datos_json))
+    except (ValidationError, json.JSONDecodeError) as exc:
+        raise ErrorDeNegocio(_primer_error(exc)) from exc
+
+    formulario = await request.form()
+    archivos = [
+        archivo
+        for archivo in formulario.getlist("fotos")
+        # El parser de Starlette crea SUS `UploadFile`, no la subclase de
+        # FastAPI: con la clase equivocada se descartan todas en silencio.
+        if isinstance(archivo, ArchivoSubido)
+    ]
+
+    fotos = await _leer_fotos(archivos, "Evidencia de la verificación")
+
+    return datos, fotos
+
+
+# Las rutas estáticas van ANTES que las paramétricas, o `/{control}` se traga
+# `incidencias` y FastAPI intenta leerlo como clave de control.
+@router.get(
+    "/incidencias/exportar/excel",
+    summary="Descarga las incidencias del periodo en Excel",
+)
+async def exportar_incidencias(
+    desde: date,
+    hasta: date,
+    control: str | None = Query(default=None),
+    estado: str | None = Query(default=None, description="'pendiente' o 'cerrado'."),
+    db: AsyncSession = Depends(get_db),
+) -> StreamingResponse:
+    """Todo lo que los filtros dejen a la vista, con sus evidencias."""
+    incidencias = await cierre_service.listar_incidencias(
+        db, desde=desde, hasta=hasta, control=control, estado=estado
+    )
+    detalles = await cierre_service.detalles_de_incidencias(db, incidencias)
+
+    flujo = incidencias_excel.generar_excel_incidencias(
+        detalles, controles_excel.titulo_periodo(desde, hasta)
+    )
+
+    nombre = f"incidencias_{desde:%Y%m%d}_{hasta:%Y%m%d}.xlsx"
+
+    return StreamingResponse(
+        flujo, media_type=TIPO_EXCEL, headers=cabecera_descarga(nombre)
+    )
+
+
+@router.get(
+    "/incidencias",
+    response_model=list[IncidenciaOut],
+    summary="Problemas detectados en el periodo, de todos los controles",
+)
+async def listar_incidencias(
+    desde: date,
+    hasta: date,
+    control: str | None = Query(default=None),
+    estado: str | None = Query(default=None, description="'pendiente' o 'cerrado'."),
+    db: AsyncSession = Depends(get_db),
+) -> list[IncidenciaOut]:
+    """De la más reciente a la más antigua, con su cierre si ya lo tiene."""
+    incidencias = await cierre_service.listar_incidencias(
+        db, desde=desde, hasta=hasta, control=control, estado=estado
+    )
+
+    return [
+        IncidenciaOut(
+            control=incidencia.control,
+            registro_id=incidencia.registro_id,
+            fecha=incidencia.fecha,
+            identificacion=incidencia.identificacion,
+            total_hallazgos=incidencia.total_hallazgos,
+            responsable=incidencia.responsable,
+            estado=incidencia.estado,
+            cierre=_a_cierre_out(incidencia.cierre),
+        )
+        for incidencia in incidencias
+    ]
+
+
+@router.get(
+    "/cierres/{control}/{registro_id}",
+    response_model=DetalleCierre,
+    summary="Los hallazgos de una hoja y su cierre, si ya lo tiene",
+)
+async def obtener_cierre(
+    control: str,
+    registro_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+) -> DetalleCierre:
+    """Lo que necesita el modal para abrirse."""
+    detalle = await cierre_service.detalle_cierre(
+        db, _control_con_cierre(control), registro_id
+    )
+
+    return DetalleCierre(
+        control=detalle["control"],
+        registro_id=detalle["registro_id"],
+        fecha=detalle["fecha"],
+        hallazgos=[
+            HallazgoOut(
+                orden=hallazgo.orden,
+                etiqueta=hallazgo.etiqueta,
+                observaciones=hallazgo.observaciones,
+                fotos=hallazgo.fotos,
+            )
+            for hallazgo in detalle["hallazgos"]
+        ],
+        cierre=_a_cierre_out(detalle["cierre"]),
+    )
+
+
+@router.post(
+    "/cierres/{control}/{registro_id}",
+    response_model=CierreOut,
+    status_code=status.HTTP_201_CREATED,
+    summary="Registra el cierre de los hallazgos de una hoja",
+)
+async def crear_cierre(
+    control: str,
+    registro_id: uuid.UUID,
+    request: Request,
+    datos: str = Form(description="JSON con los campos del cierre."),
+    db: AsyncSession = Depends(get_db),
+    admin: AdminUser = Depends(obtener_admin_actual),
+) -> CierreOut:
+    """Da de alta el cierre.
+
+    Se queda con el acceso simple del módulo, sin `editar`: quien levantó el
+    hallazgo debe poder cerrarlo. Si la hoja ya tiene cierre responde 409 y
+    hay que usar el `PUT`, que sí exige permiso de edición.
+    """
+    limpio, fotos = await _leer_cierre_del_formulario(request, datos)
+
+    cierre = await cierre_service.guardar_cierre(
+        db,
+        control=_control_con_cierre(control),
+        registro_id=registro_id,
+        datos=cierre_service.DatosCierre(**limpio.model_dump()),
+        fotos=fotos,
+        admin=admin,
+        actualizando=False,
+    )
+
+    anotar(request, detalle=f"{control} — {limpio.ubicacion}")
+
+    return _a_cierre_out(cierre)  # type: ignore[return-value]
+
+
+@router.put(
+    "/cierres/{control}/{registro_id}",
+    response_model=CierreOut,
+    summary="Actualiza el cierre de una hoja",
+    dependencies=[Depends(requiere("controles", editar=True))],
+)
+async def actualizar_cierre(
+    control: str,
+    registro_id: uuid.UUID,
+    request: Request,
+    datos: str = Form(description="JSON con los campos del cierre."),
+    db: AsyncSession = Depends(get_db),
+    admin: AdminUser = Depends(obtener_admin_actual),
+) -> CierreOut:
+    """Corrige un cierre ya capturado o le suma la acción pendiente resuelta.
+
+    Sobrescribe información que alguien más pudo haber capturado, así que
+    exige permiso de edición. Las evidencias solo se reemplazan si vienen
+    fotos nuevas: reabrir el modal para corregir un dedazo no debe borrar la
+    que ya estaba.
+    """
+    limpio, fotos = await _leer_cierre_del_formulario(request, datos)
+
+    cierre = await cierre_service.guardar_cierre(
+        db,
+        control=_control_con_cierre(control),
+        registro_id=registro_id,
+        datos=cierre_service.DatosCierre(**limpio.model_dump()),
+        fotos=fotos,
+        admin=admin,
+        actualizando=True,
+    )
+
+    anotar(request, detalle=f"{control} — {limpio.ubicacion}")
+
+    return _a_cierre_out(cierre)  # type: ignore[return-value]

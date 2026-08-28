@@ -13,6 +13,36 @@
     @apply bg-fondo text-texto font-sans antialiased;
   }
 
+  /* Los selectores de fecha y hora del navegador dibujan su icono en negro,
+     que sobre el fondo oscuro del panel no se ve: el campo parece no tener
+     calendario ni reloj y la gente teclea la fecha a mano.
+
+     `color-scheme: dark` lo resuelve solo: le dice al navegador que dibuje
+     TODO el control en oscuro —icono incluido, y también el desplegable del
+     calendario—, así que el icono sale ya en claro.
+
+     **Nada de `filter: invert(1)` encima.** Es el arreglo que se encuentra en
+     internet, pero está pensado para cuando NO se usa `color-scheme`: sobre un
+     icono que el navegador ya pintó claro, el invert lo devuelve a negro y los
+     dos se anulan. Se probó: con ambos, el icono queda invisible otra vez.
+
+     Va sobre estos tipos y no sobre `html` a propósito: el formulario público
+     `/r/[token]` es de tema claro (regla 5 del CLAUDE.md) y heredarlo lo
+     rompería. Hoy no tiene campos de fecha, pero mañana podría. */
+  input[type='date'],
+  input[type='time'],
+  input[type='month'],
+  input[type='datetime-local'] {
+    color-scheme: dark;
+  }
+
+  input[type='date']::-webkit-calendar-picker-indicator,
+  input[type='time']::-webkit-calendar-picker-indicator,
+  input[type='month']::-webkit-calendar-picker-indicator,
+  input[type='datetime-local']::-webkit-calendar-picker-indicator {
+    cursor: pointer;
+  }
+
   /* Foco siempre visible: el panel se opera mucho con teclado. */
   :focus-visible {
     @apply outline-none ring-2 ring-primario ring-offset-2 ring-offset-fondo;
