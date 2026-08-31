@@ -15,7 +15,7 @@ import {
   eliminarUsuario,
   listarUsuarios,
 } from '@/lib/api';
-import { useTraduccion, type ClaveTraduccion } from '@/lib/i18n';
+import { bilingue, useTraduccion, type ClaveTraduccion } from '@/lib/i18n';
 import { useSesion } from '@/lib/sesion';
 import type { Usuario } from '@/lib/types';
 
@@ -142,15 +142,15 @@ export function PanelUsuarios() {
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h2 className="text-base font-semibold text-texto">{t('usuarios.titulo')}</h2>
-          <p className="mt-1 text-sm text-texto-suave">{t('usuarios.descripcion')}</p>
+          <h2 className="text-base font-semibold text-texto">{bilingue(t('usuarios.titulo'))}</h2>
+          <p className="mt-1 text-sm text-texto-suave">{bilingue(t('usuarios.descripcion'))}</p>
         </div>
 
-        <Button onClick={abrirAlta}>{t('usuarios.nuevo')}</Button>
+        <Button onClick={abrirAlta}>{bilingue(t('usuarios.nuevo'))}</Button>
       </div>
 
       {cargando ? (
-        <p className="text-sm text-texto-suave">{t('comun.cargando')}</p>
+        <p className="text-sm text-texto-suave">{bilingue(t('comun.cargando'))}</p>
       ) : errorCarga !== '' ? (
         <div
           role="alert"
@@ -158,13 +158,13 @@ export function PanelUsuarios() {
         >
           <span>{errorCarga}</span>
           <Button variante="secundario" tamano="sm" onClick={() => void cargar()}>
-            {t('comun.reintentar')}
+            {bilingue(t('comun.reintentar'))}
           </Button>
         </div>
       ) : usuarios.length === 0 ? (
         <div className="rounded-tarjeta border border-dashed border-borde px-6 py-12 text-center">
-          <p className="text-sm font-medium text-texto">{t('usuarios.vacio')}</p>
-          <p className="mt-2 text-sm text-texto-suave">{t('usuarios.vacioAyuda')}</p>
+          <p className="text-sm font-medium text-texto">{bilingue(t('usuarios.vacio'))}</p>
+          <p className="mt-2 text-sm text-texto-suave">{bilingue(t('usuarios.vacioAyuda'))}</p>
         </div>
       ) : (
         <TablaUsuarios

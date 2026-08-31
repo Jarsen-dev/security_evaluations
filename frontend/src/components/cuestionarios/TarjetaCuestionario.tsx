@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
-import { useTraduccion } from '@/lib/i18n';
+import { bilingue, useTraduccion } from '@/lib/i18n';
 import type { CuestionarioResumen } from '@/lib/types';
 
 interface TarjetaCuestionarioProps {
@@ -93,7 +93,7 @@ export function TarjetaCuestionario({
 
         <div className="flex shrink-0 items-center gap-1">
           <Badge tono={cuestionario.activo ? 'exito' : 'neutro'}>
-            {cuestionario.activo ? t('cuestionarios.activo') : t('cuestionarios.inactivo')}
+            {bilingue(cuestionario.activo ? t('cuestionarios.activo') : t('cuestionarios.inactivo'))}
           </Badge>
 
           <div className="relative" ref={contenedorMenu}>
@@ -119,7 +119,7 @@ export function TarjetaCuestionario({
                   onClick={() => ejecutar(onDuplicar)}
                   className="block w-full px-4 py-2 text-left text-sm text-texto hover:bg-fondo-sutil"
                 >
-                  {t('comun.duplicar')}
+                  {bilingue(t('comun.duplicar'))}
                 </button>
 
                 {puedeEditar && (
@@ -130,9 +130,9 @@ export function TarjetaCuestionario({
                       onClick={() => ejecutar(onAlternarActivo)}
                       className="block w-full px-4 py-2 text-left text-sm text-texto hover:bg-fondo-sutil"
                     >
-                      {cuestionario.activo
+                      {bilingue(cuestionario.activo
                         ? t('cuestionarios.desactivar')
-                        : t('cuestionarios.activar')}
+                        : t('cuestionarios.activar'))}
                     </button>
 
                     <button
@@ -141,7 +141,7 @@ export function TarjetaCuestionario({
                       onClick={() => ejecutar(onEliminar)}
                       className="block w-full px-4 py-2 text-left text-sm text-error hover:bg-error-suave"
                     >
-                      {t('comun.eliminar')}
+                      {bilingue(t('comun.eliminar'))}
                     </button>
                   </>
                 )}
@@ -153,11 +153,11 @@ export function TarjetaCuestionario({
 
       <dl className="flex gap-6 text-sm">
         <div>
-          <dt className="text-texto-tenue">{t('cuestionarios.preguntas')}</dt>
+          <dt className="text-texto-tenue">{bilingue(t('cuestionarios.preguntas'))}</dt>
           <dd className="font-medium text-texto">{cuestionario.total_preguntas}</dd>
         </div>
         <div>
-          <dt className="text-texto-tenue">{t('cuestionarios.respuestas')}</dt>
+          <dt className="text-texto-tenue">{bilingue(t('cuestionarios.respuestas'))}</dt>
           <dd className="font-medium text-texto">{cuestionario.total_respuestas}</dd>
         </div>
       </dl>
@@ -165,7 +165,7 @@ export function TarjetaCuestionario({
       <div className="flex flex-wrap items-center gap-2">
         {puedeEditar && (
           <Button variante="secundario" tamano="sm" onClick={onEditar}>
-            {t('comun.editar')}
+            {bilingue(t('comun.editar'))}
           </Button>
         )}
 
@@ -179,7 +179,7 @@ export function TarjetaCuestionario({
           onClick={onCopiarLiga}
           title={t('cuestionarios.ligaAyuda')}
         >
-          {t('cuestionarios.liga')}
+          {bilingue(t('cuestionarios.liga'))}
         </Button>
 
         <Button
@@ -194,7 +194,7 @@ export function TarjetaCuestionario({
               : t('cuestionarios.imprimirAyuda')
           }
         >
-          {t('cuestionarios.imprimir')}
+          {bilingue(t('cuestionarios.imprimir'))}
         </Button>
 
       </div>

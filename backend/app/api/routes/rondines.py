@@ -117,6 +117,7 @@ async def exportar_excel(
 
 @router.post(
     "/reporte/enviar",
+    dependencies=[Depends(requiere("rondines", editar=True))],
     response_model=MensajeRondin,
     summary="Envía el reporte de un turno por correo",
 )
@@ -226,8 +227,11 @@ async def eliminar_punto(
 ) -> Response:
     """Casi siempre conviene desactivarlo en vez de borrarlo.
 
-    Al borrar, los escaneos históricos quedan sin punto asociado; conservan su
-    número, pero el tablero de los turnos pasados deja de contarlos.
+    Al borrar, los escaneos históricos quedan sin punto asociado: conservan su
+    número en `punto_numero`, pero el tablero ya no los puede pintar en
+    ninguna fila, así que el cumplimiento de los turnos pasados baja.
+    Desactivar sí conserva la historia — el tablero incluye los puntos
+    retirados que tengan escaneos en el turno consultado.
     """
     etiqueta = await rondin_service.eliminar_punto(db, punto_id)
     anotar(request, detalle=etiqueta)

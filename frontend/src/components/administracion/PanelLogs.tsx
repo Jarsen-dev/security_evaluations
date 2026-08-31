@@ -5,7 +5,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { TablaLogs } from '@/components/administracion/TablaLogs';
 import { Button } from '@/components/ui/Button';
 import { ErrorDeApi, listarBitacora, listarUsuariosBitacora } from '@/lib/api';
-import { useTraduccion } from '@/lib/i18n';
+import { bilingue, useTraduccion } from '@/lib/i18n';
 import type { BitacoraPaginada, FiltrosBitacora } from '@/lib/types';
 
 const SIN_FILTROS: FiltrosBitacora = {};
@@ -69,8 +69,8 @@ export function PanelLogs() {
   return (
     <div className="flex flex-col gap-4">
       <div>
-        <h2 className="text-base font-semibold text-texto">{t('logs.titulo')}</h2>
-        <p className="mt-1 text-sm text-texto-suave">{t('logs.descripcion')}</p>
+        <h2 className="text-base font-semibold text-texto">{bilingue(t('logs.titulo'))}</h2>
+        <p className="mt-1 text-sm text-texto-suave">{bilingue(t('logs.descripcion'))}</p>
       </div>
 
       {errorCarga !== '' && (
@@ -80,7 +80,7 @@ export function PanelLogs() {
         >
           <span>{errorCarga}</span>
           <Button variante="secundario" tamano="sm" onClick={() => void cargar()}>
-            {t('comun.reintentar')}
+            {bilingue(t('comun.reintentar'))}
           </Button>
         </div>
       )}

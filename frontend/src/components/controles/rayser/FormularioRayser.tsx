@@ -14,7 +14,7 @@ import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Textarea } from '@/components/ui/Textarea';
 import { useBorrador } from '@/hooks/useBorrador';
-import { useTraduccion } from '@/lib/i18n';
+import { bilingue, unaLinea, useTraduccion } from '@/lib/i18n';
 import { useSesion } from '@/lib/sesion';
 import type { RangoRayser } from '@/lib/types';
 import { cn } from '@/lib/utils';
@@ -121,10 +121,10 @@ export function FormularioRayser({
     <Card className="flex flex-col gap-5">
       <div>
         <h2 className="text-base font-semibold text-texto">
-          {t('rayser.registroDelDia')}
+          {bilingue(t('rayser.registroDelDia'))}
         </h2>
         <p className="mt-1 text-sm text-texto-suave">
-          {t('rayser.descripcion', { normal: rango.normal })}
+          {bilingue(t('rayser.descripcion', { normal: rango.normal }))}
         </p>
       </div>
 
@@ -138,7 +138,7 @@ export function FormularioRayser({
           return (
             <div key={idCampo} className="flex flex-col gap-1.5">
               <label htmlFor={idCampo} className="text-sm font-medium text-texto">
-                {t('rayser.manometro', { numero: indice + 1 })}
+                {bilingue(t('rayser.manometro', { numero: indice + 1 }))}
               </label>
 
               <div className="relative">
@@ -148,7 +148,7 @@ export function FormularioRayser({
                   // que es lo que se captura en planta.
                   inputMode="decimal"
                   value={lectura}
-                  placeholder={t('rayser.placeholderLectura')}
+                  placeholder={unaLinea(t('rayser.placeholderLectura'))}
                   onChange={(evento) => actualizar(indice, evento.target.value)}
                   disabled={guardando}
                   className={cn(
@@ -173,9 +173,9 @@ export function FormularioRayser({
 
               {/* El color nunca es la única señal: se rotula el estado. */}
               <p className="text-xs text-texto-tenue">
-                {estado === null
+                {bilingue(estado === null
                   ? t('rayser.rangoNormal', { minimo: rango.minimo, maximo: rango.maximo })
-                  : t(CLAVES_SEMAFORO[estado])}
+                  : t(CLAVES_SEMAFORO[estado]))}
               </p>
             </div>
           );
@@ -186,10 +186,10 @@ export function FormularioRayser({
         <div className="flex flex-col gap-4 rounded-md border border-alerta bg-alerta-suave p-4">
           <div>
             <p className="text-sm font-semibold text-alerta">
-              {t('rayser.evidenciaTitulo')}
+              {bilingue(t('rayser.evidenciaTitulo'))}
             </p>
             <p className="mt-1 text-sm text-texto-suave">
-              {t('rayser.evidenciaDetalle')}
+              {bilingue(t('rayser.evidenciaDetalle'))}
             </p>
           </div>
 
@@ -197,7 +197,7 @@ export function FormularioRayser({
             etiqueta={t('comun.observaciones')}
             name="observaciones-rayser"
             value={observaciones}
-            placeholder={t('rayser.observacionesPlaceholder')}
+            placeholder={unaLinea(t('rayser.observacionesPlaceholder'))}
             onChange={(evento) => setObservaciones(evento.target.value)}
             disabled={guardando}
           />
@@ -215,13 +215,13 @@ export function FormularioRayser({
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-sm text-texto-tenue">
-          {!completas
+          {bilingue(!completas
             ? t('rayser.faltanLecturas')
             : faltaEvidencia && observaciones.trim() === ''
               ? t('rayser.faltaObservaciones')
               : faltaEvidencia
                 ? t('rayser.faltaFoto')
-                : `${t('comun.fecha')}: ${fecha}`}
+                : `${unaLinea(t('comun.fecha'))}: ${fecha}`)}
         </p>
 
         <div className="flex flex-wrap items-center gap-3">
@@ -240,7 +240,7 @@ export function FormularioRayser({
             disabled={!puedeGuardar}
             cargando={guardando}
           >
-            {t('rayser.terminarRegistro')}
+            {bilingue(t('rayser.terminarRegistro'))}
           </Button>
         </div>
       </div>

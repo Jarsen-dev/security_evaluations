@@ -5,7 +5,7 @@ import { useRef, useState } from 'react';
 import { nuevoIdLocal } from '@/components/cuestionarios/ConstructorPreguntas';
 import { Button } from '@/components/ui/Button';
 import { ErrorDeApi, URL_PLANTILLA_EXCEL, importarExcel } from '@/lib/api';
-import { useTraduccion } from '@/lib/i18n';
+import { bilingue, useTraduccion } from '@/lib/i18n';
 import type { ErrorImportacion, PreguntaBorrador } from '@/lib/types';
 
 interface ImportarExcelProps {
@@ -74,7 +74,7 @@ export function ImportarExcel({ onImportadas }: ImportarExcelProps) {
           onClick={() => selectorArchivo.current?.click()}
           cargando={importando}
         >
-          {t('importar.boton')}
+          {bilingue(t('importar.boton'))}
         </Button>
 
         <a
@@ -82,11 +82,11 @@ export function ImportarExcel({ onImportadas }: ImportarExcelProps) {
           download
           className="text-sm text-primario underline underline-offset-2 hover:text-primario-hover"
         >
-          {t('importar.plantilla')}
+          {bilingue(t('importar.plantilla'))}
         </a>
 
         <span className="ml-auto text-xs text-texto-tenue">
-          {t('importar.nota')}
+          {bilingue(t('importar.nota'))}
         </span>
       </div>
 
@@ -121,13 +121,13 @@ export function ImportarExcel({ onImportadas }: ImportarExcelProps) {
       {errores.length > 0 && (
         <div className="rounded-md border border-alerta bg-alerta-suave px-3 py-2">
           <p className="text-sm font-medium text-alerta">
-            {t('importar.filasConProblemas', { total: errores.length })}
+            {bilingue(t('importar.filasConProblemas', { total: errores.length }))}
           </p>
           <ul className="mt-1.5 flex list-inside list-disc flex-col gap-0.5">
             {errores.map((error) => (
               <li key={`${error.fila}-${error.mensaje}`} className="text-sm text-texto-suave">
                 <span className="font-medium text-texto">
-                  {t('importar.fila', { numero: error.fila })}
+                  {bilingue(t('importar.fila', { numero: error.fila }))}
                 </span>{' '}
                 {error.mensaje}
               </li>

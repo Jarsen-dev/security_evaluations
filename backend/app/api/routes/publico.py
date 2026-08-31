@@ -7,7 +7,6 @@ Sin autenticación: la única credencial es el token de la URL. Ver
 import ipaddress
 import logging
 import uuid
-from datetime import datetime
 
 from fastapi import APIRouter, Depends, File, Request, Response, UploadFile, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -215,14 +214,18 @@ async def escanear_punto(
     La hora la pone el servidor. El reloj de un celular cualquiera decidiría a
     qué rondín pertenece la visita.
     """
-    punto = await rondin_service.registrar_escaneo(db, token, ip=_ip_valida(request))
+    punto, escaneado_at = await rondin_service.registrar_escaneo(
+        db, token, ip=_ip_valida(request)
+    )
     logger.info("Escaneo registrado: punto %s", punto.numero)
 
     return EscaneoRegistrado(
         numero=punto.numero,
         nombre=punto.nombre,
         ubicacion=punto.ubicacion,
-        escaneado_at=datetime.now(tz=rondin_service.zona()),
+        # La hora que selló la base, no una recalculada: es la misma que
+        # decidirá a qué rondín pertenece la visita en el tablero.
+        escaneado_at=escaneado_at,
     )
 
 

@@ -15,7 +15,7 @@ import {
   obtenerAreasPlaticas,
   registrarPlatica,
 } from '@/lib/api';
-import { useIdioma } from '@/lib/i18n';
+import { bilingue, useIdioma } from '@/lib/i18n';
 import type { AreaPlatica, Platica } from '@/lib/types';
 import { fechaDeHoy, formatearFechaIso, rangoDelMes } from '@/lib/utils';
 
@@ -160,7 +160,7 @@ export function PanelPlaticas() {
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div className="flex flex-col gap-1.5">
           <label htmlFor="mes-platicas" className="text-sm font-medium text-texto">
-            {t('comun.mes')}
+            {bilingue(t('comun.mes'))}
           </label>
           <input
             id="mes-platicas"
@@ -177,17 +177,17 @@ export function PanelPlaticas() {
           cargando={descargando}
           disabled={platicas.length === 0}
         >
-          {t('comun.descargarExcel')}
+          {bilingue(t('comun.descargarExcel'))}
         </Button>
       </div>
 
       <div className="flex flex-col gap-3">
         <h3 className="text-base font-semibold text-texto">
-          {t('platicas.historial')}
+          {bilingue(t('platicas.historial'))}
         </h3>
 
         {cargando ? (
-          <p className="text-sm text-texto-suave">{t('comun.cargando')}</p>
+          <p className="text-sm text-texto-suave">{bilingue(t('comun.cargando'))}</p>
         ) : (
           <TablaPlaticas platicas={platicas} onEliminar={setPorEliminar} />
         )}

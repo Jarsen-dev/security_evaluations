@@ -16,7 +16,7 @@ import {
   obtenerCatalogoSqp,
   registrarInspeccionSqp,
 } from '@/lib/api';
-import { useTraduccion } from '@/lib/i18n';
+import { bilingue, useTraduccion } from '@/lib/i18n';
 import type {
   Area,
   CatalogoSqp,
@@ -154,10 +154,10 @@ export function PanelSqp() {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h2 className="text-lg font-semibold text-texto">{t('sqp.titulo')}</h2>
+        <h2 className="text-lg font-semibold text-texto">{bilingue(t('sqp.titulo'))}</h2>
         {catalogo !== null && (
           <p className="mt-1 text-sm text-texto-suave">
-            {t('sqp.descripcion', { total: catalogo.puntos.length })}
+            {bilingue(t('sqp.descripcion', { total: catalogo.puntos.length }))}
           </p>
         )}
       </div>
@@ -172,7 +172,7 @@ export function PanelSqp() {
       )}
 
       {cargando ? (
-        <p className="text-sm text-texto-suave">{t('comun.cargando')}</p>
+        <p className="text-sm text-texto-suave">{bilingue(t('comun.cargando'))}</p>
       ) : (
         catalogo !== null && (
           <FormularioSqp
@@ -186,7 +186,7 @@ export function PanelSqp() {
       )}
 
       <div className="flex flex-col gap-3">
-        <h3 className="text-base font-semibold text-texto">{t('sqp.historial')}</h3>
+        <h3 className="text-base font-semibold text-texto">{bilingue(t('sqp.historial'))}</h3>
         <TablaInspeccionesSqp
             onVerDetalle={(registro) => setDetalleId(registro.id)}
             onCerrarHallazgo={(registro) => setCierreId(registro.id)}

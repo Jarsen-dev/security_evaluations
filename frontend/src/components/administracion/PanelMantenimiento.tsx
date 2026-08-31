@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { useToast } from '@/components/ui/Toast';
 import { ErrorDeApi, obtenerMantenimiento } from '@/lib/api';
-import { useTraduccion, type ClaveTraduccion } from '@/lib/i18n';
+import { bilingue, useTraduccion, type ClaveTraduccion } from '@/lib/i18n';
 import { copiarAlPortapapeles } from '@/lib/navegador';
 import type { AccesoPgAdmin, Mantenimiento } from '@/lib/types';
 
@@ -85,7 +85,7 @@ export function PanelMantenimiento() {
   }
 
   if (cargando) {
-    return <p className="text-sm text-texto-suave">{t('comun.cargando')}</p>;
+    return <p className="text-sm text-texto-suave">{bilingue(t('comun.cargando'))}</p>;
   }
 
   if (errorCarga !== '') {
@@ -96,7 +96,7 @@ export function PanelMantenimiento() {
       >
         <span>{errorCarga}</span>
         <Button variante="secundario" tamano="sm" onClick={() => void cargar()}>
-          {t('comun.reintentar')}
+          {bilingue(t('comun.reintentar'))}
         </Button>
       </div>
     );
@@ -106,13 +106,13 @@ export function PanelMantenimiento() {
     <div className="flex flex-col gap-4">
       <div>
         <h2 className="text-base font-semibold text-texto">
-          {t('mantenimiento.titulo')}
+          {bilingue(t('mantenimiento.titulo'))}
         </h2>
-        <p className="mt-1 text-sm text-texto-suave">{t('mantenimiento.descripcion')}</p>
+        <p className="mt-1 text-sm text-texto-suave">{bilingue(t('mantenimiento.descripcion'))}</p>
       </div>
 
       <p className="rounded-tarjeta border border-borde bg-fondo-sutil px-4 py-3 text-sm text-texto-suave">
-        {t('mantenimiento.aviso')}
+        {bilingue(t('mantenimiento.aviso'))}
       </p>
 
       <div className="grid gap-4 sm:grid-cols-2">
@@ -121,21 +121,21 @@ export function PanelMantenimiento() {
             <div className="flex h-full flex-col gap-3">
               <div className="flex items-start justify-between gap-3">
                 <h3 className="text-sm font-semibold text-texto">
-                  {t(TEXTOS[acceso.entorno].titulo)}
+                  {bilingue(t(TEXTOS[acceso.entorno].titulo))}
                 </h3>
                 {!acceso.disponible && (
-                  <Badge tono="alerta">{t('mantenimiento.noConfigurado')}</Badge>
+                  <Badge tono="alerta">{bilingue(t('mantenimiento.noConfigurado'))}</Badge>
                 )}
               </div>
 
               <p className="text-sm text-texto-suave">
-                {t(TEXTOS[acceso.entorno].detalle)}
+                {bilingue(t(TEXTOS[acceso.entorno].detalle))}
               </p>
 
               <p className="break-all font-mono text-xs text-texto-tenue">
-                {acceso.disponible
+                {bilingue(acceso.disponible
                   ? acceso.url
-                  : t('mantenimiento.noConfiguradoDetalle')}
+                  : t('mantenimiento.noConfiguradoDetalle'))}
               </p>
 
               <div className="mt-auto pt-2">
@@ -143,7 +143,7 @@ export function PanelMantenimiento() {
                   disabled={!acceso.disponible}
                   onClick={() => void abrir(acceso)}
                 >
-                  {t('mantenimiento.abrir')}
+                  {bilingue(t('mantenimiento.abrir'))}
                 </Button>
               </div>
             </div>
@@ -154,12 +154,12 @@ export function PanelMantenimiento() {
       {datos !== null && (
         <Card>
           <h3 className="text-sm font-semibold text-texto">
-            {t('mantenimiento.credenciales')}
+            {bilingue(t('mantenimiento.credenciales'))}
           </h3>
           <dl className="mt-3 grid gap-2 text-sm sm:grid-cols-[8rem_1fr]">
-            <dt className="text-texto-suave">{t('usuarios.email')}</dt>
+            <dt className="text-texto-suave">{bilingue(t('usuarios.email'))}</dt>
             <dd className="font-mono text-texto">{datos.email || '—'}</dd>
-            <dt className="text-texto-suave">{t('usuarios.contrasena')}</dt>
+            <dt className="text-texto-suave">{bilingue(t('usuarios.contrasena'))}</dt>
             <dd className="font-mono text-texto">{datos.password || '—'}</dd>
           </dl>
         </Card>

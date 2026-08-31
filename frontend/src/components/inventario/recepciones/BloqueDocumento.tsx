@@ -2,7 +2,7 @@
 
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
-import { useTraduccion } from '@/lib/i18n';
+import { bilingue, unaLinea, useTraduccion } from '@/lib/i18n';
 import { idUnico } from '@/lib/navegador';
 import { cn } from '@/lib/utils';
 import type { Insumo } from '@/lib/types';
@@ -99,10 +99,10 @@ export function BloqueDocumento({
       {total > 1 && (
         <div className="flex items-center justify-between">
           <h3 className="text-sm font-semibold text-texto">
-            {t('recepciones.documento', { numero })}
+            {bilingue(t('recepciones.documento', { numero }))}
           </h3>
           <Button variante="fantasma" tamano="sm" onClick={onQuitar}>
-            {t('recepciones.quitarDocumento')}
+            {bilingue(t('recepciones.quitarDocumento'))}
           </Button>
         </div>
       )}
@@ -114,7 +114,7 @@ export function BloqueDocumento({
             etiqueta={t('recepciones.proveedor')}
             value={documento.proveedor}
             className={clasesAmbar(falta('proveedor'))}
-            placeholder={falta('proveedor') ? t('recepciones.sinLeer') : undefined}
+            placeholder={falta('proveedor') ? unaLinea(t('recepciones.sinLeer')) : undefined}
             autoComplete="off"
             onChange={(evento) => actualizar({ proveedor: evento.target.value })}
           />
@@ -125,7 +125,7 @@ export function BloqueDocumento({
           etiqueta={t('recepciones.folio')}
           value={documento.folio}
           className={clasesAmbar(falta('folio'))}
-          placeholder={falta('folio') ? t('recepciones.sinLeer') : undefined}
+          placeholder={falta('folio') ? unaLinea(t('recepciones.sinLeer')) : undefined}
           autoComplete="off"
           onChange={(evento) => actualizar({ folio: evento.target.value })}
         />
@@ -146,10 +146,10 @@ export function BloqueDocumento({
       {documento.ocr_ok && !documento.tipo_conocido && (
         <div className="rounded-tarjeta border border-alerta bg-alerta-suave p-4">
           <p className="text-sm font-medium text-texto">
-            {t('recepciones.formatoNuevo')}
+            {bilingue(t('recepciones.formatoNuevo'))}
           </p>
           <p className="mt-1 text-sm text-texto-suave">
-            {t('recepciones.formatoNuevoAyuda')}
+            {bilingue(t('recepciones.formatoNuevoAyuda'))}
           </p>
           <div className="mt-3">
             <Input
@@ -166,12 +166,12 @@ export function BloqueDocumento({
 
       {documento.ocr_ok && documento.tipo_conocido && (
         <p className="text-sm text-texto-tenue">
-          {t('recepciones.formatoDetectado', { formato: documento.tipo_documento })}
+          {bilingue(t('recepciones.formatoDetectado', { formato: documento.tipo_documento }))}
         </p>
       )}
 
       <div className="flex flex-col gap-3">
-        <h4 className="text-sm font-medium text-texto">{t('recepciones.partidas')}</h4>
+        <h4 className="text-sm font-medium text-texto">{bilingue(t('recepciones.partidas'))}</h4>
 
         {documento.items.map((partida, indice) => (
           <div
@@ -190,7 +190,7 @@ export function BloqueDocumento({
                 }
                 className={clasesAmbar(falta(`items[${indice}].codigo`))}
                 placeholder={
-                  falta(`items[${indice}].codigo`) ? t('recepciones.sinLeer') : undefined
+                  falta(`items[${indice}].codigo`) ? unaLinea(t('recepciones.sinLeer')) : undefined
                 }
                 autoComplete="off"
                 onChange={(evento) =>
@@ -238,7 +238,7 @@ export function BloqueDocumento({
                   })
                 }
               >
-                {t('recepciones.quitarPartida')}
+                {bilingue(t('recepciones.quitarPartida'))}
               </Button>
             </div>
           </div>
@@ -271,7 +271,7 @@ export function BloqueDocumento({
               })
             }
           >
-            {t('recepciones.agregarPartida')}
+            {bilingue(t('recepciones.agregarPartida'))}
           </Button>
         </div>
       </div>

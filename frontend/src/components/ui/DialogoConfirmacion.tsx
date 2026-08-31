@@ -2,7 +2,7 @@
 
 import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
-import { useTraduccion } from '@/lib/i18n';
+import { bilingue, useTraduccion } from '@/lib/i18n';
 
 interface DialogoConfirmacionProps {
   abierto: boolean;
@@ -36,15 +36,15 @@ export function DialogoConfirmacion({
       pie={
         <>
           <Button variante="fantasma" onClick={onCancelar}>
-            {t('comun.cancelar')}
+            {bilingue(t('comun.cancelar'))}
           </Button>
           <Button variante="peligro" onClick={onConfirmar} cargando={procesando}>
-            {textoConfirmar ?? t('comun.eliminar')}
+            {bilingue(textoConfirmar ?? t('comun.eliminar'))}
           </Button>
         </>
       }
     >
-      <p className="text-sm text-texto-suave">{mensaje}</p>
+      <p className="text-sm text-texto-suave">{bilingue(mensaje)}</p>
     </Modal>
   );
 }

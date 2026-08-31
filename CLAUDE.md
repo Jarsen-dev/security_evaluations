@@ -140,9 +140,48 @@ del encabezado. Al escribir un componente del panel:
 - Las fechas y los números se formatean con `Intl` usando el `locale` que
   entrega `useIdioma()`, no con `'es-MX'` fijo.
 
+**En coreano, cada texto lleva el español debajo como subtítulo.** En planta
+conviven las tres lenguas y quien lee hangul no siempre lee español, pero quien
+está al lado sí: con el panel en 한국어, el resto del turno se quedaba sin poder
+leer la pantalla.
+
+El mecanismo son dos piezas, y la separación entre ellas no es negociable:
+
+- `t()` **sigue devolviendo `string`**. En coreano devuelve el hangul y el
+  español pegados con un salto de línea. Tiene que seguir siendo un string
+  porque de sus ~876 llamadas, más de doscientas acaban en un `placeholder`, un
+  `aria-label`, un `title`, un toast o un mensaje de zod, donde no cabe markup.
+  Ahí el salto de línea es justo lo que se quiere: dos renglones.
+- `bilingue()` (en `lib/i18n/bilingue.tsx`) parte ese string en dos `<span>` y
+  pinta el español más chico. **Va donde el texto se pinta, no donde se
+  traduce.** Deja pasar de largo lo que no sea un string con separador, así que
+  es idempotente.
+
+Al escribir un componente del panel:
+
+- **Todo `t()` que caiga como hijo de JSX va envuelto: `{bilingue(t('x.y'))}`.**
+  Sin el envoltorio el texto se ve igual de grande y en un solo renglón.
+- Las props de las primitivas (`Input`, `Textarea`, `Modal`, `Pestanas`,
+  `Toast`, `TarjetaKPI`) **no** se envuelven en el llamador: siguen tipadas
+  `string` y el `bilingue()` va adentro. `etiqueta={t('x')}` se queda tal cual.
+- Los atributos del DOM tampoco: `placeholder`, `title`, `alt` y `aria-label`
+  reciben el string de dos renglones y así se quedan.
+- `unaLinea()` es para lo que no admite ni siquiera el salto: las leyendas y los
+  tooltips de recharts (son SVG y lo colapsan a un espacio), un `t()` incrustado
+  a media plantilla (`` `${t('comun.fecha')}: ${fecha}` ``) y un `t()` que viaja
+  como valor de interpolación **dentro de otro** `t()`.
+- Si el coreano y el español coinciden —siglas, «OK», «QR», o una clave que
+  todavía falta en `ko.ts`— no se duplica: `t()` lo detecta comparando.
+
+El tamaño sale del token `subtitulo` de `tailwind.config.ts`, definido en `em`
+para encogerse respecto al texto que acompaña. Y por eso mismo el `content` de
+Tailwind incluye `./src/lib/**`: sin esa línea no ve las clases de
+`bilingue.tsx`, no las genera y el subtítulo sale del mismo tamaño que el
+hangul **sin que nada falle de forma visible**. Pasó.
+
 ### 7. El sistema está publicado en internet
 
-Un túnel de Cloudflare sirve el sitio en `https://evaluaciones.chwon.it.com`.
+Un túnel de Cloudflare sirve el sitio en `https://esh.chwon.it.com`.
 El túnel publica **todo**, no solo el formulario, así que la pantalla de
 acceso al panel también es alcanzable desde fuera.
 
@@ -160,7 +199,8 @@ Dos consecuencias al escribir código:
   anótala en `SEGURIDAD.md`.
 
   Los controles ESH estrenaron el prefijo `api/controles`, y el panel las
-  rutas `controles` e `inventario`. Después estrenaron prefijo propio
+  rutas `controles` e `inventario`. PCI MTTO cuelga de ese mismo prefijo, así
+  que no estrena nada ni hace falta dar de alta una aplicación nueva. Después estrenaron prefijo propio
   Administración (`api/administracion` y la ruta `administracion`), Estudios
   (`api/estudios` y la ruta `estudios`), Catálogo (`api/catalogo` y la ruta
   `catalogo`), Rondines (`api/rondines` y la ruta `rondines`) e Inventario
@@ -337,9 +377,65 @@ propias:
   columnas `JSONB` que valida el catálogo, no la base.
 - **Las fotos viven todas en `controles_fotos`**, con un `CHECK` que obliga a
   que solo una de sus tres llaves foráneas venga llena (punto, plática o
-  Rayser). Hay un solo endpoint que las sirve, `/api/controles/fotos/{id}`, y
-  los listados **nunca** traen la columna `imagen`: un mes de evidencias son
-  decenas de megabytes.
+  Rayser, cierre y PCI MTTO). Hay un solo endpoint que las sirve,
+  `/api/controles/fotos/{id}`, y los listados **nunca** traen la columna
+  `imagen`: un mes de evidencias son decenas de megabytes. Un control nuevo que
+  necesite evidencia **suma su llave y rehace el `CHECK`** en una migración, en
+  lugar de estrenar tabla propia.
+
+**PCI MTTO** (`api/routes/controles.py`, `services/pci_service.py`,
+`services/pci_automatico.py`)
+
+El mantenimiento mensual al sistema contra incendios. Es el único control que
+**no se puede dejar sin contestar**, y de ahí salen sus reglas propias:
+
+- **No comparte tabla con los de lista de verificación.** Aquellos son hojas
+  diarias de N puntos que solo admiten fotos; este es mensual, tiene una sola
+  pregunta y guarda además un **documento** —el reporte del proveedor—, que no
+  existía en ningún otro sitio del sistema. Por eso lleva tabla, servicio y
+  panel propios.
+- **La llave natural es `(anio, mes)`, y ese `UNIQUE` es el candado** de la
+  tarea periódica. A diferencia del reporte de rondines, aquí no hace falta
+  tabla de candado aparte: el efecto secundario *es* el `INSERT`, así que el
+  primer worker que lo consigue cierra el mes y los otros tres reciben
+  `IntegrityError`, hacen `rollback` y **siguen con el mes siguiente** —abortar
+  se llevaría por delante los meses que aún faltan.
+- **`ck_pci_motivo_obligatorio` es el CHECK que sostiene la regla de negocio.**
+  El ingenuo —«si NO, entonces motivo»— rompería la tarea, que crea la fila
+  precisamente sin motivo. La versión que sí funciona es
+  `realizado OR motivo IS NOT NULL OR automatico`: un registro **manual** sin
+  motivo es imposible, y el único hueco lo abre el cierre automático, que es
+  justo el que el panel reclama. Lo que la base **no** puede sostener es «si sí,
+  al menos una foto»: las fotos viven en otra tabla y un `CHECK` no cruza
+  tablas, así que esa regla vive solo en el servicio.
+- **`PCI_PRIMER_MES` es histórico y no se toca.** Va como constante versionada
+  y no como configuración: bajarlo inventaría meses incumplidos que nadie pudo
+  contestar, y subirlo borraría faltas reales.
+- **Los registros no se borran, se corrigen** (`PUT`, con `editar=True`).
+  Borrar un cierre automático no serviría de nada: la vigilancia lo levantaría
+  otra vez en menos de una hora con el motivo en blanco.
+- **`meses_a_cerrar()` es puro y está probado** (`tests/test_pci.py`). Excluye
+  siempre el mes en curso y deja una hora de gracia sobre el cambio de mes, o
+  quien esté subiendo un reporte de 10 MB a las 23:59 pierde la subida.
+
+Dos trampas nuevas que estrena este control:
+
+- **El nombre del archivo subido acaba en una cabecera HTTP.** Lo pone quien lo
+  sube, y sin sanearlo unas comillas o un salto de línea permiten inyectar
+  cabeceras: `sanear_nombre()` se queda solo con el nombre base, sin rutas ni
+  caracteres de control.
+- **El reporte se sirve SIEMPRE como `attachment` y con `nosniff`.** Se acepta
+  cualquier formato, y el archivo sale del mismo origen que el panel y con la
+  cookie de sesión: servido *inline*, un `.svg` o un `.html` subido como
+  «reporte» sería XSS almacenado con robo de sesión. El endpoint de fotos se
+  salva de esto porque su lista blanca son JPG y PNG.
+
+El presupuesto de subida es una **suma**: Nginx corta en `client_max_body_size
+25M` y el POST manda el documento y las fotos en el mismo multipart. Con 4
+fotos de 2 MB más 10 MB de reporte son 18 MB. Subir cualquiera de los dos topes
+sin subir el de Nginx haría que el proxy respondiera 413 —HTML crudo— antes de
+llegar al backend, y el operador vería un error opaco en vez del mensaje en
+español.
 
 **Estudios y capacitaciones** (`api/routes/estudios.py`,
 `services/estudio_service.py`)
@@ -364,6 +460,13 @@ cambia de estatus varias veces al año y se edita en su lugar.
 - La campana del encabezado consulta `GET /api/estudios/avisos`, que devuelve lo
   que vence dentro de un mes natural (`sumar_un_mes()`) y lo ya vencido. La
   ventana la decide el backend; el frontend solo la dibuja.
+- **La campana ya no es solo de Estudios.** Junta esa fuente con los meses sin
+  explicar de PCI MTTO (`GET /api/controles/pci-mtto/avisos`). Al sumar una
+  fuente nueva: pedirla **solo** si el usuario tiene ese módulo (si no, son 403
+  en cada carga del panel), unir las peticiones con `Promise.allSettled` para
+  que el fallo de una no deje la campana en blanco, y mandar **datos y no
+  texto** desde el backend —la frase la arma el panel con `t()` e `Intl`
+  (regla 6)—. La campana solo desaparece si no hay ninguna fuente disponible.
 
 **Recepciones por foto** (`api/routes/inventario.py`,
 `services/ocr_recepciones.py`, `services/recepcion_service.py`,
@@ -399,6 +502,39 @@ JSON el texto que Tesseract ya leyó. Cinco reglas propias:
 Confirmar una recepción **suma la existencia** de cada insumo con un
 `UPDATE ... cantidad + :n` en SQL, no leyendo y reescribiendo: con cuatro
 workers dos recepciones simultáneas del mismo insumo se pisarían.
+
+**Rondines de seguridad** (`api/routes/rondines.py`,
+`services/rondin_service.py`)
+
+El guardia escanea un QR pegado en cada punto y el tablero arma la matriz de
+puntos × seis rondines de dos horas. Cuatro reglas propias:
+
+- **Los recorridos se cortan por punto repetido, no por reloj.** `asignar_rondines()`
+  agrupa los escaneos y corta cuando pasan más de 30 minutos de silencio **o**
+  cuando reaparece un punto que el grupo ya visitó: eso es lo que distingue
+  "otra vuelta" de "la misma vuelta, más tarde". No cortar por frontera de
+  bloque es deliberado: partiría en dos toda ronda que cruce las 09:30, que es
+  exactamente lo que el voto por mayoría existe para evitar. Sin el corte por
+  punto repetido, dos vueltas seguidas a menos de 30 minutos se fundían en una
+  y la segunda visita a cada punto se descartaba en silencio.
+- **El cumplimiento se mide contra los rondines TRANSCURRIDOS**, no contra los
+  seis. A las 09:00 los bloques 3 a 6 todavía no han pasado y contarlos como
+  faltas dejaba el indicador clavado por debajo del 17 % aunque el guardia
+  fuera perfecto. `_rondines_transcurridos()` lo decide en el servidor; el
+  panel y el Excel pintan los bloques futuros en neutro, nunca en rojo.
+- **La matriz se une por `punto_id`, nunca por `punto_numero`.** Los números se
+  reasignan (editando un punto, o borrándolo y dando de alta otro que tome el
+  número libre) y con el número como llave los escaneos históricos saltaban a
+  la fila de otro punto. `punto_numero` queda solo como respaldo del histórico
+  cuyo punto se borró y tiene el FK en NULL.
+- **Un turno pasado incluye los puntos retirados que tengan escaneos en él.**
+  Si la matriz fuera solo los puntos activos de hoy, desactivar uno reescribiría
+  el cumplimiento de todos los turnos ya cerrados y el Excel reenviado dejaría
+  de coincidir con el que se mandó por correo.
+
+El reporte automático consulta `contar_escaneos()` **antes** de tomar el
+candado del turno: un turno sin un solo escaneo no manda correo, y no gastar el
+candado permite reintentarlo si más tarde sí aparecen escaneos.
 
 **Frontend** (`frontend/src/`)
 
@@ -494,7 +630,15 @@ página que lo recibe (`/p/[token]`) también debe estar excluida del matcher de
 `UVICORN_WORKERS: "4"`, un envío programado sale cuatro veces. El reporte
 automático de rondines lo resuelve con un candado en la base
 (`envios_reporte_rondin`): el primero que gana el INSERT envía y los demás
-chocan. Cualquier tarea periódica nueva necesita el mismo cuidado.
+chocan. Cualquier tarea periódica nueva necesita el mismo cuidado —aunque no
+siempre hace falta tabla aparte: en PCI MTTO el candado es el propio
+`UNIQUE (anio, mes)` del registro, porque ahí el efecto secundario *es* el
+INSERT y no un correo.
+
+Y una variable de configuración nueva **no basta con declararla en
+`config.py`**: hay que pasarla también en el bloque `environment:` de
+`docker-compose.yml`, o el `.env` no llega al contenedor y la tarea corre con
+el valor por omisión sin que nada lo diga. Ya pasó con las `SMTP_*`.
 
 **openpyxl no acepta datetimes con zona horaria.** Las columnas son
 `TIMESTAMPTZ`; usa `sin_zona()` de `services/exportacion_comun.py`.

@@ -78,6 +78,14 @@ async def _revisar() -> None:
     clave = f"{fecha:%Y-%m-%d}:{turno}"
 
     async with SessionLocal() as db:
+        # Se consulta ANTES de tomar el candado: un turno sin un solo escaneo
+        # (planta parada, festivo, caseta sin guardia) no merece un correo con
+        # la matriz entera en rojo al 0 %, y tomar el candado para no enviar
+        # nada impediría reintentarlo si más tarde sí aparecen escaneos.
+        if await rondin_service.contar_escaneos(db, fecha, turno) == 0:
+            logger.info("Turno %s sin escaneos: no se manda reporte", clave)
+            return
+
         if not await _ganar_candado(db, clave):
             return
 

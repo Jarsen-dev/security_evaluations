@@ -4,7 +4,7 @@ import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 
 import { Button } from '@/components/ui/Button';
-import { useTraduccion } from '@/lib/i18n';
+import { bilingue, unaLinea, useTraduccion } from '@/lib/i18n';
 import type { PreguntaBorrador } from '@/lib/types';
 import { cn } from '@/lib/utils';
 
@@ -69,13 +69,13 @@ export function TarjetaPregunta({
             htmlFor={`pregunta-${pregunta.idLocal}`}
             className="text-xs font-medium uppercase tracking-wide text-texto-tenue"
           >
-            {t('constructor.pregunta', { numero: indice + 1 })}
+            {bilingue(t('constructor.pregunta', { numero: indice + 1 }))}
           </label>
           <input
             id={`pregunta-${pregunta.idLocal}`}
             value={pregunta.texto}
             onChange={(evento) => onCambiarTexto(evento.target.value)}
-            placeholder={t('constructor.textoPregunta')}
+            placeholder={unaLinea(t('constructor.textoPregunta'))}
             aria-invalid={errores?.texto ? true : undefined}
             className={cn(
               'mt-1 h-10 w-full rounded-md border bg-fondo px-3 text-sm text-texto placeholder:text-texto-tenue',
@@ -96,13 +96,13 @@ export function TarjetaPregunta({
           aria-label={t('constructor.eliminarPregunta', { numero: indice + 1 })}
           className="mt-5 text-error hover:bg-error-suave"
         >
-          {t('comun.eliminar')}
+          {bilingue(t('comun.eliminar'))}
         </Button>
       </div>
 
       <fieldset className="ml-8 flex flex-col gap-2">
         <legend className="sr-only">
-          {t('constructor.opcionesDe', { numero: indice + 1 })}
+          {bilingue(t('constructor.opcionesDe', { numero: indice + 1 }))}
         </legend>
 
         {pregunta.opciones.map((opcion, indiceOpcion) => (
@@ -121,7 +121,7 @@ export function TarjetaPregunta({
             <input
               value={opcion.texto}
               onChange={(evento) => onCambiarOpcion(opcion.idLocal, evento.target.value)}
-              placeholder={t('constructor.opcion', { numero: indiceOpcion + 1 })}
+              placeholder={unaLinea(t('constructor.opcion', { numero: indiceOpcion + 1 }))}
               className="h-9 flex-1 rounded-md border border-borde bg-fondo px-3 text-sm text-texto placeholder:text-texto-tenue focus:border-primario"
             />
 
@@ -150,7 +150,7 @@ export function TarjetaPregunta({
 
         <div>
           <Button variante="secundario" tamano="sm" onClick={onAgregarOpcion}>
-            {t('constructor.agregarOpcion')}
+            {bilingue(t('constructor.agregarOpcion'))}
           </Button>
         </div>
       </fieldset>

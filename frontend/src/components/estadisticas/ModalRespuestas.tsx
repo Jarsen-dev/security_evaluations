@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
 import { ErrorDeApi, obtenerDetalleIntento } from '@/lib/api';
-import { useIdioma } from '@/lib/i18n';
+import { bilingue, unaLinea, useIdioma } from '@/lib/i18n';
 import type { DetalleIntento } from '@/lib/types';
 import { cn } from '@/lib/utils';
 
@@ -93,12 +93,12 @@ export function ModalRespuestas({ intentoId, onCerrar }: ModalRespuestasProps) {
       }
       pie={
         <Button variante="fantasma" onClick={onCerrar}>
-          {t('comun.cerrar')}
+          {bilingue(t('comun.cerrar'))}
         </Button>
       }
     >
       {cargando && (
-        <p className="py-8 text-center text-texto-suave">{t('comun.cargando')}</p>
+        <p className="py-8 text-center text-texto-suave">{bilingue(t('comun.cargando'))}</p>
       )}
 
       {error && (
@@ -115,7 +115,7 @@ export function ModalRespuestas({ intentoId, onCerrar }: ModalRespuestasProps) {
           {/* --- Resumen del intento --- */}
           <div className="grid grid-cols-2 gap-4 rounded-tarjeta border border-borde bg-fondo p-4 sm:grid-cols-4">
             <div>
-              <p className="text-xs text-texto-tenue">{t('estadisticas.puntaje')}</p>
+              <p className="text-xs text-texto-tenue">{bilingue(t('estadisticas.puntaje'))}</p>
               <p
                 className={cn(
                   'text-2xl font-semibold',
@@ -129,7 +129,7 @@ export function ModalRespuestas({ intentoId, onCerrar }: ModalRespuestasProps) {
             </div>
 
             <div>
-              <p className="text-xs text-texto-tenue">{t('respuestas.aciertos')}</p>
+              <p className="text-xs text-texto-tenue">{bilingue(t('respuestas.aciertos'))}</p>
               <p className="text-2xl font-semibold text-texto">
                 {detalle.correctas}
                 <span className="text-base text-texto-tenue">
@@ -139,35 +139,35 @@ export function ModalRespuestas({ intentoId, onCerrar }: ModalRespuestasProps) {
             </div>
 
             <div>
-              <p className="text-xs text-texto-tenue">{t('estadisticas.duracion')}</p>
+              <p className="text-xs text-texto-tenue">{bilingue(t('estadisticas.duracion'))}</p>
               <p className="text-2xl font-semibold text-texto">
                 {formatearDuracion(detalle.duracion_segundos)}
               </p>
             </div>
 
             <div>
-              <p className="text-xs text-texto-tenue">{t('respuestas.resultado')}</p>
+              <p className="text-xs text-texto-tenue">{bilingue(t('respuestas.resultado'))}</p>
               <div className="mt-1.5">
                 <Badge tono={detalle.aprobado ? 'exito' : 'error'}>
-                  {detalle.aprobado
+                  {bilingue(detalle.aprobado
                     ? t('estadisticas.aprobado')
-                    : t('estadisticas.noAprobado')}
+                    : t('estadisticas.noAprobado'))}
                 </Badge>
               </div>
             </div>
           </div>
 
           <p className="text-sm text-texto-tenue">
-            {t('respuestas.contestado', {
+            {bilingue(t('respuestas.contestado', {
               fecha: formatearFecha(
                 detalle.finalizado_at,
                 locale,
-                t('estadisticas.sinFinalizar'),
+                unaLinea(t('estadisticas.sinFinalizar')),
               ),
               umbral: detalle.umbral_aprobacion,
-            })}
+            }))}
             {detalle.sin_responder > 0 &&
-              ` · ${t('respuestas.sinResponder', { total: detalle.sin_responder })}`}
+              ` · ${unaLinea(t('respuestas.sinResponder', { total: detalle.sin_responder }))}`}
           </p>
 
           {/* --- Preguntas --- */}
@@ -192,11 +192,11 @@ export function ModalRespuestas({ intentoId, onCerrar }: ModalRespuestasProps) {
                       pregunta.acerto ? 'exito' : pregunta.respondida ? 'error' : 'alerta'
                     }
                   >
-                    {pregunta.acerto
+                    {bilingue(pregunta.acerto
                       ? t('respuestas.correcta')
                       : pregunta.respondida
                         ? t('respuestas.incorrecta')
-                        : t('respuestas.noRespondida')}
+                        : t('respuestas.noRespondida'))}
                   </Badge>
                 </div>
 
@@ -228,12 +228,12 @@ export function ModalRespuestas({ intentoId, onCerrar }: ModalRespuestasProps) {
 
                         {opcion.elegida && (
                           <span className="shrink-0 text-xs uppercase tracking-wide">
-                            {t('respuestas.suRespuesta')}
+                            {bilingue(t('respuestas.suRespuesta'))}
                           </span>
                         )}
                         {correctaNoElegida && (
                           <span className="shrink-0 text-xs uppercase tracking-wide">
-                            {t('respuestas.correcta')}
+                            {bilingue(t('respuestas.correcta'))}
                           </span>
                         )}
                       </li>

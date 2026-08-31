@@ -2,7 +2,7 @@
 
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
-import { useIdioma, type ClaveTraduccion } from '@/lib/i18n';
+import { bilingue, unaLinea, useIdioma, type ClaveTraduccion } from '@/lib/i18n';
 import type { Area, ColumnaOrdenable, IntentosPaginados } from '@/lib/types';
 import { cn } from '@/lib/utils';
 
@@ -89,9 +89,9 @@ export function TablaIntentos({
   return (
     <Card className="overflow-hidden p-0">
       <div className="flex items-center justify-between border-b border-borde px-5 py-4">
-        <h2 className="font-medium text-texto">{t('estadisticas.intentos')}</h2>
+        <h2 className="font-medium text-texto">{bilingue(t('estadisticas.intentos'))}</h2>
         <span className="text-sm text-texto-tenue">
-          {t('estadisticas.registros', { total: datos?.total ?? 0 })}
+          {bilingue(t('estadisticas.registros', { total: datos?.total ?? 0 }))}
         </span>
       </div>
 
@@ -99,7 +99,7 @@ export function TablaIntentos({
       <div className="flex flex-wrap items-end gap-3 border-b border-borde bg-fondo/40 px-5 py-4">
         <div className="flex min-w-[15rem] flex-1 flex-col gap-1.5">
           <label htmlFor="busqueda" className="text-sm font-medium text-texto">
-            {t('comun.buscar')}
+            {bilingue(t('comun.buscar'))}
           </label>
           <div className="relative">
             <input
@@ -107,7 +107,7 @@ export function TablaIntentos({
               type="search"
               value={busqueda}
               onChange={(evento) => onBusqueda(evento.target.value)}
-              placeholder={t('estadisticas.buscarPlaceholder')}
+              placeholder={unaLinea(t('estadisticas.buscarPlaceholder'))}
               className="h-10 w-full rounded-md border border-borde bg-fondo px-3 pr-8 text-sm text-texto placeholder:text-texto-tenue focus:border-primario"
             />
             {busqueda !== '' && (
@@ -125,7 +125,7 @@ export function TablaIntentos({
 
         <div className="flex flex-col gap-1.5">
           <label htmlFor="area-tabla" className="text-sm font-medium text-texto">
-            {t('comun.area')}
+            {bilingue(t('comun.area'))}
           </label>
           <select
             id="area-tabla"
@@ -133,7 +133,7 @@ export function TablaIntentos({
             onChange={(evento) => onArea(evento.target.value)}
             className="h-10 rounded-md border border-borde bg-fondo px-3 text-sm text-texto focus:border-primario"
           >
-            <option value="">{t('comun.areaTodas')}</option>
+            <option value="">{unaLinea(t('comun.areaTodas'))}</option>
             {areas.map((opcion) => (
               <option key={opcion.value} value={opcion.value}>
                 {opcion.label}
@@ -144,7 +144,7 @@ export function TablaIntentos({
 
         <div className="flex flex-col gap-1.5">
           <label htmlFor="desde-tabla" className="text-sm font-medium text-texto">
-            {t('comun.desde')}
+            {bilingue(t('comun.desde'))}
           </label>
           <input
             id="desde-tabla"
@@ -157,7 +157,7 @@ export function TablaIntentos({
 
         <div className="flex flex-col gap-1.5">
           <label htmlFor="hasta-tabla" className="text-sm font-medium text-texto">
-            {t('comun.hasta')}
+            {bilingue(t('comun.hasta'))}
           </label>
           <input
             id="hasta-tabla"
@@ -170,7 +170,7 @@ export function TablaIntentos({
 
         {hayFiltros && (
           <Button variante="fantasma" onClick={onLimpiar}>
-            {t('estadisticas.limpiar')}
+            {bilingue(t('estadisticas.limpiar'))}
           </Button>
         )}
       </div>
@@ -192,7 +192,7 @@ export function TablaIntentos({
                     }
                     className="px-5 py-3 font-medium text-texto-suave"
                   >
-                    {columna.clave === null ? (
+                    {bilingue(columna.clave === null ? (
                       t(columna.etiqueta)
                     ) : (
                       <button
@@ -203,12 +203,12 @@ export function TablaIntentos({
                           activa && 'text-texto',
                         )}
                       >
-                        {t(columna.etiqueta)}
+                        {bilingue(t(columna.etiqueta))}
                         <span aria-hidden="true" className="text-xs">
                           {activa ? (descendente ? '▼' : '▲') : '↕'}
                         </span>
                       </button>
-                    )}
+           )         )}
                   </th>
                 );
               })}
@@ -219,7 +219,7 @@ export function TablaIntentos({
             {cargando && (
               <tr>
                 <td colSpan={COLUMNAS.length} className="px-5 py-8 text-center text-texto-suave">
-                  {t('comun.cargando')}
+                  {bilingue(t('comun.cargando'))}
                 </td>
               </tr>
             )}
@@ -227,9 +227,9 @@ export function TablaIntentos({
             {!cargando && (datos?.items.length ?? 0) === 0 && (
               <tr>
                 <td colSpan={COLUMNAS.length} className="px-5 py-8 text-center text-texto-suave">
-                  {busqueda !== ''
+                  {bilingue(busqueda !== ''
                     ? t('estadisticas.sinCoincidencias', { busqueda })
-                    : t('estadisticas.sinIntentos')}
+                    : t('estadisticas.sinIntentos'))}
                 </td>
               </tr>
             )}
@@ -241,11 +241,11 @@ export function TablaIntentos({
                   <td className="px-5 py-3 text-texto-suave">{intento.numero_empleado}</td>
                   <td className="px-5 py-3 text-texto-suave">{intento.area_label}</td>
                   <td className="px-5 py-3 text-texto-suave">
-                    {formatearFecha(
+                    {bilingue(formatearFecha(
                       intento.finalizado_at,
                       locale,
                       t('estadisticas.enProgreso'),
-                    )}
+                    ))}
                   </td>
                   <td className="px-5 py-3 text-texto-suave">
                     {formatearDuracion(intento.duracion_segundos)}
@@ -272,7 +272,7 @@ export function TablaIntentos({
                         nombre: intento.nombre,
                       })}
                     >
-                      {t('estadisticas.verRespuestas')}
+                      {bilingue(t('estadisticas.verRespuestas'))}
                     </Button>
                   </td>
                 </tr>
@@ -284,7 +284,7 @@ export function TablaIntentos({
       {datos !== null && datos.total > datos.size && (
         <div className="flex items-center justify-between border-t border-borde px-5 py-3">
           <span className="text-sm text-texto-tenue">
-            {t('estadisticas.pagina', { actual: datos.page, total: totalPaginas })}
+            {bilingue(t('estadisticas.pagina', { actual: datos.page, total: totalPaginas }))}
           </span>
           <div className="flex gap-2">
             <Button
@@ -293,7 +293,7 @@ export function TablaIntentos({
               disabled={datos.page <= 1}
               onClick={() => onPagina(datos.page - 1)}
             >
-              {t('estadisticas.anterior')}
+              {bilingue(t('estadisticas.anterior'))}
             </Button>
             <Button
               variante="secundario"
@@ -301,7 +301,7 @@ export function TablaIntentos({
               disabled={datos.page >= totalPaginas}
               onClick={() => onPagina(datos.page + 1)}
             >
-              {t('estadisticas.siguiente')}
+              {bilingue(t('estadisticas.siguiente'))}
             </Button>
           </div>
         </div>

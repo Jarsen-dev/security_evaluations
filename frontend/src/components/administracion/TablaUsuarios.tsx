@@ -2,7 +2,7 @@
 
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
-import { useIdioma } from '@/lib/i18n';
+import { bilingue, unaLinea, useIdioma } from '@/lib/i18n';
 import type { Modulo, Usuario } from '@/lib/types';
 
 /**
@@ -48,25 +48,25 @@ export function TablaUsuarios({
         <thead className="bg-fondo-sutil">
           <tr>
             <th scope="col" className="px-5 py-3 text-left font-medium text-texto-suave">
-              {t('usuarios.nombre')}
+              {bilingue(t('usuarios.nombre'))}
             </th>
             <th scope="col" className="px-5 py-3 text-left font-medium text-texto-suave">
-              {t('usuarios.usuario')}
+              {bilingue(t('usuarios.usuario'))}
             </th>
             <th scope="col" className="px-5 py-3 text-left font-medium text-texto-suave">
-              {t('usuarios.email')}
+              {bilingue(t('usuarios.email'))}
             </th>
             <th scope="col" className="px-5 py-3 text-left font-medium text-texto-suave">
-              {t('permisos.titulo')}
+              {bilingue(t('permisos.titulo'))}
             </th>
             <th scope="col" className="px-5 py-3 text-left font-medium text-texto-suave">
-              {t('usuarios.estado')}
+              {bilingue(t('usuarios.estado'))}
             </th>
             <th scope="col" className="px-5 py-3 text-left font-medium text-texto-suave">
-              {t('usuarios.ultimoAcceso')}
+              {bilingue(t('usuarios.ultimoAcceso'))}
             </th>
             <th scope="col" className="px-5 py-3 text-right">
-              <span className="sr-only">{t('comun.acciones')}</span>
+              <span className="sr-only">{bilingue(t('comun.acciones'))}</span>
             </th>
           </tr>
         </thead>
@@ -82,7 +82,10 @@ export function TablaUsuarios({
                   {usuario.nombre}
                   {esPropio && (
                     <span className="ml-2 text-xs text-texto-tenue">
-                      ({t('usuarios.tu')})
+                      {/* `unaLinea` y no `bilingue`: los paréntesis son texto
+                          literal del JSX y quedarían uno arriba y otro abajo,
+                          a los lados del bloque de dos renglones. */}
+                      ({unaLinea(t('usuarios.tu'))})
                     </span>
                   )}
                 </td>
@@ -97,17 +100,17 @@ export function TablaUsuarios({
 
                 <td className="px-5 py-3">
                   <Badge tono={usuario.activo ? 'exito' : 'neutro'}>
-                    {usuario.activo ? t('usuarios.activo') : t('usuarios.inactivo')}
+                    {bilingue(usuario.activo ? t('usuarios.activo') : t('usuarios.inactivo'))}
                   </Badge>
                 </td>
 
                 <td className="px-5 py-3 text-texto-suave">
-                  {usuario.last_login_at === null
+                  {bilingue(usuario.last_login_at === null
                     ? t('usuarios.nunca')
                     : new Date(usuario.last_login_at).toLocaleString(locale, {
                         dateStyle: 'short',
                         timeStyle: 'short',
-                      })}
+                      }))}
                 </td>
 
                 <td className="px-5 py-3">
@@ -117,7 +120,7 @@ export function TablaUsuarios({
                       tamano="sm"
                       onClick={() => onEditar(usuario)}
                     >
-                      {t('comun.editar')}
+                      {bilingue(t('comun.editar'))}
                     </Button>
 
                     {!esPropio && (
@@ -128,9 +131,9 @@ export function TablaUsuarios({
                           cargando={ocupado}
                           onClick={() => onAlternarActivo(usuario)}
                         >
-                          {usuario.activo
+                          {bilingue(usuario.activo
                             ? t('usuarios.desactivar')
-                            : t('usuarios.activar')}
+                            : t('usuarios.activar'))}
                         </Button>
 
                         <Button
@@ -138,7 +141,7 @@ export function TablaUsuarios({
                           tamano="sm"
                           onClick={() => onEliminar(usuario)}
                         >
-                          {t('comun.eliminar')}
+                          {bilingue(t('comun.eliminar'))}
                         </Button>
                       </>
                     )}
@@ -158,13 +161,13 @@ function Permisos({ usuario }: { usuario: Usuario }) {
   const { t } = useIdioma();
 
   if (usuario.es_superadmin) {
-    return <Badge tono="alerta">{t('usuarios.superadmin')}</Badge>;
+    return <Badge tono="alerta">{bilingue(t('usuarios.superadmin'))}</Badge>;
   }
 
   const otorgados = MODULOS.filter((modulo) => usuario.permisos[modulo] !== undefined);
 
   if (otorgados.length === 0) {
-    return <span className="text-xs text-texto-tenue">{t('usuarios.sinPermisos')}</span>;
+    return <span className="text-xs text-texto-tenue">{bilingue(t('usuarios.sinPermisos'))}</span>;
   }
 
   return (
@@ -174,8 +177,8 @@ function Permisos({ usuario }: { usuario: Usuario }) {
           key={modulo}
           tono={usuario.permisos[modulo]?.editar === true ? 'exito' : 'neutro'}
         >
-          {t(`permisos.${modulo}`)}
-          {usuario.permisos[modulo]?.editar === true && ` · ${t('permisos.editar')}`}
+          {bilingue(t(`permisos.${modulo}`))}
+          {usuario.permisos[modulo]?.editar === true && ` · ${unaLinea(t('permisos.editar'))}`}
         </Badge>
       ))}
     </div>

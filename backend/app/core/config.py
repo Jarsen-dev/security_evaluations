@@ -169,6 +169,13 @@ class Settings(BaseSettings):
             if correo.strip()
         ]
 
+    # --- Cierre automático de PCI MTTO -------------------------------------
+    #: Encendido por omisión, al revés que el reporte de rondines: aquel
+    #: necesita un servidor de correo configurado y este no depende de nada
+    #: externo. Apagarlo deja de levantar el registro de los meses sin
+    #: respuesta, así que el histórico de cumplimiento se queda con huecos.
+    PCI_CIERRE_AUTOMATICO: bool = True
+
     # --- Recepciones por foto (OCR + IA) -----------------------------------
     # El paso (3) del pipeline lo resuelve un LLM de TEXTO en un Ollama de la
     # red: nunca ve la imagen, solo acomoda el texto que Tesseract ya leyó.

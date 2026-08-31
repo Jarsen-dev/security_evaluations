@@ -7,7 +7,7 @@ import { PanelLogs } from '@/components/administracion/PanelLogs';
 import { PanelMantenimiento } from '@/components/administracion/PanelMantenimiento';
 import { PanelUsuarios } from '@/components/administracion/PanelUsuarios';
 import { Pestanas } from '@/components/ui/Pestanas';
-import { useTraduccion, type ClaveTraduccion } from '@/lib/i18n';
+import { bilingue, useTraduccion, type ClaveTraduccion } from '@/lib/i18n';
 import { useSesion } from '@/lib/sesion';
 
 /**
@@ -59,7 +59,7 @@ function ContenidoAdministracion() {
   }
 
   if (cargando) {
-    return <p className="text-sm text-texto-suave">{t('comun.cargando')}</p>;
+    return <p className="text-sm text-texto-suave">{bilingue(t('comun.cargando'))}</p>;
   }
 
   if (usuario?.es_superadmin !== true) {
@@ -68,7 +68,7 @@ function ContenidoAdministracion() {
         role="alert"
         className="rounded-tarjeta border border-error bg-error-suave px-4 py-3 text-sm text-texto"
       >
-        {t('administracion.soloSuperadmin')}
+        {bilingue(t('administracion.soloSuperadmin'))}
       </div>
     );
   }
@@ -77,10 +77,10 @@ function ContenidoAdministracion() {
     <div className="flex flex-col gap-6">
       <div>
         <h1 className="text-xl font-semibold text-texto">
-          {t('administracion.titulo')}
+          {bilingue(t('administracion.titulo'))}
         </h1>
         <p className="mt-1 text-sm text-texto-suave">
-          {t('administracion.descripcion')}
+          {bilingue(t('administracion.descripcion'))}
         </p>
       </div>
 

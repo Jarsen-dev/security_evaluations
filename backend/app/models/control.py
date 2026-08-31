@@ -27,7 +27,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, deferred, mapped_column, relationship
 
 from app.db.base import Base
 
@@ -373,19 +373,22 @@ class AreaPlatica(Base):
 class FotoControl(Base):
     """Evidencia fotográfica de cualquier control.
 
-    Una sola tabla para las cuatro procedencias posibles, con un ``CHECK`` que
+    Una sola tabla para las seis procedencias posibles, con un ``CHECK`` que
     obliga a que exactamente una llave foránea venga llena. Así hay un único
     endpoint que sirve las imágenes y una sola forma de guardarlas.
 
     Las imágenes viven en la base para que entren en el respaldo junto con el
     registro que explican; el servicio nunca las trae en los listados.
+
+    Cada control nuevo que necesite evidencia suma su llave aquí y rehace el
+    ``CHECK`` en una migración, en lugar de estrenar tabla propia.
     """
 
     __tablename__ = "controles_fotos"
     __table_args__ = (
         CheckConstraint(
             "num_nonnulls(punto_id, platica_id, rayser_id, cierre_id, "
-            "respuesta_id) = 1",
+            "respuesta_id, pci_id) = 1",
             name="ck_foto_un_solo_dueno",
         ),
         Index("ix_controles_fotos_punto", "punto_id"),
@@ -393,6 +396,7 @@ class FotoControl(Base):
         Index("ix_controles_fotos_rayser", "rayser_id"),
         Index("ix_controles_fotos_cierre", "cierre_id"),
         Index("ix_controles_fotos_respuesta", "respuesta_id"),
+        Index("ix_controles_fotos_pci", "pci_id"),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(
@@ -426,6 +430,11 @@ class FotoControl(Base):
         ForeignKey("inspecciones_sqp_respuestas.id", ondelete="CASCADE"),
         nullable=True,
     )
+    pci_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("registros_pci_mtto.id", ondelete="CASCADE"),
+        nullable=True,
+    )
 
     imagen: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
     tipo: Mapped[str] = mapped_column(String(60), nullable=False)
@@ -439,6 +448,7 @@ class FotoControl(Base):
     rayser: Mapped["RegistroRayser | None"] = relationship(back_populates="fotos")
     cierre: Mapped["CierreHallazgo | None"] = relationship(back_populates="fotos")
     respuesta: Mapped["RespuestaSqp | None"] = relationship(back_populates="fotos")
+    pci: Mapped["RegistroPciMtto | None"] = relationship(back_populates="fotos")
 
     def __repr__(self) -> str:
         return f"<FotoControl {self.id}>"
@@ -529,3 +539,107 @@ class CierreHallazgo(Base):
 
     def __repr__(self) -> str:
         return f"<CierreHallazgo {self.id}>"
+
+
+class RegistroPciMtto(Base):
+    """Mantenimiento mensual al sistema de protección contra incendios.
+
+    Una fila por mes, con una sola pregunta: si se hizo o no. Por eso la llave
+    natural es ``(anio, mes)`` y no la fecha —que aquí es la del mantenimiento,
+    no la del periodo— y por eso no cuelga de ``registros_checklist``: aquellas
+    son hojas diarias de N puntos que solo admiten fotos.
+
+    Dos rasgos propios que explican la forma de la tabla:
+
+    - **El reporte del proveedor va en columnas de esta misma fila** y no en
+      una tabla aparte, porque es uno por registro. La columna del documento se
+      declara ``deferred``: es hasta de 10 MB, y un ``select(RegistroPciMtto)``
+      descuidado en el listado de un año arrastraría 120 MB y dejaría la
+      pestaña tardando diez segundos en abrir.
+    - **``automatico`` distingue quién levantó la fila.** Cuando un mes cierra
+      sin que nadie conteste, una tarea periódica crea el registro con
+      ``realizado = false`` y el motivo en blanco; ese hueco es lo que el panel
+      reclama con la solicitud urgente y lo que anuncia la campana. Sin esta
+      columna, "el operador contestó NO y explicó por qué" y "el sistema cerró
+      el mes y alguien pasó después a explicarlo" serían indistinguibles.
+
+    El ``CHECK`` ``ck_pci_motivo_obligatorio`` es el que sostiene la regla de
+    negocio desde la base: un registro **manual** con MTTO=NO y sin motivo es
+    imposible, y el único hueco sin motivo lo abre el cierre automático.
+
+    Lo que la base **no** puede sostener: "si se hizo, al menos una foto de
+    evidencia". Las fotos viven en ``controles_fotos`` y un ``CHECK`` no cruza
+    tablas, así que esa regla vive solo en ``pci_service`` y un ``INSERT`` a
+    mano por pgAdmin se la saltaría.
+    """
+
+    __tablename__ = "registros_pci_mtto"
+    __table_args__ = (
+        UniqueConstraint("anio", "mes", name="uq_pci_anio_mes"),
+        CheckConstraint("mes BETWEEN 1 AND 12", name="ck_pci_mes"),
+        CheckConstraint(
+            "NOT realizado OR reporte IS NOT NULL", name="ck_pci_si_lleva_reporte"
+        ),
+        CheckConstraint(
+            "NOT realizado OR fecha IS NOT NULL", name="ck_pci_si_lleva_fecha"
+        ),
+        CheckConstraint(
+            "num_nonnulls(reporte, reporte_nombre, reporte_tipo) IN (0, 3)",
+            name="ck_pci_reporte_completo",
+        ),
+        CheckConstraint(
+            "motivo IS NULL OR length(btrim(motivo)) > 0", name="ck_pci_motivo_util"
+        ),
+        CheckConstraint(
+            "realizado OR motivo IS NOT NULL OR automatico",
+            name="ck_pci_motivo_obligatorio",
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        primary_key=True,
+        server_default=text("gen_random_uuid()"),
+    )
+    anio: Mapped[int] = mapped_column(Integer, nullable=False)
+    mes: Mapped[int] = mapped_column(Integer, nullable=False)
+    #: Fecha real del mantenimiento. Nula en el cierre automático: ahí no hubo
+    #: captura, y poner el día 1 del mes siguiente sería un dato falso.
+    fecha: Mapped[date | None] = mapped_column(Date, nullable=True)
+    realizado: Mapped[bool] = mapped_column(nullable=False)
+    motivo: Mapped[str | None] = mapped_column(Text, nullable=True)
+    automatico: Mapped[bool] = mapped_column(
+        nullable=False, server_default=text("false")
+    )
+
+    reporte: Mapped[bytes | None] = deferred(
+        mapped_column(LargeBinary, nullable=True)
+    )
+    reporte_nombre: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    reporte_tipo: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    #: Se guarda aparte porque ``octet_length()`` sobre un BYTEA TOASTeado
+    #: obliga a detoastearlo, y el listado no debe tocar el blob ni para medirlo.
+    reporte_tamano: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
+    responsable: Mapped[str] = mapped_column(String(150), nullable=False)
+    admin_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("admin_users.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    creado_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    actualizado_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+
+    fotos: Mapped[list["FotoControl"]] = relationship(
+        back_populates="pci",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+        order_by="FotoControl.orden",
+    )
+
+    def __repr__(self) -> str:
+        return f"<RegistroPciMtto {self.anio}-{self.mes:02d}>"

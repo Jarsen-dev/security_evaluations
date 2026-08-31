@@ -1,4 +1,4 @@
-import { useTraduccion } from '@/lib/i18n';
+import { bilingue, useTraduccion } from '@/lib/i18n';
 
 /**
  * Aviso para los controles que todavía se llevan en papel.
@@ -11,12 +11,12 @@ export function EnConstruccion({ nombre }: { nombre: string }) {
 
   return (
     <div className="rounded-tarjeta border border-dashed border-borde bg-fondo-elevado px-6 py-12 text-center">
-      <p className="text-base font-medium text-texto">{nombre}</p>
+      <p className="text-base font-medium text-texto">{bilingue(nombre)}</p>
       <p className="mt-1 text-sm font-medium text-alerta">
-        {t('controles.enConstruccion')}
+        {bilingue(t('controles.enConstruccion'))}
       </p>
       <p className="mx-auto mt-3 max-w-md text-sm text-texto-suave">
-        {t('controles.enConstruccionDetalle')}
+        {bilingue(t('controles.enConstruccionDetalle'))}
       </p>
     </div>
   );

@@ -12,8 +12,8 @@ import {
   enviarReporteRondines,
   obtenerTablero,
 } from '@/lib/api';
-import { useIdioma } from '@/lib/i18n';
-import { fechaDeHoy } from '@/lib/utils';
+import { bilingue, unaLinea, useIdioma } from '@/lib/i18n';
+import { turnoEnCurso } from '@/lib/turno';
 import type { Tablero, TurnoRondin } from '@/lib/types';
 
 /** Cada cuánto se recarga el tablero mientras alguien lo está mirando. */
@@ -26,8 +26,21 @@ export function PanelTablero() {
   const { t, locale } = useIdioma();
   const { mostrarToast } = useToast();
 
-  const [fecha, setFecha] = useState(fechaDeHoy);
-  const [turno, setTurno] = useState<TurnoRondin>('dia');
+  // Arranca en null y se resuelve en un efecto: el contenedor del frontend
+  // corre en UTC y la planta en UTC-6, así que calcular la fecha durante el
+  // render deja el HTML del servidor distinto al del navegador. Mismo patrón
+  // que `IndicadorTurno` y `ProveedorIdioma`.
+  const [fecha, setFecha] = useState<string | null>(null);
+  const [turno, setTurno] = useState<TurnoRondin | null>(null);
+
+  useEffect(() => {
+    // El turno vivo, no siempre el de día: a las 22:00 el turno en curso es
+    // la noche, y pasada la medianoche esa noche empezó AYER, que es la fecha
+    // que entiende la API.
+    const actual = turnoEnCurso();
+    setFecha(actual.fecha);
+    setTurno(actual.turno);
+  }, []);
 
   const [tablero, setTablero] = useState<Tablero | null>(null);
   const [cargando, setCargando] = useState(true);
@@ -38,22 +51,47 @@ export function PanelTablero() {
   const [enviando, setEnviando] = useState(false);
   const [descargando, setDescargando] = useState(false);
 
+  // Cada carga se sella con un número; solo la más reciente puede escribir en
+  // el estado. Sin esto, cambiar rápido de fecha o turno dejaba ganar a la
+  // respuesta más lenta, y el refresco automático podía pisar una carga manual.
+  const peticion = useRef(0);
+
   const cargar = useCallback(
     async (silencioso = false) => {
+      if (fecha === null || turno === null) {
+        return;
+      }
+
+      const mia = ++peticion.current;
+
       if (!silencioso) {
         setCargando(true);
       }
 
       try {
-        setTablero(await obtenerTablero(fecha, turno));
+        const resultado = await obtenerTablero(fecha, turno);
+        if (mia !== peticion.current) {
+          return;
+        }
+        setTablero(resultado);
         setActualizado(new Date());
         setErrorCarga('');
       } catch (error: unknown) {
-        setErrorCarga(
-          error instanceof ErrorDeApi ? error.message : t('rondines.falloCarga'),
-        );
+        if (mia !== peticion.current) {
+          return;
+        }
+        // Un refresco silencioso que falla no borra la pantalla: el tablero
+        // vive encendido en la caseta y un hipo de red a las 3 a. m. no debe
+        // tapar datos válidos con un banner rojo.
+        if (!silencioso) {
+          setErrorCarga(
+            error instanceof ErrorDeApi ? error.message : t('rondines.falloCarga'),
+          );
+        }
       } finally {
-        setCargando(false);
+        if (mia === peticion.current) {
+          setCargando(false);
+        }
       }
     },
     [fecha, turno, t],
@@ -108,6 +146,10 @@ export function PanelTablero() {
   }, []);
 
   async function descargar() {
+    if (fecha === null || turno === null) {
+      return;
+    }
+
     setDescargando(true);
     try {
       await descargarExcelRondines(fecha, turno);
@@ -122,6 +164,10 @@ export function PanelTablero() {
   }
 
   async function enviar() {
+    if (fecha === null || turno === null) {
+      return;
+    }
+
     setEnviando(true);
     try {
       await enviarReporteRondines(fecha, turno, correo.trim());
@@ -154,13 +200,14 @@ export function PanelTablero() {
               htmlFor="rondines-fecha"
               className="text-xs font-medium text-texto-suave"
             >
-              {t('rondines.dia')}
+              {bilingue(t('rondines.dia'))}
             </label>
             <input
               id="rondines-fecha"
               type="date"
               className={CLASES_CAMPO}
-              value={fecha}
+              value={fecha ?? ''}
+              disabled={fecha === null}
               onChange={(evento) => setFecha(evento.target.value)}
             />
           </div>
@@ -170,37 +217,38 @@ export function PanelTablero() {
               htmlFor="rondines-turno"
               className="text-xs font-medium text-texto-suave"
             >
-              {t('rondines.turno')}
+              {bilingue(t('rondines.turno'))}
             </label>
             <select
               id="rondines-turno"
               className={CLASES_CAMPO}
-              value={turno}
+              value={turno ?? 'dia'}
+              disabled={turno === null}
               onChange={(evento) => setTurno(evento.target.value as TurnoRondin)}
             >
-              <option value="dia">{t('rondines.turnoDia')}</option>
-              <option value="noche">{t('rondines.turnoNoche')}</option>
+              <option value="dia">{unaLinea(t('rondines.turnoDia'))}</option>
+              <option value="noche">{unaLinea(t('rondines.turnoNoche'))}</option>
             </select>
           </div>
 
           {tablero !== null && (
             <p className="pb-2 text-sm text-texto-suave">
-              {t('rondines.rango', {
+              {bilingue(t('rondines.rango', {
                 inicio: momento(tablero.inicio),
                 fin: momento(tablero.fin),
-              })}
+              }))}
             </p>
           )}
 
           <div className="ml-auto flex items-center gap-2 pb-0.5">
             {actualizado !== null && (
               <span className="text-xs text-texto-tenue">
-                {t('rondines.actualizado', {
+                {bilingue(t('rondines.actualizado', {
                   hora: actualizado.toLocaleTimeString(locale, {
                     hour: '2-digit',
                     minute: '2-digit',
                   }),
-                })}
+                }))}
               </span>
             )}
             <Button
@@ -209,12 +257,12 @@ export function PanelTablero() {
               cargando={descargando}
               onClick={() => void descargar()}
             >
-              {t('rondines.descargar')}
+              {bilingue(t('rondines.descargar'))}
             </Button>
           </div>
         </div>
 
-        <p className="mt-3 text-sm text-texto-tenue">{t('rondines.ayudaTurno')}</p>
+        <p className="mt-3 text-sm text-texto-tenue">{bilingue(t('rondines.ayudaTurno'))}</p>
       </Card>
 
       {errorCarga !== '' && (
@@ -224,7 +272,7 @@ export function PanelTablero() {
         >
           <span>{errorCarga}</span>
           <Button variante="secundario" tamano="sm" onClick={() => void cargar()}>
-            {t('comun.reintentar')}
+            {bilingue(t('comun.reintentar'))}
           </Button>
         </div>
       )}
@@ -232,7 +280,11 @@ export function PanelTablero() {
       {tablero !== null && (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <Indicador
-            etiqueta={t('rondines.cumplimiento')}
+            etiqueta={
+              tablero.rondin_actual === null
+                ? t('rondines.cumplimiento')
+                : t('rondines.cumplimientoParcial')
+            }
             valor={`${tablero.cumplimiento.toFixed(1)}%`}
           />
           <Indicador
@@ -259,11 +311,11 @@ export function PanelTablero() {
       )}
 
       {cargando ? (
-        <p className="text-sm text-texto-suave">{t('comun.cargando')}</p>
+        <p className="text-sm text-texto-suave">{bilingue(t('comun.cargando'))}</p>
       ) : tablero === null ? null : tablero.puntos_activos === 0 ? (
         <div className="rounded-tarjeta border border-dashed border-borde px-6 py-12 text-center">
-          <p className="text-sm font-medium text-texto">{t('rondines.sinPuntos')}</p>
-          <p className="mt-2 text-sm text-texto-suave">{t('rondines.sinPuntosAyuda')}</p>
+          <p className="text-sm font-medium text-texto">{bilingue(t('rondines.sinPuntos'))}</p>
+          <p className="mt-2 text-sm text-texto-suave">{bilingue(t('rondines.sinPuntosAyuda'))}</p>
         </div>
       ) : (
         <MatrizRondines tablero={tablero} />
@@ -276,7 +328,7 @@ export function PanelTablero() {
               htmlFor="rondines-correo"
               className="text-xs font-medium text-texto-suave"
             >
-              {t('rondines.correoDestino')}
+              {bilingue(t('rondines.correoDestino'))}
             </label>
             <input
               id="rondines-correo"
@@ -293,7 +345,7 @@ export function PanelTablero() {
             disabled={correo.trim() === ''}
             onClick={() => void enviar()}
           >
-            {t('rondines.enviarCorreo')}
+            {bilingue(t('rondines.enviarCorreo'))}
           </Button>
         </div>
       </Card>
@@ -306,9 +358,9 @@ function Indicador({ etiqueta, valor }: { etiqueta: string; valor: string }) {
   return (
     <Card>
       <p className="text-xs font-medium uppercase tracking-wide text-texto-tenue">
-        {etiqueta}
+        {bilingue(etiqueta)}
       </p>
-      <p className="mt-2 text-2xl font-semibold text-texto">{valor}</p>
+      <p className="mt-2 text-2xl font-semibold text-texto">{bilingue(valor)}</p>
     </Card>
   );
 }

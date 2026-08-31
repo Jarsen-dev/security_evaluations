@@ -7,7 +7,7 @@ import { TablaIncidencias } from '@/components/controles/incidencias/TablaIncide
 import { Button } from '@/components/ui/Button';
 import { useToast } from '@/components/ui/Toast';
 import { ErrorDeApi, descargarExcelIncidencias, listarIncidencias } from '@/lib/api';
-import { useTraduccion } from '@/lib/i18n';
+import { bilingue, unaLinea, useTraduccion } from '@/lib/i18n';
 import type { EstadoIncidencia, Incidencia } from '@/lib/types';
 import { fechaDeHoy, rangoDelMes } from '@/lib/utils';
 
@@ -110,10 +110,10 @@ export function PanelIncidencias() {
     <div className="flex flex-col gap-6">
       <div>
         <h2 className="text-base font-semibold text-texto">
-          {t('incidencias.titulo')}
+          {bilingue(t('incidencias.titulo'))}
         </h2>
         <p className="mt-1 text-sm text-texto-suave">
-          {t('incidencias.descripcion')}
+          {bilingue(t('incidencias.descripcion'))}
         </p>
       </div>
 
@@ -121,7 +121,7 @@ export function PanelIncidencias() {
         <div className="flex flex-wrap items-end gap-3">
           <div className="flex flex-col gap-1.5">
             <label htmlFor="incidencias-desde" className="text-sm font-medium text-texto">
-              {t('comun.desde')}
+              {bilingue(t('comun.desde'))}
             </label>
             <input
               id="incidencias-desde"
@@ -134,7 +134,7 @@ export function PanelIncidencias() {
 
           <div className="flex flex-col gap-1.5">
             <label htmlFor="incidencias-hasta" className="text-sm font-medium text-texto">
-              {t('comun.hasta')}
+              {bilingue(t('comun.hasta'))}
             </label>
             <input
               id="incidencias-hasta"
@@ -150,7 +150,7 @@ export function PanelIncidencias() {
               htmlFor="incidencias-control"
               className="text-sm font-medium text-texto"
             >
-              {t('incidencias.control')}
+              {bilingue(t('incidencias.control'))}
             </label>
             <select
               id="incidencias-control"
@@ -158,10 +158,10 @@ export function PanelIncidencias() {
               onChange={(evento) => setControl(evento.target.value)}
               className={CLASES_CAMPO}
             >
-              <option value="">{t('incidencias.todosLosControles')}</option>
+              <option value="">{unaLinea(t('incidencias.todosLosControles'))}</option>
               {CONTROLES.map((clave) => (
                 <option key={clave} value={clave}>
-                  {t(NOMBRES[clave])}
+                  {unaLinea(t(NOMBRES[clave]))}
                 </option>
               ))}
             </select>
@@ -172,7 +172,7 @@ export function PanelIncidencias() {
               htmlFor="incidencias-estado"
               className="text-sm font-medium text-texto"
             >
-              {t('incidencias.estado')}
+              {bilingue(t('incidencias.estado'))}
             </label>
             <select
               id="incidencias-estado"
@@ -182,9 +182,9 @@ export function PanelIncidencias() {
               }
               className={CLASES_CAMPO}
             >
-              <option value="">{t('incidencias.todosLosEstados')}</option>
-              <option value="pendiente">{t('cierre.pendiente')}</option>
-              <option value="cerrado">{t('cierre.cerrado')}</option>
+              <option value="">{unaLinea(t('incidencias.todosLosEstados'))}</option>
+              <option value="pendiente">{unaLinea(t('cierre.pendiente'))}</option>
+              <option value="cerrado">{unaLinea(t('cierre.cerrado'))}</option>
             </select>
           </div>
         </div>
@@ -195,7 +195,7 @@ export function PanelIncidencias() {
           cargando={descargando}
           disabled={incidencias.length === 0}
         >
-          {t('comun.descargarExcel')}
+          {bilingue(t('comun.descargarExcel'))}
         </Button>
       </div>
 
@@ -209,7 +209,7 @@ export function PanelIncidencias() {
       )}
 
       {cargando ? (
-        <p className="text-sm text-texto-suave">{t('comun.cargando')}</p>
+        <p className="text-sm text-texto-suave">{bilingue(t('comun.cargando'))}</p>
       ) : (
         <TablaIncidencias incidencias={incidencias} onVerDetalle={setDetalle} />
       )}

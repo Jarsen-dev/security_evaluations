@@ -3,7 +3,7 @@
 import { AccionesRegistro } from '@/components/controles/AccionesRegistro';
 import { Badge } from '@/components/ui/Badge';
 import { urlFotoControl } from '@/lib/api';
-import { useIdioma } from '@/lib/i18n';
+import { bilingue, useIdioma } from '@/lib/i18n';
 import type { Platica } from '@/lib/types';
 import { formatearFechaIso } from '@/lib/utils';
 
@@ -18,7 +18,7 @@ export function TablaPlaticas({ platicas, onEliminar }: TablaPlaticasProps) {
   if (platicas.length === 0) {
     return (
       <p className="rounded-tarjeta border border-borde bg-fondo-elevado px-4 py-8 text-center text-sm text-texto-suave">
-        {t('platicas.historialVacio')}
+        {bilingue(t('platicas.historialVacio'))}
       </p>
     );
   }
@@ -28,13 +28,13 @@ export function TablaPlaticas({ platicas, onEliminar }: TablaPlaticasProps) {
       <table className="w-full min-w-[46rem] border-collapse text-sm">
         <thead className="bg-fondo-sutil text-left text-texto-suave">
           <tr>
-            <th className="px-3 py-2 font-medium">{t('comun.fecha')}</th>
-            <th className="px-3 py-2 font-medium">{t('platicas.tema')}</th>
-            <th className="px-3 py-2 font-medium">{t('platicas.areas')}</th>
-            <th className="px-3 py-2 font-medium">{t('fotos.titulo')}</th>
-            <th className="px-3 py-2 font-medium">{t('comun.responsable')}</th>
+            <th className="px-3 py-2 font-medium">{bilingue(t('comun.fecha'))}</th>
+            <th className="px-3 py-2 font-medium">{bilingue(t('platicas.tema'))}</th>
+            <th className="px-3 py-2 font-medium">{bilingue(t('platicas.areas'))}</th>
+            <th className="px-3 py-2 font-medium">{bilingue(t('fotos.titulo'))}</th>
+            <th className="px-3 py-2 font-medium">{bilingue(t('comun.responsable'))}</th>
             <th className="px-3 py-2 text-right font-medium">
-              {t('comun.acciones')}
+              {bilingue(t('comun.acciones'))}
             </th>
           </tr>
         </thead>

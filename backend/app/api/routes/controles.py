@@ -35,6 +35,7 @@ from app.core.controles_catalogo import (
     AREAS_PLATICAS,
     CONTROLES_CHECKLIST,
     MAX_FOTOS,
+    PCI_PRIMER_MES,
     PUNTOS_SQP,
     CampoFormato,
     DefinicionChecklist,
@@ -57,6 +58,8 @@ from app.models.admin_user import AdminUser
 from app.models.control import InspeccionSqp
 from app.schemas.control import (
     AreaPlaticaOut,
+    AvisoPciMtto,
+    AvisosPciMtto,
     CampoFormatoOut,
     CatalogoChecklist,
     CatalogoSqp,
@@ -69,6 +72,9 @@ from app.schemas.control import (
     InspeccionSqpCrear,
     InspeccionSqpDetalle,
     InspeccionSqpResumen,
+    ListadoPciMtto,
+    MesPendientePci,
+    MotivoPciMtto,
     PlaticaCrear,
     PlaticaOut,
     PuntoControlOut,
@@ -77,6 +83,7 @@ from app.schemas.control import (
     RespuestaSqpOut,
     RangoRayser,
     RegistroChecklistOut,
+    RegistroPciMttoOut,
     RegistroRayserOut,
 )
 from app.services import (
@@ -84,6 +91,8 @@ from app.services import (
     control_service,
     controles_excel,
     incidencias_excel,
+    pci_excel,
+    pci_service,
 )
 from app.services.exportacion_comun import cabecera_descarga
 
@@ -1045,3 +1054,292 @@ async def actualizar_cierre(
     anotar(request, detalle=f"{control} — {limpio.ubicacion}")
 
     return _a_cierre_out(cierre)  # type: ignore[return-value]
+
+
+# --- PCI MTTO: mantenimiento del sistema contra incendios -------------------
+#
+# Las rutas estáticas van declaradas ANTES que las paramétricas, o `/{anio}`
+# se tragaría "avisos" y "exportar".
+
+
+async def _leer_reporte(
+    archivo: UploadFile | None,
+) -> tuple[bytes, str, str] | None:
+    """Lee el documento adjunto, si vino alguno con contenido."""
+    if archivo is None:
+        return None
+
+    contenido = await archivo.read()
+    # Algunos navegadores mandan la parte del input aunque no se haya elegido
+    # nada: eso no es un reporte vacío, es que no hay reporte.
+    if not contenido:
+        return None
+
+    return pci_service.validar_reporte(contenido, archivo.filename)
+
+
+async def _leer_evidencias(archivos: list[UploadFile]) -> list[tuple[bytes, str]]:
+    """Las fotos del mantenimiento, con la misma validación que el resto."""
+    return await _leer_fotos(
+        [archivo for archivo in archivos if isinstance(archivo, ArchivoSubido)],
+        "Evidencia del mantenimiento",
+    )
+
+
+@router.get(
+    "/pci-mtto/avisos",
+    response_model=AvisosPciMtto,
+    summary="Meses sin explicar, para la campana del encabezado",
+)
+async def avisos_pci_mtto(db: AsyncSession = Depends(get_db)) -> AvisosPciMtto:
+    """Los meses que el sistema cerró y nadie ha justificado.
+
+    Viajan sin texto: el panel arma la frase con su diccionario y el nombre del
+    mes con `Intl` (regla 6 del CLAUDE.md).
+    """
+    hoy = date.today()
+    pendientes = await pci_service.meses_pendientes(db)
+
+    avisos = [
+        AvisoPciMtto(
+            id=f"{pendiente['anio']}-{pendiente['mes']:02d}",
+            anio=pendiente["anio"],
+            mes=pendiente["mes"],
+            # Nunca negativo: un mes cerrado por adelantado —solo posible si
+            # alguien movió el reloj del servidor— no lleva "retraso".
+            meses_de_retraso=max(
+                0,
+                (hoy.year - pendiente["anio"]) * 12 + hoy.month - pendiente["mes"],
+            ),
+        )
+        for pendiente in pendientes
+    ]
+
+    return AvisosPciMtto(total=len(avisos), avisos=avisos)
+
+
+@router.get(
+    "/pci-mtto/exportar/excel",
+    summary="Descarga el año en Excel",
+)
+async def exportar_pci_mtto(
+    anio: int = Query(ge=2000, le=2100),
+    db: AsyncSession = Depends(get_db),
+) -> StreamingResponse:
+    """Dos hojas: los registros del año y las evidencias fotográficas."""
+    registros = await pci_service.listar(db, anio)
+    evidencias = await pci_service.evidencias(db, anio)
+
+    flujo = pci_excel.generar_excel_pci(registros, evidencias, anio)
+    nombre = f"pci_mtto_{anio}.xlsx"
+
+    return StreamingResponse(
+        flujo, media_type=TIPO_EXCEL, headers=cabecera_descarga(nombre)
+    )
+
+
+@router.get(
+    "/pci-mtto",
+    response_model=ListadoPciMtto,
+    summary="Registros del año, años disponibles y meses sin explicar",
+)
+async def listar_pci_mtto(
+    anio: int | None = Query(default=None, ge=2000, le=2100),
+    db: AsyncSession = Depends(get_db),
+) -> ListadoPciMtto:
+    """Todo lo que la pestaña necesita para dibujarse, en una sola petición."""
+    elegido = anio if anio is not None else date.today().year
+
+    return ListadoPciMtto(
+        anio=elegido,
+        registros=[
+            RegistroPciMttoOut(**registro)
+            for registro in await pci_service.listar(db, elegido)
+        ],
+        anios=await pci_service.anios_con_registros(db),
+        pendientes=[
+            MesPendientePci(**pendiente)
+            for pendiente in await pci_service.meses_pendientes(db)
+        ],
+        primer_mes=MesPendientePci(
+            anio=PCI_PRIMER_MES[0], mes=PCI_PRIMER_MES[1]
+        ),
+    )
+
+
+@router.post(
+    "/pci-mtto",
+    response_model=RegistroPciMttoOut,
+    status_code=status.HTTP_201_CREATED,
+    summary="Registra el mantenimiento de un mes",
+)
+async def registrar_pci_mtto(
+    request: Request,
+    anio: int = Form(),
+    mes: int = Form(),
+    realizado: bool = Form(),
+    fecha: date | None = Form(default=None),
+    motivo: str = Form(default=""),
+    fotos: list[UploadFile] = File(default_factory=list),
+    reporte: UploadFile | None = File(default=None),
+    db: AsyncSession = Depends(get_db),
+    admin: AdminUser = Depends(obtener_admin_actual),
+) -> RegistroPciMttoOut:
+    """Da de alta el registro del mes, con su evidencia o con su motivo."""
+    registro = await pci_service.registrar(
+        db,
+        anio=anio,
+        mes=mes,
+        realizado=realizado,
+        fecha=fecha,
+        motivo=motivo,
+        fotos=await _leer_evidencias(fotos),
+        reporte=await _leer_reporte(reporte),
+        admin=admin,
+        hoy=date.today(),
+    )
+
+    anotar(request, detalle=f"{anio}-{mes:02d}")
+
+    guardados = await pci_service.listar(db, anio)
+    return RegistroPciMttoOut(
+        **next(fila for fila in guardados if fila["id"] == registro.id)
+    )
+
+
+@router.get(
+    "/pci-mtto/{anio}/{mes}/reporte",
+    summary="Descarga el reporte de mantenimiento adjunto",
+    response_class=Response,
+)
+async def descargar_reporte_pci_mtto(
+    anio: int,
+    mes: int,
+    db: AsyncSession = Depends(get_db),
+) -> Response:
+    """Sirve el documento tal como se subió.
+
+    **Siempre como `attachment` y con `nosniff`**, y no es opcional: el control
+    acepta cualquier formato, y el archivo sale del mismo origen que el panel y
+    con la cookie de sesión. Servido *inline*, un `.svg` o un `.html` subido
+    como "reporte" se ejecutaría en ese origen —XSS almacenado con robo de
+    sesión—. El endpoint de fotos se salva de esto porque su lista blanca son
+    JPG y PNG; aquí la defensa tiene que estar en la respuesta.
+    """
+    contenido, nombre, tipo = await pci_service.obtener_reporte(db, anio, mes)
+
+    return Response(
+        content=contenido,
+        media_type=tipo,
+        headers={
+            **cabecera_descarga(nombre),
+            "X-Content-Type-Options": "nosniff",
+            "Cache-Control": "private, max-age=3600",
+        },
+    )
+
+
+@router.post(
+    "/pci-mtto/{anio}/{mes}/motivo",
+    response_model=RegistroPciMttoOut,
+    summary="Explica un mes que cerró sin mantenimiento",
+)
+async def capturar_motivo_pci_mtto(
+    request: Request,
+    anio: int,
+    mes: int,
+    datos: MotivoPciMtto,
+    db: AsyncSession = Depends(get_db),
+    admin: AdminUser = Depends(obtener_admin_actual),
+) -> RegistroPciMttoOut:
+    """Rellena el motivo que la solicitud urgente reclama.
+
+    Va con el acceso simple del router y no con `editar`: llenar un hueco vacío
+    es parte de capturar, y quien opera el control debe poder responder el aviso
+    aunque no tenga permiso de edición. Mismo criterio que el cierre de
+    hallazgos. Si el mes ya tiene motivo, responde 409 y hay que usar el PUT.
+    """
+    await pci_service.guardar_motivo(
+        db, anio=anio, mes=mes, motivo=datos.motivo, admin=admin, actualizando=False
+    )
+
+    anotar(request, detalle=f"{anio}-{mes:02d}")
+
+    registros = await pci_service.listar(db, anio)
+    return RegistroPciMttoOut(
+        **next(fila for fila in registros if fila["mes"] == mes)
+    )
+
+
+@router.put(
+    "/pci-mtto/{anio}/{mes}/motivo",
+    response_model=RegistroPciMttoOut,
+    dependencies=[Depends(requiere("controles", editar=True))],
+    summary="Corrige el motivo ya capturado de un mes",
+)
+async def corregir_motivo_pci_mtto(
+    request: Request,
+    anio: int,
+    mes: int,
+    datos: MotivoPciMtto,
+    db: AsyncSession = Depends(get_db),
+    admin: AdminUser = Depends(obtener_admin_actual),
+) -> RegistroPciMttoOut:
+    """Pisa el motivo que escribió alguien más: por eso exige `editar`."""
+    await pci_service.guardar_motivo(
+        db, anio=anio, mes=mes, motivo=datos.motivo, admin=admin, actualizando=True
+    )
+
+    anotar(request, detalle=f"{anio}-{mes:02d}")
+
+    registros = await pci_service.listar(db, anio)
+    return RegistroPciMttoOut(
+        **next(fila for fila in registros if fila["mes"] == mes)
+    )
+
+
+@router.put(
+    "/pci-mtto/{anio}/{mes}",
+    response_model=RegistroPciMttoOut,
+    dependencies=[Depends(requiere("controles", editar=True))],
+    summary="Corrige el registro de un mes",
+)
+async def corregir_pci_mtto(
+    request: Request,
+    anio: int,
+    mes: int,
+    realizado: bool = Form(),
+    fecha: date | None = Form(default=None),
+    motivo: str = Form(default=""),
+    conserva_reporte: bool = Form(default=True),
+    fotos: list[UploadFile] = File(default_factory=list),
+    reporte: UploadFile | None = File(default=None),
+    db: AsyncSession = Depends(get_db),
+    admin: AdminUser = Depends(obtener_admin_actual),
+) -> RegistroPciMttoOut:
+    """La única forma de arreglar un mes: **no hay borrado**.
+
+    Borrar no serviría de nada en un cierre automático, porque la vigilancia lo
+    volvería a levantar en menos de una hora con el motivo otra vez en blanco.
+    Es también la salida del caso incómodo: el sistema cerró el mes en rojo y
+    resulta que el mantenimiento sí se hizo.
+    """
+    await pci_service.corregir(
+        db,
+        anio=anio,
+        mes=mes,
+        realizado=realizado,
+        fecha=fecha,
+        motivo=motivo,
+        fotos=await _leer_evidencias(fotos),
+        reporte=await _leer_reporte(reporte),
+        conserva_reporte=conserva_reporte,
+        admin=admin,
+    )
+
+    anotar(request, detalle=f"{anio}-{mes:02d}")
+
+    registros = await pci_service.listar(db, anio)
+    return RegistroPciMttoOut(
+        **next(fila for fila in registros if fila["mes"] == mes)
+    )

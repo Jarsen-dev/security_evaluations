@@ -17,7 +17,7 @@ import {
   obtenerCategoriasInsumo,
   obtenerUnidadesInsumo,
 } from '@/lib/api';
-import { useTraduccion, type ClaveTraduccion } from '@/lib/i18n';
+import { bilingue, useTraduccion, type ClaveTraduccion } from '@/lib/i18n';
 import { useSesion } from '@/lib/sesion';
 import type { FiltrosCatalogo, Insumo, InsumoPayload, InsumosPaginados } from '@/lib/types';
 
@@ -197,7 +197,7 @@ export function PanelCatalogo() {
             setModalAbierto(true);
           }}
         >
-          {t('catalogo.nuevo')}
+          {bilingue(t('catalogo.nuevo'))}
         </Button>
       </div>
 
@@ -208,7 +208,7 @@ export function PanelCatalogo() {
         >
           <span>{errorCarga}</span>
           <Button variante="secundario" tamano="sm" onClick={() => void cargar()}>
-            {t('comun.reintentar')}
+            {bilingue(t('comun.reintentar'))}
           </Button>
         </div>
       )}

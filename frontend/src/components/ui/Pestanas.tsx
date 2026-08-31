@@ -2,6 +2,7 @@
 
 import { useRef } from 'react';
 
+import { bilingue } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
 
 export interface Pestana {
@@ -81,7 +82,7 @@ export function Pestanas({ pestanas, activa, onCambiar, etiqueta }: PestanasProp
                 : 'border-transparent text-texto-suave hover:text-texto',
             )}
           >
-            {pestana.etiqueta}
+            {bilingue(pestana.etiqueta)}
           </button>
         );
       })}

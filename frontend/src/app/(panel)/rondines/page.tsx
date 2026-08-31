@@ -7,7 +7,7 @@ import { GuardiaModulo } from '@/components/GuardiaModulo';
 import { PanelPuntos } from '@/components/rondines/PanelPuntos';
 import { PanelTablero } from '@/components/rondines/PanelTablero';
 import { Pestanas } from '@/components/ui/Pestanas';
-import { useTraduccion, type ClaveTraduccion } from '@/lib/i18n';
+import { bilingue, useTraduccion, type ClaveTraduccion } from '@/lib/i18n';
 
 /**
  * Rondines de seguridad.
@@ -59,8 +59,8 @@ function ContenidoRondines() {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-xl font-semibold text-texto">{t('rondines.titulo')}</h1>
-        <p className="mt-1 text-sm text-texto-suave">{t('rondines.descripcion')}</p>
+        <h1 className="text-xl font-semibold text-texto">{bilingue(t('rondines.titulo'))}</h1>
+        <p className="mt-1 text-sm text-texto-suave">{bilingue(t('rondines.descripcion'))}</p>
       </div>
 
       <Pestanas

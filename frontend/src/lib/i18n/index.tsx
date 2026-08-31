@@ -28,9 +28,12 @@ import {
   type ReactNode,
 } from 'react';
 
+import { SEPARADOR } from './bilingue';
 import { en } from './en';
 import { es, type Diccionario } from './es';
 import { ko } from './ko';
+
+export { bilingue, unaLinea, SEPARADOR } from './bilingue';
 
 export type Idioma = 'es' | 'en' | 'ko';
 
@@ -158,11 +161,26 @@ export function ProveedorIdioma({ children }: { children: ReactNode }) {
    * `components/ui/Toast.tsx`.
    */
   const t = useCallback<ContextoIdioma['t']>((clave, valores) => {
-    const diccionario = DICCIONARIOS[idiomaRef.current];
+    const idiomaActual = idiomaRef.current;
     // Si a una traducción le falta la clave, se cae al español antes que
     // mostrar la ruta cruda en pantalla.
-    const texto = buscar(diccionario, clave) ?? buscar(es, clave) ?? clave;
-    return interpolar(texto, valores);
+    const enEspanol = buscar(es, clave) ?? clave;
+    const texto = buscar(DICCIONARIOS[idiomaActual], clave) ?? enEspanol;
+
+    // En coreano el español viaja pegado al hangul con un salto de línea, y
+    // `bilingue()` lo parte en dos para pintarlo como subtítulo. Se hace aquí
+    // y no en el diccionario porque `t` tiene que seguir devolviendo `string`:
+    // de sus ~876 llamadas, más de doscientas terminan en un `placeholder`, un
+    // `aria-label`, un toast o un mensaje de zod, donde no cabe markup.
+    //
+    // La comparación con el español evita duplicar las siglas ('OK', 'QR',
+    // 'N/A') y, de paso, las claves que todavía no están traducidas en
+    // `ko.ts`: ahí `texto` YA es el español y repetirlo no diría nada.
+    if (idiomaActual !== 'ko' || texto === enEspanol) {
+      return interpolar(texto, valores);
+    }
+
+    return `${interpolar(texto, valores)}${SEPARADOR}${interpolar(enEspanol, valores)}`;
   }, []);
 
   const valor = useMemo<ContextoIdioma>(

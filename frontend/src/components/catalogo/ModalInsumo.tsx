@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Modal } from '@/components/ui/Modal';
 import { Textarea } from '@/components/ui/Textarea';
-import { useTraduccion } from '@/lib/i18n';
+import { bilingue, useTraduccion } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
 import type { Insumo } from '@/lib/types';
 
@@ -159,10 +159,10 @@ export function ModalInsumo({
       pie={
         <>
           <Button variante="secundario" onClick={onCerrar}>
-            {t('comun.cancelar')}
+            {bilingue(t('comun.cancelar'))}
           </Button>
           <Button onClick={enviar} cargando={guardando}>
-            {guardando ? t('comun.guardando') : t('comun.guardar')}
+            {bilingue(guardando ? t('comun.guardando') : t('comun.guardar'))}
           </Button>
         </>
       }
@@ -189,7 +189,7 @@ export function ModalInsumo({
 
           <div className="flex flex-col gap-1.5">
             <label htmlFor="categoria" className="text-sm font-medium text-texto">
-              {t('catalogo.categoria')}
+              {bilingue(t('catalogo.categoria'))}
             </label>
             <select
               id="categoria"
@@ -216,7 +216,7 @@ export function ModalInsumo({
 
           <div className="flex flex-col gap-1.5">
             <label htmlFor="unidad_medida" className="text-sm font-medium text-texto">
-              {t('catalogo.unidadMedida')}
+              {bilingue(t('catalogo.unidadMedida'))}
             </label>
             <select
               id="unidad_medida"
@@ -315,7 +315,7 @@ export function ModalInsumo({
               CLASES_SEMAFORO[vistaPrevia],
             )}
           >
-            {t(CLAVES_SEMAFORO[vistaPrevia])}
+            {bilingue(t(CLAVES_SEMAFORO[vistaPrevia]))}
           </p>
         )}
 

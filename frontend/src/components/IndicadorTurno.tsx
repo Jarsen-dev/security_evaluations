@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 
-import { useIdioma } from '@/lib/i18n';
+import { bilingue, useIdioma } from '@/lib/i18n';
 import { determinarTurno, type Turno } from '@/lib/turno';
 import { cn } from '@/lib/utils';
 
@@ -50,7 +50,7 @@ export function IndicadorTurno() {
       )}
     >
       <span aria-hidden="true">{esNoche ? '🌙' : '☀️'}</span>
-      {t(esNoche ? 'encabezado.turnoNoche' : 'encabezado.turnoDia')}
+      {bilingue(t(esNoche ? 'encabezado.turnoNoche' : 'encabezado.turnoDia'))}
     </span>
   );
 }

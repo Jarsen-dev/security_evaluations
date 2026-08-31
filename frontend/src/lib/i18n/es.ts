@@ -87,6 +87,7 @@ export const es = {
     medicamento: 'Control de medicamento',
     silos: 'Silos EPS',
     tableros: 'Tableros eléctricos',
+    pciMtto: 'PCI MTTO',
     enConstruccion: 'En construcción',
     enConstruccionDetalle:
       'Este control todavía se lleva en papel. Se habilitará aquí en cuanto se ' +
@@ -428,6 +429,55 @@ export const es = {
     sinCierre: 'Este registro todavía no tiene cierre de hallazgo.',
   },
 
+  pciMtto: {
+    titulo: 'Protección contra incendios — Mantenimiento',
+    descripcion:
+      'Una sola pregunta al mes: si se realizó el mantenimiento al sistema ' +
+      'contra incendios. El mes que cierre sin respuesta se registra solo, en ' +
+      'rojo, y hay que explicarlo.',
+    pregunta: '¿Se realizó el mantenimiento al sistema contra incendios?',
+    periodo: 'Mes que se registra',
+    anio: 'Año',
+    mes: 'Mes',
+    mtto: 'MTTO',
+    fecha: 'Fecha del mantenimiento',
+    evidencia: 'Evidencia',
+    motivo: 'Motivo',
+    motivoPlaceholder: '¿Por qué no se realizó el mantenimiento este mes?',
+    sinMotivo: 'Motivo pendiente',
+    reporte: 'Reporte de mantenimiento',
+    reporteAyuda: 'Cualquier formato. Máximo 10 MB.',
+    reporteElegir: 'Elegir archivo',
+    reporteCambiar: 'Cambiar el archivo',
+    reporteQuitar: 'Quitar el archivo',
+    reporteDescargar: 'Descargar el reporte',
+    sinReporte: 'Sin reporte adjunto',
+    faltaFecha: 'Captura la fecha en que se realizó el mantenimiento.',
+    faltaEvidencia: 'Agrega al menos una foto de evidencia.',
+    faltaReporte: 'Adjunta el reporte de mantenimiento.',
+    faltaMotivo: 'Captura el motivo por el que no se realizó.',
+    listo: 'Listo para confirmar.',
+    guardado: 'Registro guardado.',
+    motivoGuardado: 'Motivo guardado.',
+    yaRegistrado: 'El mantenimiento de {mes} ya está registrado.',
+    yaRegistradoDetalle: 'Corrígelo si necesitas cambiar algo.',
+    aunNoArranca: 'El control empieza a llevarse en {mes}.',
+    registros: 'Registros',
+    vacio: 'Todavía no hay registros de este año.',
+    cerradoPorSistema: 'Lo cerró el sistema por falta de respuesta',
+    urgenteTitulo: 'Falta explicar un mes sin mantenimiento',
+    urgenteDetalle:
+      'Estos meses cerraron sin que se registrara el mantenimiento. Captura ' +
+      'el motivo para dejar el histórico completo.',
+    urgenteGuardar: 'Guardar el motivo',
+    corregir: 'Corregir',
+    corregirTitulo: 'Corregir el registro de {mes}',
+    corregirDetalle:
+      'Es la única forma de arreglar un mes: los registros no se borran.',
+    avisoTitulo: 'Mantenimiento contra incendios sin registrar',
+    avisoMes: 'Falta el motivo de {mes}',
+  },
+
   incidencias: {
     titulo: 'Incidencias',
     descripcion:
@@ -582,6 +632,19 @@ export const es = {
     siguiente: 'Siguiente',
   },
 
+  // Barra del visor de imágenes (`components/ui/VisorImagen`). Todas estas
+  // claves acaban en un `title`/`aria-label`, nunca como hijo de JSX.
+  visor: {
+    girarIzquierda: 'Girar 90° a la izquierda',
+    girarDerecha: 'Girar 90° a la derecha',
+    alejar: 'Alejar',
+    acercar: 'Acercar',
+    ajustar: 'Ajustar a la pantalla y enderezar',
+    pantallaCompleta: 'Ver en pantalla completa',
+    salirPantallaCompleta: 'Salir de pantalla completa (Esc)',
+    ayuda: 'Arrastra para mover la imagen y usa la rueda del ratón para acercarla.',
+  },
+
   estudios: {
     titulo: 'Estudios',
     descripcion:
@@ -664,13 +727,14 @@ export const es = {
   avisos: {
     titulo: 'Vencimientos',
     abrir: 'Avisos de vencimiento',
-    vacio: 'Ningún estudio vence en el próximo mes.',
+    vacio: 'No hay avisos pendientes.',
     venceHoy: 'Vence hoy',
     venceManana: 'Vence mañana',
     venceEn: 'Vence en {dias} días',
     vencioAyer: 'Venció ayer',
     vencioHace: 'Venció hace {dias} días',
     verTodos: 'Ver todos los estudios',
+    verControles: 'Ir al control de PCI MTTO',
     falloCarga: 'No se pudieron cargar los avisos.',
   },
 
@@ -891,6 +955,8 @@ export const es = {
     porRondin: 'Cumplimiento por rondín',
     visitados: 'Visitados',
     sinVisita: 'Sin visita',
+    pendiente: 'Todavía no ocurre',
+    cumplimientoParcial: 'Cumplimiento parcial',
     descargar: 'Descargar Excel',
     enviarCorreo: 'Enviar por correo',
     correoDestino: 'Correo del destinatario',
@@ -917,6 +983,11 @@ export const es = {
     activo: 'Activo',
     inactivo: 'Retirado',
     codigo: 'Código QR',
+    tituloCodigo: 'Código QR — Punto {numero}',
+    baseNoConfigurada:
+      'NEXT_PUBLIC_BASE_URL está vacía, así que la liga del código queda ' +
+      'relativa y el QR no abrirá nada. Captúrala en el archivo .env y ' +
+      'reconstruye el frontend antes de imprimir las etiquetas.',
     verCodigo: 'Ver código',
     crear: 'Nuevo punto de control',
     editar: 'Editar punto de control',
@@ -928,6 +999,7 @@ export const es = {
     eliminado: 'Punto eliminado.',
     falloGuardar: 'No se pudo guardar el punto.',
     falloEliminar: 'No se pudo eliminar el punto.',
+    falloImprimir: 'No se pudo generar la hoja de códigos QR.',
     confirmarEliminar: 'Eliminar punto de control',
     confirmarEliminarDetalle:
       'El punto {nombre} se borrará y su código QR dejará de servir. Los ' +
@@ -935,6 +1007,10 @@ export const es = {
       'Casi siempre conviene retirarlo en vez de borrarlo.',
     faltaNumero: 'Escribe el número del punto.',
     faltaNombre: 'Escribe el nombre del punto.',
+    textoLargo: 'Son 150 caracteres como máximo.',
+    qrRetirado:
+      'este punto está retirado. El código sigue aquí para consultarlo, pero '  +
+      'al escanearlo no registrará ninguna visita hasta que se reactive.',
     descargarQr: 'Descargar PNG',
     ligaCopiada: 'Liga copiada.',
     falloCopiar: 'No se pudo copiar. Cópiala a mano: {liga}',

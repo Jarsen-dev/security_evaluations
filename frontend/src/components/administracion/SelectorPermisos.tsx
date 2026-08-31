@@ -1,6 +1,6 @@
 'use client';
 
-import { useTraduccion, type ClaveTraduccion } from '@/lib/i18n';
+import { bilingue, unaLinea, useTraduccion, type ClaveTraduccion } from '@/lib/i18n';
 import type { Modulo, Permisos } from '@/lib/types';
 
 /**
@@ -50,8 +50,8 @@ export function SelectorPermisos({ valor, onCambiar }: SelectorPermisosProps) {
 
   return (
     <fieldset className="flex flex-col gap-3">
-      <legend className="text-sm font-medium text-texto">{t('permisos.titulo')}</legend>
-      <p className="text-sm text-texto-suave">{t('permisos.ayuda')}</p>
+      <legend className="text-sm font-medium text-texto">{bilingue(t('permisos.titulo'))}</legend>
+      <p className="text-sm text-texto-suave">{bilingue(t('permisos.ayuda'))}</p>
 
       <div className="overflow-hidden rounded-tarjeta border border-borde">
         <table className="w-full text-sm">
@@ -61,19 +61,19 @@ export function SelectorPermisos({ valor, onCambiar }: SelectorPermisosProps) {
                 scope="col"
                 className="px-4 py-2 text-left font-medium text-texto-suave"
               >
-                {t('permisos.modulo')}
+                {bilingue(t('permisos.modulo'))}
               </th>
               <th
                 scope="col"
                 className="w-24 px-4 py-2 text-center font-medium text-texto-suave"
               >
-                {t('permisos.acceso')}
+                {bilingue(t('permisos.acceso'))}
               </th>
               <th
                 scope="col"
                 className="w-24 px-4 py-2 text-center font-medium text-texto-suave"
               >
-                {t('permisos.editar')}
+                {bilingue(t('permisos.editar'))}
               </th>
             </tr>
           </thead>
@@ -86,14 +86,14 @@ export function SelectorPermisos({ valor, onCambiar }: SelectorPermisosProps) {
 
               return (
                 <tr key={modulo.clave} className="border-t border-borde">
-                  <td className="px-4 py-2.5 text-texto">{etiqueta}</td>
+                  <td className="px-4 py-2.5 text-texto">{bilingue(etiqueta)}</td>
 
                   <td className="px-4 py-2.5 text-center">
                     <input
                       type="checkbox"
                       className="h-4 w-4 accent-primario"
                       checked={tieneAcceso}
-                      aria-label={t('permisos.accesoA', { modulo: etiqueta })}
+                      aria-label={t('permisos.accesoA', { modulo: unaLinea(etiqueta) })}
                       onChange={(evento) =>
                         alternarAcceso(modulo.clave, evento.target.checked)
                       }
@@ -106,7 +106,7 @@ export function SelectorPermisos({ valor, onCambiar }: SelectorPermisosProps) {
                       className="h-4 w-4 accent-primario disabled:opacity-40"
                       checked={permiso?.editar ?? false}
                       disabled={!tieneAcceso}
-                      aria-label={t('permisos.editarEn', { modulo: etiqueta })}
+                      aria-label={t('permisos.editarEn', { modulo: unaLinea(etiqueta) })}
                       onChange={(evento) =>
                         alternarEdicion(modulo.clave, evento.target.checked)
                       }

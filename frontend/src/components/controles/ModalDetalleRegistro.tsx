@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react';
 import { ListaHallazgos } from '@/components/controles/ModalCierreHallazgo';
 import { Modal } from '@/components/ui/Modal';
 import { ErrorDeApi, obtenerCierre, urlFotoControl } from '@/lib/api';
-import { useIdioma, useTraduccion } from '@/lib/i18n';
+import { bilingue, useIdioma, useTraduccion } from '@/lib/i18n';
 import type { CierreHallazgo, DetalleCierre } from '@/lib/types';
 import { formatearFechaIso } from '@/lib/utils';
 
@@ -84,7 +84,7 @@ export function ModalDetalleRegistro({
       ancho="lg"
     >
       {cargando ? (
-        <p className="text-sm text-texto-suave">{t('comun.cargando')}</p>
+        <p className="text-sm text-texto-suave">{bilingue(t('comun.cargando'))}</p>
       ) : (
         <div className="flex flex-col gap-5">
           {children}
@@ -96,7 +96,7 @@ export function ModalDetalleRegistro({
           ) : (
             (detalle?.hallazgos.length ?? 0) > 0 && (
               <p className="rounded-md border border-alerta bg-alerta-suave px-3 py-2 text-sm text-texto-suave">
-                {t('cierre.sinCierre')}
+                {bilingue(t('cierre.sinCierre'))}
               </p>
             )
           )}
@@ -120,23 +120,23 @@ function BloqueCierre({ cierre }: { cierre: CierreHallazgo }) {
   return (
     <section className="flex flex-col gap-3 rounded-md border border-exito bg-exito-suave/30 p-4">
       <h3 className="text-sm font-semibold text-texto">
-        ✓ {t('cierre.titulo')}
+        ✓ {bilingue(t('cierre.titulo'))}
         <span className="ml-2 font-normal text-texto-tenue">
-          {t('cierre.registradoPor', { responsable: cierre.responsable })}
+          {bilingue(t('cierre.registradoPor', { responsable: cierre.responsable }))}
         </span>
       </h3>
 
       <dl className="grid gap-3 sm:grid-cols-2">
         {campos.map(([etiqueta, valor]) => (
           <div key={etiqueta}>
-            <dt className="text-sm text-texto-tenue">{etiqueta}</dt>
+            <dt className="text-sm text-texto-tenue">{bilingue(etiqueta)}</dt>
             <dd className="text-sm text-texto">{valor}</dd>
           </div>
         ))}
       </dl>
 
       <div>
-        <dt className="text-sm text-texto-tenue">{t('cierre.accionInmediata')}</dt>
+        <dt className="text-sm text-texto-tenue">{bilingue(t('cierre.accionInmediata'))}</dt>
         <dd className="whitespace-pre-line text-sm text-texto">
           {cierre.accion_inmediata}
         </dd>
@@ -145,7 +145,7 @@ function BloqueCierre({ cierre }: { cierre: CierreHallazgo }) {
       {cierre.accion_pendiente && (
         <div className="rounded-md border border-alerta bg-alerta-suave px-3 py-2">
           <dt className="text-sm font-medium text-alerta">
-            {t('cierre.accionPendiente')}
+            {bilingue(t('cierre.accionPendiente'))}
           </dt>
           <dd className="whitespace-pre-line text-sm text-texto-suave">
             {cierre.accion_pendiente}
@@ -155,7 +155,7 @@ function BloqueCierre({ cierre }: { cierre: CierreHallazgo }) {
 
       {cierre.fotos.length > 0 && (
         <div className="flex flex-col gap-2">
-          <span className="text-sm text-texto-tenue">{t('cierre.verificacion')}</span>
+          <span className="text-sm text-texto-tenue">{bilingue(t('cierre.verificacion'))}</span>
           <ul className="flex flex-wrap gap-2">
             {cierre.fotos.map((id, indice) => (
               <li key={id}>

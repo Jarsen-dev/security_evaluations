@@ -2,7 +2,7 @@
 
 import { Badge } from '@/components/ui/Badge';
 import { AccionesRegistro } from '@/components/controles/AccionesRegistro';
-import { useIdioma } from '@/lib/i18n';
+import { bilingue, useIdioma } from '@/lib/i18n';
 import type { InspeccionSqpResumen } from '@/lib/types';
 import { formatearFechaIso } from '@/lib/utils';
 
@@ -29,7 +29,7 @@ export function TablaInspeccionesSqp({
   if (inspecciones.length === 0) {
     return (
       <p className="rounded-tarjeta border border-borde bg-fondo-elevado px-4 py-8 text-center text-sm text-texto-suave">
-        {t('sqp.historialVacio')}
+        {bilingue(t('sqp.historialVacio'))}
       </p>
     );
   }
@@ -39,13 +39,13 @@ export function TablaInspeccionesSqp({
       <table className="w-full min-w-[44rem] border-collapse text-sm">
         <thead className="bg-fondo-sutil text-left text-texto-suave">
           <tr>
-            <th className="px-3 py-2 font-medium">{t('comun.fecha')}</th>
-            <th className="px-3 py-2 font-medium">{t('comun.area')}</th>
-            <th className="px-3 py-2 font-medium">{t('sqp.encargado')}</th>
-            <th className="px-3 py-2 font-medium">{t('comun.responsable')}</th>
-            <th className="px-3 py-2 font-medium">{t('sqp.hallazgos')}</th>
+            <th className="px-3 py-2 font-medium">{bilingue(t('comun.fecha'))}</th>
+            <th className="px-3 py-2 font-medium">{bilingue(t('comun.area'))}</th>
+            <th className="px-3 py-2 font-medium">{bilingue(t('sqp.encargado'))}</th>
+            <th className="px-3 py-2 font-medium">{bilingue(t('comun.responsable'))}</th>
+            <th className="px-3 py-2 font-medium">{bilingue(t('sqp.hallazgos'))}</th>
             <th className="px-3 py-2 text-right font-medium">
-              {t('comun.acciones')}
+              {bilingue(t('comun.acciones'))}
             </th>
           </tr>
         </thead>
@@ -61,7 +61,7 @@ export function TablaInspeccionesSqp({
               <td className="px-3 py-2 text-texto-suave">{inspeccion.responsable}</td>
               <td className="px-3 py-2">
                 <Badge tono={inspeccion.total_no > 0 ? 'error' : 'exito'}>
-                  {t('sqp.hallazgosDetalle', { total: inspeccion.total_no })}
+                  {bilingue(t('sqp.hallazgosDetalle', { total: inspeccion.total_no }))}
                 </Badge>
               </td>
               <td className="px-3 py-2 text-right">

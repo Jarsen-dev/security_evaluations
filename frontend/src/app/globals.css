@@ -48,3 +48,21 @@
     @apply outline-none ring-2 ring-primario ring-offset-2 ring-offset-fondo;
   }
 }
+
+@layer base {
+  /* Red de seguridad del subtítulo bilingüe.
+     En coreano `t()` devuelve el hangul y el español pegados con un salto de
+     línea, y `bilingue()` los separa en dos elementos donde cabe markup. Donde
+     no lo envuelve nadie —una celda que se nos escapó, un texto que llega ya
+     armado— el salto se colapsaría a un espacio y las dos lenguas quedarían
+     pegadas en el mismo renglón. Con `pre-line` al menos se leen separadas.
+
+     Cuelga de `html[lang="ko"]`, que `ProveedorIdioma` ya mantiene al día, así
+     que en español y en inglés no cambia absolutamente nada. Tampoco afecta a
+     lo que `bilingue()` ya partió (ahí son dos elementos, no un salto), ni pisa
+     los `whitespace-nowrap` de los componentes: esos van sobre el elemento y
+     ganan a una regla heredada. */
+  html[lang='ko'] body {
+    white-space: pre-line;
+  }
+}

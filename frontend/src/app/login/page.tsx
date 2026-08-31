@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Logo } from '@/components/ui/Logo';
 import { ErrorDeApi, iniciarSesion } from '@/lib/api';
-import { ProveedorIdioma, useTraduccion } from '@/lib/i18n';
+import { bilingue, ProveedorIdioma, useTraduccion } from '@/lib/i18n';
 
 // Los mensajes se resuelven al validar, no al declarar el esquema: el idioma
 // puede cambiar entre un render y otro.
@@ -94,8 +94,8 @@ function FormularioLogin() {
         <header className="mb-8 text-center">
           <Logo alto={56} sobreFondoOscuro className="mb-5" />
 
-          <h1 className="text-xl font-semibold text-texto">{t('login.titulo')}</h1>
-          <p className="mt-1 text-sm text-texto-suave">{t('login.subtitulo')}</p>
+          <h1 className="text-xl font-semibold text-texto">{bilingue(t('login.titulo'))}</h1>
+          <p className="mt-1 text-sm text-texto-suave">{bilingue(t('login.subtitulo'))}</p>
         </header>
 
         <form
@@ -135,11 +135,11 @@ function FormularioLogin() {
           )}
 
           <Button type="submit" tamano="lg" cargando={enviando} className="mt-2 w-full">
-            {enviando ? t('login.verificando') : t('login.entrar')}
+            {bilingue(enviando ? t('login.verificando') : t('login.entrar'))}
           </Button>
         </form>
 
-        <p className="mt-6 text-center text-xs text-texto-tenue">{t('login.nota')}</p>
+        <p className="mt-6 text-center text-xs text-texto-tenue">{bilingue(t('login.nota'))}</p>
       </div>
     </main>
   );

@@ -3,7 +3,7 @@
 import { CLAVES_SEMAFORO, PUNTOS_SEMAFORO } from '@/components/catalogo/semaforo';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
-import { useIdioma } from '@/lib/i18n';
+import { bilingue, unaLinea, useIdioma } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
 import type { FiltrosCatalogo, Insumo, InsumosPaginados } from '@/lib/types';
 
@@ -58,13 +58,13 @@ export function TablaCatalogo({
       <div className="flex flex-wrap items-end gap-3 border-b border-borde bg-fondo/40 px-5 py-4">
         <div className="flex min-w-[16rem] flex-1 flex-col gap-1.5">
           <label htmlFor="catalogo-busqueda" className="text-xs font-medium text-texto-suave">
-            {t('comun.buscar')}
+            {bilingue(t('comun.buscar'))}
           </label>
           <input
             id="catalogo-busqueda"
             type="search"
             className={CLASES_CAMPO}
-            placeholder={t('catalogo.buscarAyuda')}
+            placeholder={unaLinea(t('catalogo.buscarAyuda'))}
             value={busqueda}
             onChange={(evento) => onBusqueda(evento.target.value)}
           />
@@ -72,7 +72,7 @@ export function TablaCatalogo({
 
         <div className="flex flex-col gap-1.5">
           <label htmlFor="catalogo-categoria" className="text-xs font-medium text-texto-suave">
-            {t('catalogo.categoria')}
+            {bilingue(t('catalogo.categoria'))}
           </label>
           <select
             id="catalogo-categoria"
@@ -82,7 +82,7 @@ export function TablaCatalogo({
               onFiltros({ ...filtros, categoria: evento.target.value || undefined })
             }
           >
-            <option value="">{t('catalogo.todasLasCategorias')}</option>
+            <option value="">{unaLinea(t('catalogo.todasLasCategorias'))}</option>
             {categorias.map((categoria) => (
               <option key={categoria} value={categoria}>
                 {categoria}
@@ -93,7 +93,7 @@ export function TablaCatalogo({
 
         <div className="flex flex-col gap-1.5">
           <label htmlFor="catalogo-estado" className="text-xs font-medium text-texto-suave">
-            {t('catalogo.estado')}
+            {bilingue(t('catalogo.estado'))}
           </label>
           <select
             id="catalogo-estado"
@@ -106,20 +106,20 @@ export function TablaCatalogo({
               })
             }
           >
-            <option value="">{t('catalogo.todosLosEstados')}</option>
-            <option value="bajo">{t('semaforoInsumo.bajo')}</option>
-            <option value="excedido">{t('semaforoInsumo.excedido')}</option>
+            <option value="">{unaLinea(t('catalogo.todosLosEstados'))}</option>
+            <option value="bajo">{unaLinea(t('semaforoInsumo.bajo'))}</option>
+            <option value="excedido">{unaLinea(t('semaforoInsumo.excedido'))}</option>
           </select>
         </div>
 
         {(hayFiltros || busqueda !== '') && (
           <Button variante="fantasma" tamano="sm" onClick={onLimpiar}>
-            {t('catalogo.limpiar')}
+            {bilingue(t('catalogo.limpiar'))}
           </Button>
         )}
 
         <span className="ml-auto text-sm text-texto-suave">
-          {t('catalogo.registros', { total })}
+          {bilingue(t('catalogo.registros', { total }))}
         </span>
       </div>
 
@@ -129,31 +129,31 @@ export function TablaCatalogo({
           <thead className="bg-fondo-sutil">
             <tr>
               <th scope="col" className="px-5 py-3 text-left font-medium text-texto-suave">
-                {t('catalogo.codigo')}
+                {bilingue(t('catalogo.codigo'))}
               </th>
               <th scope="col" className="px-5 py-3 text-left font-medium text-texto-suave">
-                {t('catalogo.categoria')}
+                {bilingue(t('catalogo.categoria'))}
               </th>
               <th scope="col" className="px-5 py-3 text-left font-medium text-texto-suave">
-                {t('catalogo.unidadMedida')}
+                {bilingue(t('catalogo.unidadMedida'))}
               </th>
               <th scope="col" className="px-5 py-3 text-left font-medium text-texto-suave">
-                {t('catalogo.proveedor')}
+                {bilingue(t('catalogo.proveedor'))}
               </th>
               <th scope="col" className="px-5 py-3 text-left font-medium text-texto-suave">
-                {t('catalogo.ubicacion')}
+                {bilingue(t('catalogo.ubicacion'))}
               </th>
               <th scope="col" className="px-5 py-3 text-right font-medium text-texto-suave">
-                {t('catalogo.cantidad')}
+                {bilingue(t('catalogo.cantidad'))}
               </th>
               <th scope="col" className="px-5 py-3 text-right font-medium text-texto-suave">
-                {t('catalogo.rango')}
+                {bilingue(t('catalogo.rango'))}
               </th>
               <th scope="col" className="px-5 py-3 text-left font-medium text-texto-suave">
-                {t('catalogo.estado')}
+                {bilingue(t('catalogo.estado'))}
               </th>
               <th scope="col" className="px-5 py-3 text-right">
-                <span className="sr-only">{t('comun.acciones')}</span>
+                <span className="sr-only">{bilingue(t('comun.acciones'))}</span>
               </th>
             </tr>
           </thead>
@@ -162,20 +162,20 @@ export function TablaCatalogo({
             {cargando ? (
               <tr>
                 <td colSpan={COLUMNAS} className="px-5 py-8 text-center text-texto-suave">
-                  {t('comun.cargando')}
+                  {bilingue(t('comun.cargando'))}
                 </td>
               </tr>
             ) : total === 0 ? (
               <tr>
                 <td colSpan={COLUMNAS} className="px-5 py-10 text-center">
                   <p className="text-sm font-medium text-texto">
-                    {hayFiltros || busqueda !== ''
+                    {bilingue(hayFiltros || busqueda !== ''
                       ? t('catalogo.sinCoincidencias')
-                      : t('catalogo.vacio')}
+                      : t('catalogo.vacio'))}
                   </p>
                   {!hayFiltros && busqueda === '' && (
                     <p className="mt-2 text-sm text-texto-suave">
-                      {t('catalogo.vacioAyuda')}
+                      {bilingue(t('catalogo.vacioAyuda'))}
                     </p>
                   )}
                 </td>
@@ -211,7 +211,7 @@ export function TablaCatalogo({
                           PUNTOS_SEMAFORO[insumo.estado],
                         )}
                       />
-                      {t(CLAVES_SEMAFORO[insumo.estado])}
+                      {bilingue(t(CLAVES_SEMAFORO[insumo.estado]))}
                     </span>
                   </td>
                   <td className="px-5 py-3">
@@ -222,14 +222,14 @@ export function TablaCatalogo({
                           tamano="sm"
                           onClick={() => onEditar(insumo)}
                         >
-                          {t('comun.editar')}
+                          {bilingue(t('comun.editar'))}
                         </Button>
                         <Button
                           variante="peligro"
                           tamano="sm"
                           onClick={() => onEliminar(insumo)}
                         >
-                          {t('comun.eliminar')}
+                          {bilingue(t('comun.eliminar'))}
                         </Button>
                       </div>
                     )}
@@ -244,7 +244,7 @@ export function TablaCatalogo({
       {total > size && (
         <div className="flex items-center justify-between border-t border-borde px-5 py-3">
           <span className="text-sm text-texto-suave">
-            {t('catalogo.pagina', { pagina, total: totalPaginas })}
+            {bilingue(t('catalogo.pagina', { pagina, total: totalPaginas }))}
           </span>
 
           <div className="flex gap-2">
@@ -254,7 +254,7 @@ export function TablaCatalogo({
               disabled={pagina <= 1}
               onClick={() => onPagina(pagina - 1)}
             >
-              {t('catalogo.anterior')}
+              {bilingue(t('catalogo.anterior'))}
             </Button>
             <Button
               variante="secundario"
@@ -262,7 +262,7 @@ export function TablaCatalogo({
               disabled={pagina >= totalPaginas}
               onClick={() => onPagina(pagina + 1)}
             >
-              {t('catalogo.siguiente')}
+              {bilingue(t('catalogo.siguiente'))}
             </Button>
           </div>
         </div>

@@ -185,11 +185,14 @@ def _hoja_rayser(
     hoja.freeze_panes = "A3"
 
 
-def _hoja_evidencias(libro: Workbook, evidencias: list[Evidencia]) -> None:
+def hoja_evidencias(libro: Workbook, evidencias: list[Evidencia]) -> None:
     """Hoja con las fotos que acompañan a los registros.
 
     Se anclan como imágenes de la hoja, no como enlaces: el archivo se manda
     por correo y tiene que viajar completo.
+
+    Es pública porque la comparten los tres generadores que llevan evidencia
+    —los controles, las incidencias y PCI MTTO—, no solo este módulo.
     """
     hoja = libro.create_sheet("Evidencias")
     hoja["A1"] = "Evidencias fotográficas"
@@ -256,7 +259,7 @@ def generar_excel_rayser(
     _hoja_rayser(hoja, registros, desde, hasta, periodo, cierres or {})
 
     if evidencias:
-        _hoja_evidencias(libro, evidencias)
+        hoja_evidencias(libro, evidencias)
 
     flujo = BytesIO()
     libro.save(flujo)
@@ -445,7 +448,7 @@ def generar_excel_sqp(
     # Las fotos de los puntos inconformes, en su propia hoja: el Excel se
     # comparte y tiene que viajar completo, sin depender de ninguna liga.
     if evidencias:
-        _hoja_evidencias(libro, evidencias)
+        hoja_evidencias(libro, evidencias)
 
     flujo = BytesIO()
     libro.save(flujo)
@@ -629,7 +632,7 @@ def generar_excel_checklist(
     hoja.freeze_panes = hoja.cell(row=fila_encabezados + 1, column=1).coordinate
 
     if evidencias:
-        _hoja_evidencias(libro, evidencias)
+        hoja_evidencias(libro, evidencias)
 
     flujo = BytesIO()
     libro.save(flujo)
@@ -937,7 +940,7 @@ def generar_excel_formato(
     ajustar_anchos(hoja, anchos)
 
     if evidencias:
-        _hoja_evidencias(libro, evidencias)
+        hoja_evidencias(libro, evidencias)
 
     flujo = BytesIO()
     libro.save(flujo)
@@ -1034,7 +1037,7 @@ def generar_excel_platicas(
     hoja.freeze_panes = "A3"
 
     if evidencias:
-        _hoja_evidencias(libro, evidencias)
+        hoja_evidencias(libro, evidencias)
 
     flujo = BytesIO()
     libro.save(flujo)

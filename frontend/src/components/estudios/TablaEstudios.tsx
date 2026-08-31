@@ -1,12 +1,14 @@
 'use client';
 
+import type { ReactNode } from 'react';
+
 import {
   CLASES_CELDA,
   claveEtiqueta,
   type GrupoOpciones,
 } from '@/components/estudios/opciones';
 import { Button } from '@/components/ui/Button';
-import { useIdioma, type ClaveTraduccion } from '@/lib/i18n';
+import { bilingue, useIdioma, type ClaveTraduccion } from '@/lib/i18n';
 import type { CatalogoEstudios, Estudio, OpcionEstudio } from '@/lib/types';
 import { fechaDeHoy, formatearFechaIso } from '@/lib/utils';
 import { cn } from '@/lib/utils';
@@ -44,14 +46,17 @@ export function TablaEstudios({
   const { t, locale } = useIdioma();
   const hoy = fechaDeHoy();
 
+  // Devuelve `ReactNode` y no `string` porque se pinta en una celda, donde sí
+  // cabe el subtítulo en español bajo el coreano. Envolver aquí y no en los
+  // seis sitios que lo llaman deja un solo lugar del que acordarse.
   function rotulo(
     grupo: GrupoOpciones,
     opciones: OpcionEstudio[],
     valor: string,
-  ): string {
+  ): ReactNode {
     const clave: ClaveTraduccion | undefined = claveEtiqueta(grupo, valor);
     if (clave) {
-      return t(clave);
+      return bilingue(t(clave));
     }
     // Una clave que ya no está en el catálogo se muestra tal cual antes que
     // dejar la celda vacía.
@@ -66,8 +71,8 @@ export function TablaEstudios({
   if (estudios.length === 0) {
     return (
       <div className="rounded-tarjeta border border-borde bg-fondo-elevado px-5 py-6">
-        <p className="text-sm font-medium text-texto">{t('estudios.vacio')}</p>
-        <p className="mt-1 text-sm text-texto-suave">{t('estudios.vacioAyuda')}</p>
+        <p className="text-sm font-medium text-texto">{bilingue(t('estudios.vacio'))}</p>
+        <p className="mt-1 text-sm text-texto-suave">{bilingue(t('estudios.vacioAyuda'))}</p>
       </div>
     );
   }
@@ -77,18 +82,18 @@ export function TablaEstudios({
       <table className="w-full min-w-[64rem] text-sm">
         <thead className="bg-fondo-sutil">
           <tr>
-            <Encabezado>{t('estudios.numero')}</Encabezado>
-            <Encabezado alineado="left">{t('estudios.despacho')}</Encabezado>
-            <Encabezado alineado="left">{t('estudios.estudio')}</Encabezado>
-            <Encabezado>{t('estudios.vigencia')}</Encabezado>
-            <Encabezado>{t('estudios.prioridad')}</Encabezado>
-            <Encabezado>{t('estudios.tipo')}</Encabezado>
-            <Encabezado>{t('estudios.estatus')}</Encabezado>
-            <Encabezado>{t('estudios.vencimiento')}</Encabezado>
-            <Encabezado>{t('estudios.aprobado')}</Encabezado>
-            <Encabezado>{t('estudios.pagado')}</Encabezado>
-            <Encabezado>{t('estudios.link')}</Encabezado>
-            {puedeEditar && <Encabezado>{t('comun.acciones')}</Encabezado>}
+            <Encabezado>{bilingue(t('estudios.numero'))}</Encabezado>
+            <Encabezado alineado="left">{bilingue(t('estudios.despacho'))}</Encabezado>
+            <Encabezado alineado="left">{bilingue(t('estudios.estudio'))}</Encabezado>
+            <Encabezado>{bilingue(t('estudios.vigencia'))}</Encabezado>
+            <Encabezado>{bilingue(t('estudios.prioridad'))}</Encabezado>
+            <Encabezado>{bilingue(t('estudios.tipo'))}</Encabezado>
+            <Encabezado>{bilingue(t('estudios.estatus'))}</Encabezado>
+            <Encabezado>{bilingue(t('estudios.vencimiento'))}</Encabezado>
+            <Encabezado>{bilingue(t('estudios.aprobado'))}</Encabezado>
+            <Encabezado>{bilingue(t('estudios.pagado'))}</Encabezado>
+            <Encabezado>{bilingue(t('estudios.link'))}</Encabezado>
+            {puedeEditar && <Encabezado>{bilingue(t('comun.acciones'))}</Encabezado>}
           </tr>
         </thead>
 
@@ -175,14 +180,14 @@ export function TablaEstudios({
                         tamano="sm"
                         onClick={() => onEditar(estudio)}
                       >
-                        {t('comun.editar')}
+                        {bilingue(t('comun.editar'))}
                       </Button>
                       <Button
                         variante="fantasma"
                         tamano="sm"
                         onClick={() => onEliminar(estudio)}
                       >
-                        {t('comun.eliminar')}
+                        {bilingue(t('comun.eliminar'))}
                       </Button>
                     </div>
                   </td>

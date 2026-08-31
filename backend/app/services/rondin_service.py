@@ -42,6 +42,8 @@ HORAS_POR_RONDIN = HORAS_TURNO // RONDINES_POR_TURNO
 PUNTO_NO_DISPONIBLE = "Este punto no está registrado. Avisa a tu supervisor."
 
 NUMERO_DUPLICADO = "Ya existe un punto de control con ese número."
+TOKEN_DUPLICADO = "No se pudo generar un código único. Intenta de nuevo."
+CONFLICTO_GENERICO = "No se pudo guardar el punto de control."
 NO_EXISTE = "El punto de control no existe."
 
 #: Reintentos ante colisión de token. Con 24 bytes aleatorios es improbable,
@@ -102,6 +104,15 @@ def _indice_rondin(momento: datetime, inicio_turno: datetime) -> int:
     return max(0, min(RONDINES_POR_TURNO - 1, indice))
 
 
+def _identidad(escaneo: EscaneoRondin) -> Any:
+    """Qué punto se visitó, para saber si un recorrido ya pasó por ahí.
+
+    Se prefiere `punto_id`; `punto_numero` es el respaldo de los escaneos cuyo
+    punto se borró y quedaron con el FK en NULL.
+    """
+    return escaneo.punto_id if escaneo.punto_id is not None else escaneo.punto_numero
+
+
 def asignar_rondines(
     escaneos: list[EscaneoRondin], inicio_turno: datetime
 ) -> dict[int, int]:
@@ -109,13 +120,27 @@ def asignar_rondines(
 
     Devuelve ``{id_del_escaneo: índice de rondín}``.
 
-    1. **Agrupación por silencio**: más de 30 minutos sin escanear significa
-       que empezó un recorrido nuevo.
-    2. **Voto por mayoría**: el recorrido completo se asigna al bloque donde
-       cayó la mayoría de sus puntos. Sin esto, un recorrido que cruza las
-       09:30 se partiría en dos columnas del tablero y ninguna de las dos
-       reflejaría lo que hizo el guardia.
+    1. **Agrupación por recorrido**: se corta cuando pasan más de 30 minutos
+       sin escanear (empezó un recorrido nuevo) **o** cuando vuelve a aparecer
+       un punto que ya se había visitado en el recorrido que se venía armando,
+       que es la señal de que el guardia empezó otra vuelta.
+    2. **Voto por mayoría**: el recorrido se asigna al bloque donde cayó la
+       mayoría de sus puntos. Sin esto, un recorrido que cruza las 09:30 se
+       partiría en dos columnas del tablero y ninguna reflejaría lo que hizo
+       el guardia.
     3. Todos los escaneos del grupo heredan ese rondín.
+
+    El corte por punto repetido del paso 1 es lo que impide que dos rondas
+    seguidas se fundan en una. Una ronda toma ~20 minutos, así que dos rondas
+    consecutivas pueden quedar a menos de 30 minutos una de otra: sin este
+    corte el voto por mayoría las mandaba al mismo rondín y la segunda visita
+    a cada punto se descartaba en silencio, restando cumplimiento a un guardia
+    que sí hizo las dos vueltas.
+
+    No se corta por frontera de bloque: eso partiría en dos toda ronda que
+    cruce las 09:30, que es justo lo que el voto por mayoría existe para
+    evitar. Repetir un punto distingue "otra vuelta" de "la misma vuelta, más
+    tarde"; el reloj solo, no.
 
     Esto se hace en Python y no en SQL a propósito, y es una excepción
     justificada a la regla 4: son pasos secuenciales que dependen del escaneo
@@ -128,13 +153,20 @@ def asignar_rondines(
 
     ordenados = sorted(escaneos, key=lambda e: e.escaneado_at)
 
-    # Paso 1: cortar en recorridos.
+    # Paso 1: cortar en recorridos, por silencio o por punto repetido.
     grupos: list[list[EscaneoRondin]] = [[ordenados[0]]]
+    vistos: set[Any] = {_identidad(ordenados[0])}
+
     for anterior, actual in zip(ordenados, ordenados[1:], strict=False):
         minutos = (actual.escaneado_at - anterior.escaneado_at).total_seconds() / 60
-        if minutos > GAP_RECORRIDO_MINUTOS:
+        identidad = _identidad(actual)
+
+        if minutos > GAP_RECORRIDO_MINUTOS or identidad in vistos:
             grupos.append([])
+            vistos = set()
+
         grupos[-1].append(actual)
+        vistos.add(identidad)
 
     # Pasos 2 y 3: voto por mayoría y herencia.
     asignacion: dict[int, int] = {}
@@ -167,6 +199,23 @@ async def _token_libre(db: AsyncSession) -> str:
     raise ConflictoDeNegocio(
         "No se pudo generar un código único para el punto. Intenta de nuevo."
     )
+
+
+def _motivo_conflicto(exc: IntegrityError) -> str:
+    """Traduce el constraint que reventó a un mensaje accionable.
+
+    Hay dos únicos en `puntos_rondin`. Mandar siempre "número duplicado" hacía
+    que una colisión de token —o cualquier constraint que se agregue después—
+    se le reportara al usuario como un problema que no tiene.
+    """
+    detalle = str(getattr(exc, "orig", exc))
+
+    if "uq_puntos_rondin_token" in detalle:
+        return TOKEN_DUPLICADO
+    if "uq_puntos_rondin_numero" in detalle:
+        return NUMERO_DUPLICADO
+
+    return CONFLICTO_GENERICO
 
 
 async def listar_puntos(
@@ -204,7 +253,7 @@ async def crear_punto(
         await db.commit()
     except IntegrityError as exc:
         await db.rollback()
-        raise ConflictoDeNegocio(NUMERO_DUPLICADO) from exc
+        raise ConflictoDeNegocio(_motivo_conflicto(exc)) from exc
 
     await db.refresh(punto)
     return punto
@@ -232,7 +281,7 @@ async def actualizar_punto(
         await db.commit()
     except IntegrityError as exc:
         await db.rollback()
-        raise ConflictoDeNegocio(NUMERO_DUPLICADO) from exc
+        raise ConflictoDeNegocio(_motivo_conflicto(exc)) from exc
 
     await db.refresh(punto)
     return punto
@@ -256,11 +305,15 @@ async def eliminar_punto(db: AsyncSession, punto_id: uuid.UUID) -> str:
 
 async def registrar_escaneo(
     db: AsyncSession, token: str, *, ip: str | None
-) -> PuntoRondin:
-    """Registra la visita a un punto y devuelve el punto escaneado.
+) -> tuple[PuntoRondin, datetime]:
+    """Registra la visita y devuelve el punto y la hora que quedó guardada.
 
     La hora la pone el servidor, no el celular: el reloj de un teléfono
     cualquiera decidiría a qué rondín pertenece la visita.
+
+    Se devuelve el `escaneado_at` que selló Postgres, no uno recalculado en
+    Python: si no, la hora que el guardia ve en la pantalla y la que el
+    supervisor ve en el tablero salen de dos relojes distintos.
     """
     punto = await db.scalar(
         select(PuntoRondin).where(
@@ -270,9 +323,12 @@ async def registrar_escaneo(
     if punto is None:
         raise RecursoNoEncontrado(PUNTO_NO_DISPONIBLE)
 
-    db.add(EscaneoRondin(punto_id=punto.id, punto_numero=punto.numero, ip=ip))
+    escaneo = EscaneoRondin(punto_id=punto.id, punto_numero=punto.numero, ip=ip)
+    db.add(escaneo)
     await db.commit()
-    return punto
+    await db.refresh(escaneo)
+
+    return punto, escaneo.escaneado_at
 
 
 # --- Tablero ---------------------------------------------------------------
@@ -293,6 +349,50 @@ class FilaTablero:
         return sum(1 for celda in self.rondines if celda is not None)
 
 
+async def _puntos_del_turno(
+    db: AsyncSession, escaneos: list[EscaneoRondin]
+) -> list[PuntoRondin]:
+    """Los puntos que forman la matriz de un turno.
+
+    Son los activos de hoy **más** los que ya estaban retirados pero tienen
+    escaneos dentro del turno. Sin esa segunda parte, retirar un punto borraba
+    retroactivamente sus visitas de todos los turnos pasados y el cumplimiento
+    histórico cambiaba solo, justo lo contrario de lo que promete el docstring
+    de ``PuntoRondin``.
+    """
+    puntos = await listar_puntos(db, solo_activos=True)
+
+    ids_visitados = {
+        escaneo.punto_id for escaneo in escaneos if escaneo.punto_id is not None
+    }
+    ya_estan = {punto.id for punto in puntos}
+    faltantes = ids_visitados - ya_estan
+
+    if faltantes:
+        retirados = (
+            await db.scalars(select(PuntoRondin).where(PuntoRondin.id.in_(faltantes)))
+        ).all()
+        puntos = sorted([*puntos, *retirados], key=lambda punto: punto.numero)
+
+    return puntos
+
+
+def _rondines_transcurridos(inicio: datetime, fin: datetime) -> int:
+    """Bloques del turno que ya ocurrieron (o los seis, si el turno terminó).
+
+    El cumplimiento se mide contra esto y no contra los seis bloques siempre:
+    a las 09:00 los rondines 3 a 6 todavía no han pasado, y contarlos como
+    faltas dejaba el indicador clavado por debajo del 17 % aunque el guardia
+    fuera perfecto.
+    """
+    ahora = datetime.now(tz=zona())
+    if ahora >= fin:
+        return RONDINES_POR_TURNO
+    if ahora < inicio:
+        return 0
+    return _indice_rondin(ahora, inicio) + 1
+
+
 async def construir_tablero(
     db: AsyncSession, fecha: date, turno: str
 ) -> dict[str, Any]:
@@ -303,8 +403,6 @@ async def construir_tablero(
     avance.
     """
     inicio, fin = rango_turno(fecha, turno)
-
-    puntos = await listar_puntos(db, solo_activos=True)
 
     # El filtro por rango sí va en SQL, sobre el índice de `escaneado_at`.
     escaneos = list(
@@ -320,13 +418,26 @@ async def construir_tablero(
         ).all()
     )
 
+    puntos = await _puntos_del_turno(db, escaneos)
     asignacion = asignar_rondines(escaneos, inicio)
 
     # Primer escaneo de cada (punto, rondín): si alguien pasa dos veces por el
     # mismo punto en el mismo rondín, vale la primera visita.
-    celdas: dict[tuple[int, int], datetime] = {}
+    #
+    # La llave es `punto_id`, NO `punto_numero`: los números se pueden reasignar
+    # (editando un punto, o borrándolo y dando de alta otro que tome el número
+    # libre), y con el número como llave los escaneos históricos saltaban a la
+    # fila de otro punto. `punto_numero` queda solo como respaldo del histórico
+    # cuyo punto ya se borró y tiene el FK en NULL.
+    celdas: dict[tuple[uuid.UUID, int], datetime] = {}
     for escaneo in escaneos:
-        clave = (escaneo.punto_numero, asignacion[escaneo.id])
+        if escaneo.punto_id is None:
+            # Escaneo huérfano: su punto se borró y el FK quedó en NULL. No hay
+            # fila donde pintarlo; `punto_numero` conserva el dato para quien
+            # consulte la tabla.
+            continue
+
+        clave = (escaneo.punto_id, asignacion[escaneo.id])
         if clave not in celdas:
             celdas[clave] = escaneo.escaneado_at
 
@@ -336,15 +447,21 @@ async def construir_tablero(
             nombre=punto.nombre,
             ubicacion=punto.ubicacion,
             rondines=[
-                celdas.get((punto.numero, indice))
-                for indice in range(RONDINES_POR_TURNO)
+                celdas.get((punto.id, indice)) for indice in range(RONDINES_POR_TURNO)
             ],
         )
         for punto in puntos
     ]
 
-    total_celdas = len(puntos) * RONDINES_POR_TURNO
-    visitados = sum(fila.visitados for fila in filas)
+    transcurridos = _rondines_transcurridos(inicio, fin)
+
+    total_celdas = len(puntos) * transcurridos
+    visitados = sum(
+        1
+        for fila in filas
+        for indice in range(transcurridos)
+        if fila.rondines[indice] is not None
+    )
 
     por_rondin = [
         sum(1 for fila in filas if fila.rondines[indice] is not None)
@@ -360,6 +477,7 @@ async def construir_tablero(
         "fin": fin,
         "puntos_activos": len(puntos),
         "rondines": RONDINES_POR_TURNO,
+        "rondines_transcurridos": transcurridos,
         "filas": filas,
         "visitados": visitados,
         "total": total_celdas,

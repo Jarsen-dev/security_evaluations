@@ -44,7 +44,10 @@ class PuntoRondin(Base):
     nombre: Mapped[str] = mapped_column(String(150), nullable=False)
     ubicacion: Mapped[str | None] = mapped_column(String(150), nullable=True)
 
-    token_publico: Mapped[str] = mapped_column(String(32), nullable=False, unique=True)
+    # 64 y no 32: `token_urlsafe(24)` da exactamente 32 caracteres, así que la
+    # columna cabía justo y subir la entropía del token habría reventado el
+    # INSERT. Ver la migración 0014.
+    token_publico: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
     activo: Mapped[bool] = mapped_column(
         Boolean, nullable=False, server_default=text("true")
     )

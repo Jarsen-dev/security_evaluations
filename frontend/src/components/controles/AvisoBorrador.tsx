@@ -4,7 +4,7 @@ import { useState } from 'react';
 
 import { Button } from '@/components/ui/Button';
 import { DialogoConfirmacion } from '@/components/ui/DialogoConfirmacion';
-import { useIdioma, useTraduccion } from '@/lib/i18n';
+import { bilingue, useIdioma, useTraduccion } from '@/lib/i18n';
 import { formatearFechaIso } from '@/lib/utils';
 
 /**
@@ -30,7 +30,7 @@ export function AvisoBorrador({ fecha }: { fecha: string | null }) {
       role="status"
       className="rounded-md border border-alerta bg-alerta-suave px-3 py-2 text-sm text-texto-suave"
     >
-      {t('borrador.deOtroDia', { fecha: formatearFechaIso(fecha, locale) })}
+      {bilingue(t('borrador.deOtroDia', { fecha: formatearFechaIso(fecha, locale) }))}
     </p>
   );
 }
@@ -68,7 +68,7 @@ export function BotonReiniciar({
         onClick={() => setConfirmando(true)}
         disabled={deshabilitado}
       >
-        {t('borrador.reiniciar')}
+        {bilingue(t('borrador.reiniciar'))}
       </Button>
 
       <DialogoConfirmacion

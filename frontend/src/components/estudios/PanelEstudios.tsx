@@ -16,8 +16,8 @@ import {
   listarEstudios,
   obtenerCatalogoEstudios,
 } from '@/lib/api';
-import { avisarCambioDeVencimientos } from '@/lib/avisos';
-import { useTraduccion } from '@/lib/i18n';
+import { avisarCambioDeAvisos } from '@/lib/avisos';
+import { bilingue, useTraduccion } from '@/lib/i18n';
 import { useSesion } from '@/lib/sesion';
 import type { CatalogoEstudios, Estudio, EstudioPayload } from '@/lib/types';
 
@@ -98,7 +98,7 @@ export function PanelEstudios() {
 
       await cargar();
       // La fecha de vencimiento pudo cambiar: la campana se recarga.
-      avisarCambioDeVencimientos();
+      avisarCambioDeAvisos();
     } catch (error) {
       mostrarToast(
         error instanceof ErrorDeApi ? error.message : t('comun.errorGenerico'),
@@ -124,7 +124,7 @@ export function PanelEstudios() {
         setEditando(null);
       }
       await cargar();
-      avisarCambioDeVencimientos();
+      avisarCambioDeAvisos();
       mostrarToast(t('estudios.eliminado'), 'exito');
       setPorEliminar(null);
     } catch (error) {
@@ -162,8 +162,8 @@ export function PanelEstudios() {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-xl font-semibold text-texto">{t('estudios.titulo')}</h1>
-        <p className="mt-1 text-sm text-texto-suave">{t('estudios.descripcion')}</p>
+        <h1 className="text-xl font-semibold text-texto">{bilingue(t('estudios.titulo'))}</h1>
+        <p className="mt-1 text-sm text-texto-suave">{bilingue(t('estudios.descripcion'))}</p>
       </div>
 
       {errorCarga && (
@@ -186,7 +186,7 @@ export function PanelEstudios() {
       )}
 
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-base font-semibold text-texto">{t('estudios.registros')}</h2>
+        <h2 className="text-base font-semibold text-texto">{bilingue(t('estudios.registros'))}</h2>
 
         <Button
           variante="secundario"
@@ -194,12 +194,12 @@ export function PanelEstudios() {
           cargando={descargando}
           disabled={estudios.length === 0}
         >
-          {t('comun.descargarExcel')}
+          {bilingue(t('comun.descargarExcel'))}
         </Button>
       </div>
 
       {cargando || catalogo === null ? (
-        <p className="text-sm text-texto-suave">{t('comun.cargando')}</p>
+        <p className="text-sm text-texto-suave">{bilingue(t('comun.cargando'))}</p>
       ) : (
         <TablaEstudios
           catalogo={catalogo}

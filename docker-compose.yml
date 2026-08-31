@@ -70,6 +70,11 @@ services:
       RATE_LIMIT_VENTANA_SEGUNDOS: ${RATE_LIMIT_VENTANA_SEGUNDOS:-60}
       RATE_LIMIT_LOGIN_INTENTOS: ${RATE_LIMIT_LOGIN_INTENTOS:-5}
       RATE_LIMIT_LOGIN_VENTANA_SEGUNDOS: ${RATE_LIMIT_LOGIN_VENTANA_SEGUNDOS:-300}
+      # Cuota del escaneo de rondines. Estaban en .env.example y en config.py
+      # pero no se pasaban aquí, así que el límite corría siempre con los
+      # valores por defecto sin que nada lo dijera (mismo caso que SMTP_*).
+      RATE_LIMIT_RONDIN_ESCANEOS: ${RATE_LIMIT_RONDIN_ESCANEOS:-120}
+      RATE_LIMIT_RONDIN_VENTANA_SEGUNDOS: ${RATE_LIMIT_RONDIN_VENTANA_SEGUNDOS:-60}
       NEXT_PUBLIC_BASE_URL: ${NEXT_PUBLIC_BASE_URL}
       # Zona de la planta: la bitácora se guarda en UTC pero se filtra por la
       # hora del reloj de la nave.
@@ -92,6 +97,9 @@ services:
       SMTP_SSL: ${SMTP_SSL:-true}
       RONDINES_REPORTE_AUTOMATICO: ${RONDINES_REPORTE_AUTOMATICO:-false}
       RONDINES_DESTINATARIOS: ${RONDINES_DESTINATARIOS:-}
+      # Cierre automático de los meses sin respuesta del control PCI MTTO.
+      # Encendido por omisión: no depende de nada externo.
+      PCI_CIERRE_AUTOMATICO: ${PCI_CIERRE_AUTOMATICO:-true}
       # Recepciones por foto. El host de Ollama vive fuera de este stack, en
       # la LAN; el contenedor lo alcanza por la red del puente. Umbral y
       # tiempos se dejan tuneables para recalibrar sin reconstruir la imagen.

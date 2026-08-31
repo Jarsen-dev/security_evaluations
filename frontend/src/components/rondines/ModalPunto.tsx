@@ -6,7 +6,7 @@ import { z } from 'zod';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Modal } from '@/components/ui/Modal';
-import { useTraduccion } from '@/lib/i18n';
+import { bilingue, useTraduccion } from '@/lib/i18n';
 import type { PuntoRondin } from '@/lib/types';
 
 interface ModalPuntoProps {
@@ -63,14 +63,25 @@ export function ModalPunto({
   function validar(): boolean {
     // Los mensajes se resuelven al validar, no al declarar el esquema, para
     // que sigan el idioma que esté puesto en ese momento.
+    // Los topes son los mismos que declara `PuntoRondinBase` en el backend
+    // (numero 1..999, textos de 150). Repetirlos aquí no es autorizar nada:
+    // evita que el error llegue de Pydantic, que responde SIEMPRE en español
+    // y le rompería el idioma al panel en inglés o coreano.
     const esquema = z.object({
       numero: z
         .string()
         .trim()
-        .refine((valor) => /^\d+$/.test(valor) && Number(valor) >= 1, {
-          message: t('puntosRondin.faltaNumero'),
-        }),
-      nombre: z.string().trim().min(1, t('puntosRondin.faltaNombre')),
+        .refine(
+          (valor) =>
+            /^\d+$/.test(valor) && Number(valor) >= 1 && Number(valor) <= 999,
+          { message: t('puntosRondin.faltaNumero') },
+        ),
+      nombre: z
+        .string()
+        .trim()
+        .min(1, t('puntosRondin.faltaNombre'))
+        .max(150, t('puntosRondin.textoLargo')),
+      ubicacion: z.string().trim().max(150, t('puntosRondin.textoLargo')),
     });
 
     const resultado = esquema.safeParse(datos);
@@ -105,10 +116,10 @@ export function ModalPunto({
       pie={
         <>
           <Button variante="secundario" onClick={onCerrar}>
-            {t('comun.cancelar')}
+            {bilingue(t('comun.cancelar'))}
           </Button>
           <Button onClick={enviar} cargando={guardando}>
-            {guardando ? t('comun.guardando') : t('comun.guardar')}
+            {bilingue(guardando ? t('comun.guardando') : t('comun.guardar'))}
           </Button>
         </>
       }
@@ -135,6 +146,7 @@ export function ModalPunto({
           etiqueta={t('puntosRondin.nombre')}
           value={datos.nombre}
           error={errores.nombre}
+          maxLength={150}
           autoComplete="off"
           onChange={(evento) => setDatos({ ...datos, nombre: evento.target.value })}
         />
@@ -143,6 +155,8 @@ export function ModalPunto({
           name="ubicacion"
           etiqueta={t('puntosRondin.ubicacion')}
           value={datos.ubicacion}
+          error={errores.ubicacion}
+          maxLength={150}
           autoComplete="off"
           onChange={(evento) => setDatos({ ...datos, ubicacion: evento.target.value })}
         />
@@ -157,7 +171,7 @@ export function ModalPunto({
                 setDatos({ ...datos, activo: evento.target.checked })
               }
             />
-            {t('puntosRondin.activo')}
+            {bilingue(t('puntosRondin.activo'))}
           </label>
         )}
 

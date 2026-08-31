@@ -21,7 +21,7 @@ from app.services.cierre_service import (
     CONTROL_SQP,
     IncidenciaCompleta,
 )
-from app.services.controles_excel import _hoja_evidencias
+from app.services.controles_excel import hoja_evidencias
 from app.services.exportacion_comun import (
     BORDE_FINO,
     FUENTES_SEMAFORO,
@@ -152,7 +152,7 @@ def generar_excel_incidencias(
         evidencia for completa in incidencias for evidencia in completa.evidencias
     ]
     if evidencias:
-        _hoja_evidencias(libro, evidencias)
+        hoja_evidencias(libro, evidencias)
 
     flujo = BytesIO()
     libro.save(flujo)

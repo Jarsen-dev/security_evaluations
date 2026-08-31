@@ -10,7 +10,7 @@ import { SelectorIdioma } from '@/components/SelectorIdioma';
 import { Button } from '@/components/ui/Button';
 import { Logo } from '@/components/ui/Logo';
 import { cerrarSesion } from '@/lib/api';
-import { useTraduccion, type ClaveTraduccion } from '@/lib/i18n';
+import { bilingue, useTraduccion, type ClaveTraduccion } from '@/lib/i18n';
 import { useSesion } from '@/lib/sesion';
 import type { Modulo } from '@/lib/types';
 import { cn } from '@/lib/utils';
@@ -64,7 +64,7 @@ export function EncabezadoPanel() {
         <div className="flex items-center gap-3">
           <Logo alto={30} sobreFondoOscuro />
           <span className="hidden text-sm font-semibold text-texto sm:inline">
-            {t('encabezado.titulo')}
+            {bilingue(t('encabezado.titulo'))}
           </span>
         </div>
 
@@ -83,7 +83,7 @@ export function EncabezadoPanel() {
                     : 'text-texto-suave hover:bg-fondo-sutil hover:text-texto',
                 )}
               >
-                {t(pestana.clave)}
+                {bilingue(t(pestana.clave))}
               </Link>
             );
           })}
@@ -104,7 +104,7 @@ export function EncabezadoPanel() {
             onClick={manejarCerrarSesion}
             cargando={saliendo}
           >
-            {t('encabezado.salir')}
+            {bilingue(t('encabezado.salir'))}
           </Button>
         </div>
       </div>

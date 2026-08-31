@@ -227,6 +227,37 @@ CATALOGO: Final[tuple[EntradaCatalogo, ...]] = (
         "controles",
         "Eliminó una plática de seguridad",
     ),
+    # PCI MTTO. El cierre automático de un mes sin respuesta NO deja renglón
+    # aquí: no pasa por HTTP y este middleware es la única vía. Su rastro queda
+    # en la propia fila (`automatico = true`, `responsable = 'sistema'`).
+    EntradaCatalogo(
+        "POST",
+        _ruta("/api/controles/pci-mtto"),
+        "pci.registrar",
+        "controles",
+        "Registró el mantenimiento del sistema contra incendios",
+    ),
+    EntradaCatalogo(
+        "POST",
+        _ruta("/api/controles/pci-mtto/{}/{}/motivo"),
+        "pci.motivo",
+        "controles",
+        "Capturó el motivo de un mes sin mantenimiento contra incendios",
+    ),
+    EntradaCatalogo(
+        "PUT",
+        _ruta("/api/controles/pci-mtto/{}/{}/motivo"),
+        "pci.motivo_actualizar",
+        "controles",
+        "Corrigió el motivo de un mes sin mantenimiento contra incendios",
+    ),
+    EntradaCatalogo(
+        "PUT",
+        _ruta("/api/controles/pci-mtto/{}/{}"),
+        "pci.corregir",
+        "controles",
+        "Corrigió el registro de mantenimiento contra incendios",
+    ),
     # --- Estudios y capacitaciones -----------------------------------------
     EntradaCatalogo(
         "POST",

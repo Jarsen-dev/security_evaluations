@@ -4,7 +4,7 @@ import { useRef, useState } from 'react';
 
 import { Button } from '@/components/ui/Button';
 import { ErrorDeApi, URL_PLANTILLA_CATALOGO, importarCatalogoExcel } from '@/lib/api';
-import { useTraduccion } from '@/lib/i18n';
+import { bilingue, useTraduccion } from '@/lib/i18n';
 import type { ErrorImportacion } from '@/lib/types';
 
 /**
@@ -76,7 +76,7 @@ export function ImportarCatalogo({ onImportado }: { onImportado: () => void }) {
           cargando={importando}
           onClick={() => selectorArchivo.current?.click()}
         >
-          {importando ? t('importarCatalogo.importando') : t('importarCatalogo.boton')}
+          {bilingue(importando ? t('importarCatalogo.importando') : t('importarCatalogo.boton'))}
         </Button>
 
         {/* La cookie httpOnly de sesión viaja sola en una descarga directa. */}
@@ -85,12 +85,12 @@ export function ImportarCatalogo({ onImportado }: { onImportado: () => void }) {
           download
           className="text-sm text-primario underline underline-offset-2 hover:text-primario-hover"
         >
-          {t('importarCatalogo.plantilla')}
+          {bilingue(t('importarCatalogo.plantilla'))}
         </a>
 
       </div>
 
-      <p className="text-sm text-texto-tenue">{t('importarCatalogo.nota')}</p>
+      <p className="text-sm text-texto-tenue">{bilingue(t('importarCatalogo.nota'))}</p>
 
       {resumen !== '' && (
         <p role="status" className="text-sm text-exito">
@@ -113,13 +113,13 @@ export function ImportarCatalogo({ onImportado }: { onImportado: () => void }) {
           className="rounded-tarjeta border border-alerta bg-alerta-suave px-4 py-3 text-sm text-texto"
         >
           <p className="font-medium">
-            {t('importarCatalogo.filasConProblemas', { total: errores.length })}
+            {bilingue(t('importarCatalogo.filasConProblemas', { total: errores.length }))}
           </p>
           <ul className="mt-2 flex flex-col gap-1">
             {errores.map((error) => (
               <li key={`${error.fila}-${error.mensaje}`}>
                 <span className="font-medium">
-                  {t('importarCatalogo.fila', { numero: error.fila })}
+                  {bilingue(t('importarCatalogo.fila', { numero: error.fila }))}
                 </span>{' '}
                 {error.mensaje}
               </li>

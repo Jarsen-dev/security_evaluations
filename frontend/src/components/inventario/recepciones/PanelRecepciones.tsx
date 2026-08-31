@@ -11,6 +11,7 @@ import { ModalQrCaptura } from '@/components/inventario/recepciones/ModalQrCaptu
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { useToast } from '@/components/ui/Toast';
+import { VisorImagen } from '@/components/ui/VisorImagen';
 import {
   ErrorDeApi,
   guardarRecepcion,
@@ -19,7 +20,7 @@ import {
   procesarFotoRecepcion,
   urlFotoRecepcion,
 } from '@/lib/api';
-import { useTraduccion } from '@/lib/i18n';
+import { bilingue, useTraduccion } from '@/lib/i18n';
 import { REDUCCION_DOCUMENTO, reducirImagen } from '@/lib/imagen';
 import { idUnico } from '@/lib/navegador';
 import { useSesion } from '@/lib/sesion';
@@ -288,10 +289,10 @@ export function PanelRecepciones() {
           className="h-10 w-10 animate-spin rounded-full border-4 border-borde border-t-primario"
           aria-hidden
         />
-        <p className="text-lg font-medium text-texto">{t('recepciones.procesando')}</p>
+        <p className="text-lg font-medium text-texto">{bilingue(t('recepciones.procesando'))}</p>
         {/* Expectativa honesta, sin barra de progreso falsa: no hay forma de
             saber cuánto falta. */}
-        <p className="text-sm text-texto-suave">{t('recepciones.procesandoDetalle')}</p>
+        <p className="text-sm text-texto-suave">{bilingue(t('recepciones.procesandoDetalle'))}</p>
       </Card>
     );
   }
@@ -302,10 +303,10 @@ export function PanelRecepciones() {
         <Card className="flex flex-col items-center gap-6 py-14 text-center">
           <div className="max-w-xl">
             <h2 className="text-lg font-semibold text-texto">
-              {t('recepciones.titulo')}
+              {bilingue(t('recepciones.titulo'))}
             </h2>
             <p className="mt-2 text-sm text-texto-suave">
-              {t('recepciones.descripcion')}
+              {bilingue(t('recepciones.descripcion'))}
             </p>
           </div>
 
@@ -315,7 +316,7 @@ export function PanelRecepciones() {
               disabled={!puedeEditar}
               onClick={() => entrada.current?.click()}
             >
-              {t('recepciones.subirFoto')}
+              {bilingue(t('recepciones.subirFoto'))}
             </Button>
             <Button
               variante="secundario"
@@ -323,7 +324,7 @@ export function PanelRecepciones() {
               disabled={!puedeEditar}
               onClick={() => setQrAbierto(true)}
             >
-              {t('recepciones.conCelular')}
+              {bilingue(t('recepciones.conCelular'))}
             </Button>
           </div>
 
@@ -357,14 +358,16 @@ export function PanelRecepciones() {
       <div className="lg:sticky lg:top-6 lg:self-start">
         <Card className="overflow-hidden p-0">
           <div className="border-b border-borde px-4 py-2 text-sm text-texto-suave">
-            {t('recepciones.revisaLaFoto')}
+            {bilingue(t('recepciones.revisaLaFoto'))}
           </div>
           {fotoId !== null && (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
+            // La remisión llega como la tomó el operador —de lado, o con la
+            // letra demasiado chica—, así que se ve en el visor: gira, acerca
+            // y se arrastra sin salir de la pantalla de captura.
+            <VisorImagen
               src={urlFotoRecepcion(fotoId)}
               alt={t('recepciones.revisaLaFoto')}
-              className="max-h-[70vh] w-full object-contain"
+              className="h-[60vh] w-full lg:h-[70vh]"
             />
           )}
         </Card>
@@ -428,17 +431,17 @@ export function PanelRecepciones() {
             ])
           }
         >
-          {t('recepciones.otroDocumento')}
+          {bilingue(t('recepciones.otroDocumento'))}
         </Button>
 
         <div className="flex flex-wrap gap-3 border-t border-borde pt-4">
           <Button onClick={() => void guardar()} cargando={guardando} disabled={!puedeEditar}>
-            {documentos.length > 1
+            {bilingue(documentos.length > 1
               ? t('recepciones.guardarTodo', { total: documentos.length })
-              : t('recepciones.guardar')}
+              : t('recepciones.guardar'))}
           </Button>
           <Button variante="fantasma" onClick={reiniciar} disabled={guardando}>
-            {t('recepciones.cancelar')}
+            {bilingue(t('recepciones.cancelar'))}
           </Button>
         </div>
       </div>

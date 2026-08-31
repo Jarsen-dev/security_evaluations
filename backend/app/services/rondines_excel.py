@@ -29,6 +29,9 @@ ETIQUETAS_TURNO = {"dia": "Día", "noche": "Noche"}
 #: podría confundirse con un error de generación.
 SIN_VISITA = "—"
 
+#: Bloque del turno que todavía no ocurre. Ni verde ni rojo: aún no es nada.
+PENDIENTE = ""
+
 
 def _local(momento: datetime) -> datetime:
     """Pasa una fecha a la hora de la planta y le quita la zona.
@@ -52,7 +55,9 @@ def generar_excel(tablero: dict) -> BytesIO:
     hoja = libro.active
     hoja.title = NOMBRE_HOJA
 
-    total_columnas = 2 + tablero["rondines"] + 1
+    # N.º, punto, ubicación, los rondines y el total.
+    total_columnas = 3 + tablero["rondines"] + 1
+    transcurridos = tablero["rondines_transcurridos"]
 
     # --- Encabezado del reporte --------------------------------------------
     hoja.cell(row=1, column=1, value="Reporte de rondines de seguridad").font = (
@@ -75,7 +80,7 @@ def generar_excel(tablero: dict) -> BytesIO:
     hoja.merge_cells(start_row=2, start_column=1, end_row=2, end_column=total_columnas)
 
     # --- Tabla --------------------------------------------------------------
-    encabezados = ["N.º", "Punto de control"]
+    encabezados = ["N.º", "Punto de control", "Ubicación"]
     encabezados += [f"Rondín {i + 1}" for i in range(tablero["rondines"])]
     encabezados.append("Visitados")
 
@@ -92,25 +97,31 @@ def generar_excel(tablero: dict) -> BytesIO:
         celda_nombre = hoja.cell(row=fila, column=2, value=punto.nombre)
         celda_nombre.border = BORDE_FINO
 
-        for columna, momento in enumerate(punto.rondines, start=3):
+        celda_ubicacion = hoja.cell(row=fila, column=3, value=punto.ubicacion or "")
+        celda_ubicacion.border = BORDE_FINO
+
+        for columna, momento in enumerate(punto.rondines, start=4):
             celda = hoja.cell(row=fila, column=columna)
             celda.border = BORDE_FINO
             celda.alignment = Alignment(horizontal="center")
 
-            if momento is None:
-                celda.value = SIN_VISITA
-                color = "rojo"
-            else:
+            if momento is not None:
                 celda.value = f"{_local(momento):%H:%M}"
-                color = "verde"
-
-            celda.fill = RELLENOS_SEMAFORO[color]
-            celda.font = FUENTES_SEMAFORO[color]
+                celda.fill = RELLENOS_SEMAFORO["verde"]
+                celda.font = FUENTES_SEMAFORO["verde"]
+            elif columna - 4 < transcurridos:
+                celda.value = SIN_VISITA
+                celda.fill = RELLENOS_SEMAFORO["rojo"]
+                celda.font = FUENTES_SEMAFORO["rojo"]
+            else:
+                # Bloque que todavía no ocurre: se deja en blanco. Pintarlo de
+                # rojo lo acusaría de una falta que aún no puede haber pasado.
+                celda.value = PENDIENTE
 
         celda_total = hoja.cell(
             row=fila,
-            column=3 + tablero["rondines"],
-            value=f"{punto.visitados}/{tablero['rondines']}",
+            column=4 + tablero["rondines"],
+            value=f"{punto.visitados}/{transcurridos}",
         )
         celda_total.alignment = Alignment(horizontal="center")
         celda_total.border = BORDE_FINO
@@ -122,7 +133,7 @@ def generar_excel(tablero: dict) -> BytesIO:
     celda_pie = hoja.cell(row=fila_pie, column=2, value="Cumplimiento por rondín")
     celda_pie.border = BORDE_FINO
 
-    for columna, visitados in enumerate(tablero["por_rondin"], start=3):
+    for columna, visitados in enumerate(tablero["por_rondin"], start=4):
         celda = hoja.cell(row=fila_pie, column=columna)
         celda.value = f"{visitados / activos * 100:.1f}%"
         celda.alignment = Alignment(horizontal="center")
@@ -130,14 +141,14 @@ def generar_excel(tablero: dict) -> BytesIO:
 
     celda_general = hoja.cell(
         row=fila_pie,
-        column=3 + tablero["rondines"],
+        column=4 + tablero["rondines"],
         value=f"{tablero['cumplimiento']:.1f}%",
     )
     celda_general.alignment = Alignment(horizontal="center")
     celda_general.border = BORDE_FINO
 
-    ajustar_anchos(hoja, [6, 34] + [12] * tablero["rondines"] + [12])
-    hoja.freeze_panes = hoja.cell(row=fila_encabezado + 1, column=3).coordinate
+    ajustar_anchos(hoja, [6, 34, 24] + [12] * tablero["rondines"] + [12])
+    hoja.freeze_panes = hoja.cell(row=fila_encabezado + 1, column=4).coordinate
 
     # Deja legible la cabecera al imprimir en horizontal.
     hoja.print_title_rows = f"{fila_encabezado}:{fila_encabezado}"

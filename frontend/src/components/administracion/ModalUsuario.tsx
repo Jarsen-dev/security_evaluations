@@ -7,7 +7,7 @@ import { SelectorPermisos } from '@/components/administracion/SelectorPermisos';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Modal } from '@/components/ui/Modal';
-import { useTraduccion } from '@/lib/i18n';
+import { bilingue, useTraduccion } from '@/lib/i18n';
 import type { Permisos, Usuario } from '@/lib/types';
 
 /**
@@ -141,10 +141,10 @@ export function ModalUsuario({
       pie={
         <>
           <Button variante="secundario" onClick={onCerrar}>
-            {t('comun.cancelar')}
+            {bilingue(t('comun.cancelar'))}
           </Button>
           <Button onClick={enviar} cargando={guardando}>
-            {guardando ? t('comun.guardando') : t('comun.guardar')}
+            {bilingue(guardando ? t('comun.guardando') : t('comun.guardar'))}
           </Button>
         </>
       }
@@ -201,7 +201,7 @@ export function ModalUsuario({
 
         {usuario?.es_superadmin === true ? (
           <p className="rounded-tarjeta border border-borde bg-fondo-sutil px-4 py-3 text-sm text-texto-suave">
-            {t('permisos.superadminTodo')}
+            {bilingue(t('permisos.superadminTodo'))}
           </p>
         ) : (
           <SelectorPermisos

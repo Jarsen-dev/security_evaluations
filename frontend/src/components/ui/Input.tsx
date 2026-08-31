@@ -1,5 +1,6 @@
 import { forwardRef, type InputHTMLAttributes } from 'react';
 
+import { bilingue } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
 
 interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
@@ -20,7 +21,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
   return (
     <div className="flex flex-col gap-1.5">
       <label htmlFor={idCampo} className="text-sm font-medium text-texto">
-        {etiqueta}
+        {bilingue(etiqueta)}
       </label>
 
       <input
@@ -40,13 +41,13 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
 
       {error && (
         <p id={idError} role="alert" className="text-sm text-error">
-          {error}
+          {bilingue(error)}
         </p>
       )}
 
       {!error && ayuda && (
         <p id={idAyuda} className="text-sm text-texto-tenue">
-          {ayuda}
+          {bilingue(ayuda)}
         </p>
       )}
     </div>

@@ -2,7 +2,7 @@
 
 import { AccionesRegistro } from '@/components/controles/AccionesRegistro';
 import { Badge } from '@/components/ui/Badge';
-import { useIdioma, type ClaveTraduccion } from '@/lib/i18n';
+import { bilingue, useIdioma, type ClaveTraduccion } from '@/lib/i18n';
 import type { Incidencia } from '@/lib/types';
 import { formatearFechaIso } from '@/lib/utils';
 
@@ -34,7 +34,7 @@ export function TablaIncidencias({
   const { t, locale } = useIdioma();
 
   if (incidencias.length === 0) {
-    return <p className="text-sm text-texto-suave">{t('incidencias.vacio')}</p>;
+    return <p className="text-sm text-texto-suave">{bilingue(t('incidencias.vacio'))}</p>;
   }
 
   return (
@@ -42,16 +42,16 @@ export function TablaIncidencias({
       <table className="w-full min-w-[52rem] border-collapse text-sm">
         <thead className="bg-fondo-sutil text-left text-texto-suave">
           <tr>
-            <th className="px-3 py-2 font-medium">{t('comun.fecha')}</th>
-            <th className="px-3 py-2 font-medium">{t('incidencias.control')}</th>
+            <th className="px-3 py-2 font-medium">{bilingue(t('comun.fecha'))}</th>
+            <th className="px-3 py-2 font-medium">{bilingue(t('incidencias.control'))}</th>
             <th className="px-3 py-2 font-medium">
-              {t('incidencias.identificacion')}
+              {bilingue(t('incidencias.identificacion'))}
             </th>
-            <th className="px-3 py-2 font-medium">{t('incidencias.problemas')}</th>
-            <th className="px-3 py-2 font-medium">{t('incidencias.estado')}</th>
-            <th className="px-3 py-2 font-medium">{t('comun.responsable')}</th>
+            <th className="px-3 py-2 font-medium">{bilingue(t('incidencias.problemas'))}</th>
+            <th className="px-3 py-2 font-medium">{bilingue(t('incidencias.estado'))}</th>
+            <th className="px-3 py-2 font-medium">{bilingue(t('comun.responsable'))}</th>
             <th className="px-3 py-2 text-right font-medium">
-              {t('comun.acciones')}
+              {bilingue(t('comun.acciones'))}
             </th>
           </tr>
         </thead>
@@ -73,7 +73,7 @@ export function TablaIncidencias({
                 </td>
 
                 <td className="px-3 py-2 text-texto">
-                  {clave ? t(clave) : incidencia.control}
+                  {bilingue(clave ? t(clave) : incidencia.control)}
                 </td>
 
                 <td className="px-3 py-2 text-texto-suave">
@@ -87,12 +87,12 @@ export function TablaIncidencias({
                 <td className="px-3 py-2">
                   {incidencia.estado === 'cerrado' ? (
                     <Badge tono={conPendiente ? 'alerta' : 'exito'}>
-                      {conPendiente
+                      {bilingue(conPendiente
                         ? t('incidencias.conPendiente')
-                        : t('cierre.cerrado')}
+                        : t('cierre.cerrado'))}
                     </Badge>
                   ) : (
-                    <Badge tono="error">{t('cierre.pendiente')}</Badge>
+                    <Badge tono="error">{bilingue(t('cierre.pendiente'))}</Badge>
                   )}
                 </td>
 

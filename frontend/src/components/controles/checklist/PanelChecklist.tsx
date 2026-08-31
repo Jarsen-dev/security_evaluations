@@ -19,7 +19,7 @@ import {
   obtenerCatalogoChecklist,
   registrarChecklist,
 } from '@/lib/api';
-import { useIdioma } from '@/lib/i18n';
+import { bilingue, useIdioma } from '@/lib/i18n';
 import type { CatalogoChecklist, RegistroChecklist, ValorChecklist } from '@/lib/types';
 import { fechaDeHoy, formatearFechaIso, rangoDelMes } from '@/lib/utils';
 
@@ -212,10 +212,10 @@ export function PanelChecklist({ control }: { control: string }) {
         (yaRegistrado ? (
           <div className="rounded-tarjeta border border-borde bg-fondo-elevado px-5 py-6">
             <p className="text-sm font-medium text-texto">
-              {t('checklist.yaRegistrado', { fecha: formatearFechaIso(hoy, locale) })}
+              {bilingue(t('checklist.yaRegistrado', { fecha: formatearFechaIso(hoy, locale) }))}
             </p>
             <p className="mt-1 text-sm text-texto-suave">
-              {t('checklist.eliminarRegistro')}
+              {bilingue(t('checklist.eliminarRegistro'))}
             </p>
           </div>
         ) : (
@@ -234,7 +234,7 @@ export function PanelChecklist({ control }: { control: string }) {
             htmlFor={`mes-${control}`}
             className="text-sm font-medium text-texto"
           >
-            {t('comun.mes')}
+            {bilingue(t('comun.mes'))}
           </label>
           <input
             id={`mes-${control}`}
@@ -254,18 +254,18 @@ export function PanelChecklist({ control }: { control: string }) {
             cargando={descargando}
             disabled={registros.length === 0}
           >
-            {t('comun.descargarExcel')}
+            {bilingue(t('comun.descargarExcel'))}
           </Button>
         )}
       </div>
 
       <div className="flex flex-col gap-3">
         <h3 className="text-base font-semibold text-texto">
-          {t('checklist.historial')}
+          {bilingue(t('checklist.historial'))}
         </h3>
 
         {cargando || catalogo === null ? (
-          <p className="text-sm text-texto-suave">{t('comun.cargando')}</p>
+          <p className="text-sm text-texto-suave">{bilingue(t('comun.cargando'))}</p>
         ) : (
           <TablaChecklist
             catalogo={catalogo}

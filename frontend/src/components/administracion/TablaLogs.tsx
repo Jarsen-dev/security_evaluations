@@ -1,7 +1,7 @@
 'use client';
 
 import { Button } from '@/components/ui/Button';
-import { useIdioma } from '@/lib/i18n';
+import { bilingue, unaLinea, useIdioma } from '@/lib/i18n';
 import type { BitacoraPaginada, FiltrosBitacora } from '@/lib/types';
 
 interface TablaLogsProps {
@@ -84,7 +84,7 @@ export function TablaLogs({
               onFiltros({ ...filtros, usuario: evento.target.value || undefined })
             }
           >
-            <option value="">{t('logs.todosLosUsuarios')}</option>
+            <option value="">{unaLinea(t('logs.todosLosUsuarios'))}</option>
             {usuarios.map((usuario) => (
               <option key={usuario} value={usuario}>
                 {usuario}
@@ -94,11 +94,11 @@ export function TablaLogs({
         </Campo>
 
         <Button variante="fantasma" tamano="sm" onClick={onLimpiar}>
-          {t('logs.limpiar')}
+          {bilingue(t('logs.limpiar'))}
         </Button>
 
         <span className="ml-auto text-sm text-texto-suave">
-          {t('logs.registros', { total })}
+          {bilingue(t('logs.registros', { total }))}
         </span>
       </div>
 
@@ -111,31 +111,31 @@ export function TablaLogs({
                 scope="col"
                 className="px-5 py-3 text-left font-medium text-texto-suave"
               >
-                {t('logs.hora')}
+                {bilingue(t('logs.hora'))}
               </th>
               <th
                 scope="col"
                 className="px-5 py-3 text-left font-medium text-texto-suave"
               >
-                {t('logs.usuario')}
+                {bilingue(t('logs.usuario'))}
               </th>
               <th
                 scope="col"
                 className="px-5 py-3 text-left font-medium text-texto-suave"
               >
-                {t('logs.detalle')}
+                {bilingue(t('logs.detalle'))}
               </th>
               <th
                 scope="col"
                 className="px-5 py-3 text-left font-medium text-texto-suave"
               >
-                {t('logs.accion')}
+                {bilingue(t('logs.accion'))}
               </th>
               <th
                 scope="col"
                 className="px-5 py-3 text-left font-medium text-texto-suave"
               >
-                {t('logs.origen')}
+                {bilingue(t('logs.origen'))}
               </th>
             </tr>
           </thead>
@@ -144,13 +144,13 @@ export function TablaLogs({
             {cargando ? (
               <tr>
                 <td colSpan={5} className="px-5 py-8 text-center text-texto-suave">
-                  {t('comun.cargando')}
+                  {bilingue(t('comun.cargando'))}
                 </td>
               </tr>
             ) : total === 0 ? (
               <tr>
                 <td colSpan={5} className="px-5 py-8 text-center text-texto-suave">
-                  {hayFiltros ? t('logs.sinCoincidencias') : t('logs.vacio')}
+                  {bilingue(hayFiltros ? t('logs.sinCoincidencias') : t('logs.vacio'))}
                 </td>
               </tr>
             ) : (
@@ -179,7 +179,7 @@ export function TablaLogs({
       {total > size && (
         <div className="flex items-center justify-between border-t border-borde px-5 py-3">
           <span className="text-sm text-texto-suave">
-            {t('logs.pagina', { pagina, total: totalPaginas })}
+            {bilingue(t('logs.pagina', { pagina, total: totalPaginas }))}
           </span>
 
           <div className="flex gap-2">
@@ -189,7 +189,7 @@ export function TablaLogs({
               disabled={pagina <= 1}
               onClick={() => onPagina(pagina - 1)}
             >
-              {t('logs.anterior')}
+              {bilingue(t('logs.anterior'))}
             </Button>
             <Button
               variante="secundario"
@@ -197,7 +197,7 @@ export function TablaLogs({
               disabled={pagina >= totalPaginas}
               onClick={() => onPagina(pagina + 1)}
             >
-              {t('logs.siguiente')}
+              {bilingue(t('logs.siguiente'))}
             </Button>
           </div>
         </div>
@@ -219,7 +219,7 @@ function Campo({
   return (
     <div className="flex flex-col gap-1.5">
       <label htmlFor={id} className="text-xs font-medium text-texto-suave">
-        {etiqueta}
+        {bilingue(etiqueta)}
       </label>
       {children}
     </div>

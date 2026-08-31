@@ -8,7 +8,7 @@ import { ModalQR } from '@/components/cuestionarios/ModalQR';
 import { TarjetaCuestionario } from '@/components/cuestionarios/TarjetaCuestionario';
 import { Button } from '@/components/ui/Button';
 import { useToast } from '@/components/ui/Toast';
-import { useTraduccion } from '@/lib/i18n';
+import { bilingue, useTraduccion } from '@/lib/i18n';
 import { copiarAlPortapapeles } from '@/lib/navegador';
 import { useSesion } from '@/lib/sesion';
 import {
@@ -165,12 +165,12 @@ export function PanelCuestionarios() {
     <section>
       <div className="mb-6 flex items-center justify-between gap-4">
         <h1 className="text-xl font-semibold text-texto">
-          {t('encabezado.cuestionarios')}
+          {bilingue(t('encabezado.cuestionarios'))}
         </h1>
-        <Button onClick={abrirCreacion}>{t('modalCuestionario.nuevo')}</Button>
+        <Button onClick={abrirCreacion}>{bilingue(t('modalCuestionario.nuevo'))}</Button>
       </div>
 
-      {cargando && <p className="text-texto-suave">{t('comun.cargando')}</p>}
+      {cargando && <p className="text-texto-suave">{bilingue(t('comun.cargando'))}</p>}
 
       {!cargando && errorCarga && (
         <p
@@ -183,8 +183,8 @@ export function PanelCuestionarios() {
 
       {!cargando && !errorCarga && cuestionarios.length === 0 && (
         <div className="rounded-tarjeta border border-dashed border-borde p-10 text-center">
-          <p className="text-texto-suave">{t('cuestionarios.vacio')}</p>
-          <p className="mt-1 text-sm text-texto-tenue">{t('cuestionarios.vacioAyuda')}</p>
+          <p className="text-texto-suave">{bilingue(t('cuestionarios.vacio'))}</p>
+          <p className="mt-1 text-sm text-texto-tenue">{bilingue(t('cuestionarios.vacioAyuda'))}</p>
         </div>
       )}
 

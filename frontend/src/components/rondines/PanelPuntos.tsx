@@ -10,13 +10,13 @@ import { DialogoConfirmacion } from '@/components/ui/DialogoConfirmacion';
 import { useToast } from '@/components/ui/Toast';
 import {
   ErrorDeApi,
-  URL_QR_PUNTOS,
   actualizarPuntoRondin,
   crearPuntoRondin,
+  descargarQrPuntos,
   eliminarPuntoRondin,
   listarPuntosRondin,
 } from '@/lib/api';
-import { useTraduccion, type ClaveTraduccion } from '@/lib/i18n';
+import { bilingue, useTraduccion, type ClaveTraduccion } from '@/lib/i18n';
 import { useSesion } from '@/lib/sesion';
 import type { PuntoRondin, PuntoRondinPayload } from '@/lib/types';
 
@@ -49,8 +49,11 @@ export function PanelPuntos() {
   const [verQr, setVerQr] = useState<PuntoRondin | null>(null);
   const [porEliminar, setPorEliminar] = useState<PuntoRondin | null>(null);
   const [eliminando, setEliminando] = useState(false);
+  const [imprimiendo, setImprimiendo] = useState(false);
 
   const cargar = useCallback(async () => {
+    setCargando(true);
+
     try {
       setPuntos(await listarPuntosRondin());
       setErrorCarga('');
@@ -92,6 +95,20 @@ export function PanelPuntos() {
     }
   }
 
+  async function imprimir() {
+    setImprimiendo(true);
+
+    try {
+      await descargarQrPuntos();
+    } catch (error: unknown) {
+      // El endpoint responde 422 si no hay puntos activos: se avisa en un
+      // toast en vez de guardar el JSON del error como si fuera el PDF.
+      mostrarFallo(error, 'puntosRondin.falloImprimir');
+    } finally {
+      setImprimiendo(false);
+    }
+  }
+
   async function confirmarEliminacion() {
     if (porEliminar === null) {
       return;
@@ -116,22 +133,21 @@ export function PanelPuntos() {
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
           <h2 className="text-base font-semibold text-texto">
-            {t('puntosRondin.titulo')}
+            {bilingue(t('puntosRondin.titulo'))}
           </h2>
           <p className="mt-1 text-sm text-texto-suave">
-            {t('puntosRondin.descripcion')}
+            {bilingue(t('puntosRondin.descripcion'))}
           </p>
         </div>
 
         <div className="flex flex-wrap gap-2">
-          {/* La cookie httpOnly de sesión viaja sola en una descarga directa. */}
-          <a
-            href={URL_QR_PUNTOS}
-            download
-            className="inline-flex h-10 items-center rounded-md border border-borde px-4 text-sm font-medium text-texto hover:bg-fondo-sutil"
+          <Button
+            variante="secundario"
+            cargando={imprimiendo}
+            onClick={() => void imprimir()}
           >
-            {t('puntosRondin.imprimir')}
-          </a>
+            {bilingue(t('puntosRondin.imprimir'))}
+          </Button>
 
           <Button
             onClick={() => {
@@ -139,13 +155,13 @@ export function PanelPuntos() {
               setModalAbierto(true);
             }}
           >
-            {t('puntosRondin.nuevo')}
+            {bilingue(t('puntosRondin.nuevo'))}
           </Button>
         </div>
       </div>
 
       {cargando ? (
-        <p className="text-sm text-texto-suave">{t('comun.cargando')}</p>
+        <p className="text-sm text-texto-suave">{bilingue(t('comun.cargando'))}</p>
       ) : errorCarga !== '' ? (
         <div
           role="alert"
@@ -153,13 +169,13 @@ export function PanelPuntos() {
         >
           <span>{errorCarga}</span>
           <Button variante="secundario" tamano="sm" onClick={() => void cargar()}>
-            {t('comun.reintentar')}
+            {bilingue(t('comun.reintentar'))}
           </Button>
         </div>
       ) : puntos.length === 0 ? (
         <div className="rounded-tarjeta border border-dashed border-borde px-6 py-12 text-center">
-          <p className="text-sm font-medium text-texto">{t('puntosRondin.vacio')}</p>
-          <p className="mt-2 text-sm text-texto-suave">{t('puntosRondin.vacioAyuda')}</p>
+          <p className="text-sm font-medium text-texto">{bilingue(t('puntosRondin.vacio'))}</p>
+          <p className="mt-2 text-sm text-texto-suave">{bilingue(t('puntosRondin.vacioAyuda'))}</p>
         </div>
       ) : (
         <div className="overflow-x-auto rounded-tarjeta border border-borde">
@@ -170,28 +186,28 @@ export function PanelPuntos() {
                   scope="col"
                   className="px-5 py-3 text-left font-medium text-texto-suave"
                 >
-                  {t('puntosRondin.numero')}
+                  {bilingue(t('puntosRondin.numero'))}
                 </th>
                 <th
                   scope="col"
                   className="px-5 py-3 text-left font-medium text-texto-suave"
                 >
-                  {t('puntosRondin.nombre')}
+                  {bilingue(t('puntosRondin.nombre'))}
                 </th>
                 <th
                   scope="col"
                   className="px-5 py-3 text-left font-medium text-texto-suave"
                 >
-                  {t('puntosRondin.ubicacion')}
+                  {bilingue(t('puntosRondin.ubicacion'))}
                 </th>
                 <th
                   scope="col"
                   className="px-5 py-3 text-left font-medium text-texto-suave"
                 >
-                  {t('puntosRondin.estado')}
+                  {bilingue(t('puntosRondin.estado'))}
                 </th>
                 <th scope="col" className="px-5 py-3 text-right">
-                  <span className="sr-only">{t('comun.acciones')}</span>
+                  <span className="sr-only">{bilingue(t('comun.acciones'))}</span>
                 </th>
               </tr>
             </thead>
@@ -206,9 +222,9 @@ export function PanelPuntos() {
                   </td>
                   <td className="px-5 py-3">
                     <Badge tono={punto.activo ? 'exito' : 'neutro'}>
-                      {punto.activo
+                      {bilingue(punto.activo
                         ? t('puntosRondin.activo')
-                        : t('puntosRondin.inactivo')}
+                        : t('puntosRondin.inactivo'))}
                     </Badge>
                   </td>
                   <td className="px-5 py-3">
@@ -218,7 +234,7 @@ export function PanelPuntos() {
                         tamano="sm"
                         onClick={() => setVerQr(punto)}
                       >
-                        {t('puntosRondin.verCodigo')}
+                        {bilingue(t('puntosRondin.verCodigo'))}
                       </Button>
 
                       {puedeEditar && (
@@ -231,14 +247,14 @@ export function PanelPuntos() {
                               setModalAbierto(true);
                             }}
                           >
-                            {t('comun.editar')}
+                            {bilingue(t('comun.editar'))}
                           </Button>
                           <Button
                             variante="peligro"
                             tamano="sm"
                             onClick={() => setPorEliminar(punto)}
                           >
-                            {t('comun.eliminar')}
+                            {bilingue(t('comun.eliminar'))}
                           </Button>
                         </>
                       )}

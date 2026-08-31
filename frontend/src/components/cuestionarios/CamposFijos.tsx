@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 
 import { obtenerAreas } from '@/lib/api';
-import { useTraduccion } from '@/lib/i18n';
+import { bilingue, useTraduccion } from '@/lib/i18n';
 import type { Area } from '@/lib/types';
 
 /**
@@ -40,28 +40,28 @@ export function CamposFijos() {
   return (
     <div className="rounded-tarjeta border border-dashed border-borde bg-fondo/50 p-4 opacity-75">
       <p className="mb-3 text-xs font-medium uppercase tracking-wide text-texto-tenue">
-        {t('cuestionarios.camposFijos')}
+        {bilingue(t('cuestionarios.camposFijos'))}
       </p>
 
       <div className="grid gap-3 sm:grid-cols-3">
         <div>
-          <span className="text-sm text-texto-suave">{t('cuestionarios.nombre')}</span>
+          <span className="text-sm text-texto-suave">{bilingue(t('cuestionarios.nombre'))}</span>
           <div className="mt-1 h-9 rounded-md border border-borde bg-fondo-sutil" />
         </div>
 
         <div>
           <span className="text-sm text-texto-suave">
-            {t('cuestionarios.numeroEmpleado')}
+            {bilingue(t('cuestionarios.numeroEmpleado'))}
           </span>
           <div className="mt-1 h-9 rounded-md border border-borde bg-fondo-sutil" />
         </div>
 
         <div>
-          <span className="text-sm text-texto-suave">{t('comun.area')}</span>
+          <span className="text-sm text-texto-suave">{bilingue(t('comun.area'))}</span>
           <div className="mt-1 flex h-9 items-center rounded-md border border-borde bg-fondo-sutil px-2 text-xs text-texto-tenue">
-            {areas.length > 0
+            {bilingue(areas.length > 0
               ? t('cuestionarios.opcionesArea', { total: areas.length })
-              : t('comun.cargando')}
+              : t('comun.cargando'))}
           </div>
         </div>
       </div>

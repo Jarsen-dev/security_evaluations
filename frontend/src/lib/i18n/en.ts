@@ -90,6 +90,7 @@ export const en: Diccionario = {
     medicamento: 'Medicine log',
     silos: 'EPS silos',
     tableros: 'Electrical panels',
+    pciMtto: 'FPS MAINT',
     enConstruccion: 'Under construction',
     enConstruccionDetalle:
       'This control is still filled in on paper. It will be enabled here as ' +
@@ -429,6 +430,55 @@ export const en: Diccionario = {
     sinCierre: 'This record has no finding closure yet.',
   },
 
+  pciMtto: {
+    titulo: 'Fire protection — Maintenance',
+    descripcion:
+      'One question a month: whether maintenance was performed on the fire ' +
+      'protection system. A month that closes without an answer is recorded ' +
+      'automatically, in red, and has to be explained.',
+    pregunta: 'Was maintenance performed on the fire protection system?',
+    periodo: 'Month being recorded',
+    anio: 'Year',
+    mes: 'Month',
+    mtto: 'MAINT',
+    fecha: 'Maintenance date',
+    evidencia: 'Evidence',
+    motivo: 'Reason',
+    motivoPlaceholder: 'Why was maintenance not performed this month?',
+    sinMotivo: 'Reason pending',
+    reporte: 'Maintenance report',
+    reporteAyuda: 'Any format. 10 MB maximum.',
+    reporteElegir: 'Choose file',
+    reporteCambiar: 'Change file',
+    reporteQuitar: 'Remove file',
+    reporteDescargar: 'Download the report',
+    sinReporte: 'No report attached',
+    faltaFecha: 'Enter the date the maintenance was performed.',
+    faltaEvidencia: 'Add at least one evidence photo.',
+    faltaReporte: 'Attach the maintenance report.',
+    faltaMotivo: 'Enter the reason it was not performed.',
+    listo: 'Ready to confirm.',
+    guardado: 'Entry saved.',
+    motivoGuardado: 'Reason saved.',
+    yaRegistrado: 'Maintenance for {mes} has already been recorded.',
+    yaRegistradoDetalle: 'Correct it if you need to change anything.',
+    aunNoArranca: 'This control starts being kept in {mes}.',
+    registros: 'Entries',
+    vacio: 'There are no entries for this year yet.',
+    cerradoPorSistema: 'Closed by the system for lack of an answer',
+    urgenteTitulo: 'A month without maintenance still needs an explanation',
+    urgenteDetalle:
+      'These months closed with no maintenance entry. Enter the reason to ' +
+      'complete the record.',
+    urgenteGuardar: 'Save the reason',
+    corregir: 'Correct',
+    corregirTitulo: 'Correct the {mes} entry',
+    corregirDetalle:
+      'This is the only way to fix a month: entries are never deleted.',
+    avisoTitulo: 'Fire protection maintenance not recorded',
+    avisoMes: '{mes} still needs a reason',
+  },
+
   incidencias: {
     titulo: 'Incidents',
     descripcion:
@@ -582,6 +632,17 @@ export const en: Diccionario = {
     siguiente: 'Next',
   },
 
+  visor: {
+    girarIzquierda: 'Rotate 90° counter-clockwise',
+    girarDerecha: 'Rotate 90° clockwise',
+    alejar: 'Zoom out',
+    acercar: 'Zoom in',
+    ajustar: 'Fit to screen and straighten',
+    pantallaCompleta: 'View full screen',
+    salirPantallaCompleta: 'Exit full screen (Esc)',
+    ayuda: 'Drag to move the image and use the mouse wheel to zoom in.',
+  },
+
   estudios: {
     titulo: 'Studies',
     descripcion:
@@ -664,13 +725,14 @@ export const en: Diccionario = {
   avisos: {
     titulo: 'Expirations',
     abrir: 'Expiry alerts',
-    vacio: 'No study expires within the next month.',
+    vacio: 'No pending notices.',
     venceHoy: 'Expires today',
     venceManana: 'Expires tomorrow',
     venceEn: 'Expires in {dias} days',
     vencioAyer: 'Expired yesterday',
     vencioHace: 'Expired {dias} days ago',
     verTodos: 'See all studies',
+    verControles: 'Go to the FPS MAINT control',
     falloCarga: 'The alerts could not be loaded.',
   },
 
@@ -890,6 +952,8 @@ export const en: Diccionario = {
     porRondin: 'Compliance per round',
     visitados: 'Visited',
     sinVisita: 'Not visited',
+    pendiente: 'Has not happened yet',
+    cumplimientoParcial: 'Partial compliance',
     descargar: 'Download Excel',
     enviarCorreo: 'Send by email',
     correoDestino: 'Recipient email',
@@ -916,6 +980,11 @@ export const en: Diccionario = {
     activo: 'Active',
     inactivo: 'Retired',
     codigo: 'QR code',
+    tituloCodigo: 'QR code — Checkpoint {numero}',
+    baseNoConfigurada:
+      'NEXT_PUBLIC_BASE_URL is empty, so the code link is relative and the ' +
+      'QR will not open anything. Set it in the .env file and rebuild the ' +
+      'frontend before printing the labels.',
     verCodigo: 'View code',
     crear: 'New checkpoint',
     editar: 'Edit checkpoint',
@@ -927,6 +996,7 @@ export const en: Diccionario = {
     eliminado: 'Checkpoint deleted.',
     falloGuardar: 'The checkpoint could not be saved.',
     falloEliminar: 'The checkpoint could not be deleted.',
+    falloImprimir: 'The QR code sheet could not be generated.',
     confirmarEliminar: 'Delete checkpoint',
     confirmarEliminarDetalle:
       'Checkpoint {nombre} will be removed and its QR code will stop working. ' +
@@ -934,6 +1004,10 @@ export const en: Diccionario = {
       'Retiring it is almost always better than deleting it.',
     faltaNumero: 'Enter the checkpoint number.',
     faltaNombre: 'Enter the checkpoint name.',
+    textoLargo: '150 characters maximum.',
+    qrRetirado:
+      'this checkpoint is retired. The code is still here for reference, but ' +
+      'scanning it will not record any visit until it is reactivated.',
     descargarQr: 'Download PNG',
     ligaCopiada: 'Link copied.',
     falloCopiar: 'It could not be copied. Copy it by hand: {liga}',

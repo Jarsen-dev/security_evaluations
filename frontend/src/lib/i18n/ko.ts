@@ -85,6 +85,7 @@ export const ko: Diccionario = {
     medicamento: '의약품 관리',
     silos: 'EPS 사일로',
     tableros: '전기 판넬',
+    pciMtto: '소방 정비',
     enConstruccion: '준비 중',
     enConstruccionDetalle:
       '이 점검은 아직 서면으로 기록합니다. 입력 규칙이 정해지는 대로 여기에서 사용할 수 있습니다.',
@@ -406,6 +407,53 @@ export const ko: Diccionario = {
     sinCierre: '이 기록에는 아직 지적사항 조치가 없습니다.',
   },
 
+  pciMtto: {
+    titulo: '소방 설비 정비',
+    descripcion:
+      '매월 한 번, 소방 설비 정비 실시 여부를 기록합니다. 응답 없이 마감된 ' +
+      '달은 자동으로 미실시로 기록되며 사유를 반드시 입력해야 합니다.',
+    pregunta: '소방 설비 정비를 실시했습니까?',
+    periodo: '기록 대상 월',
+    anio: '연도',
+    mes: '월',
+    mtto: '정비',
+    fecha: '정비 일자',
+    evidencia: '증빙',
+    motivo: '비고',
+    motivoPlaceholder: '이번 달에 정비를 실시하지 못한 사유',
+    sinMotivo: '비고 미입력',
+    reporte: '정비 보고서',
+    reporteAyuda: '형식은 제한이 없으며 최대 10 MB입니다.',
+    reporteElegir: '파일 선택',
+    reporteCambiar: '파일 변경',
+    reporteQuitar: '파일 삭제',
+    reporteDescargar: '보고서 내려받기',
+    sinReporte: '첨부된 보고서 없음',
+    faltaFecha: '정비를 실시한 일자를 입력하십시오.',
+    faltaEvidencia: '증빙 사진을 한 장 이상 첨부하십시오.',
+    faltaReporte: '정비 보고서를 첨부하십시오.',
+    faltaMotivo: '정비를 실시하지 못한 사유를 입력하십시오.',
+    listo: '확인 준비가 되었습니다.',
+    guardado: '기록을 저장했습니다.',
+    motivoGuardado: '비고를 저장했습니다.',
+    yaRegistrado: '{mes}의 정비는 이미 기록되었습니다.',
+    yaRegistradoDetalle: '변경이 필요하면 수정하십시오.',
+    aunNoArranca: '이 점검은 {mes}부터 기록합니다.',
+    registros: '기록',
+    vacio: '해당 연도의 기록이 아직 없습니다.',
+    cerradoPorSistema: '응답이 없어 시스템이 마감했습니다',
+    urgenteTitulo: '미실시 월의 사유가 누락되었습니다',
+    urgenteDetalle:
+      '아래 월은 정비 기록 없이 마감되었습니다. 이력을 완성하려면 사유를 ' +
+      '입력하십시오.',
+    urgenteGuardar: '비고 저장',
+    corregir: '수정',
+    corregirTitulo: '{mes} 기록 수정',
+    corregirDetalle: '기록은 삭제되지 않으므로 수정만으로 바로잡습니다.',
+    avisoTitulo: '소방 설비 정비 미기록',
+    avisoMes: '{mes}의 사유가 누락되었습니다',
+  },
+
   incidencias: {
     titulo: '지적사항',
     descripcion: '각 점검에서 발생한 모든 문제와 그 증빙 및 조치 내역입니다.',
@@ -549,6 +597,17 @@ export const ko: Diccionario = {
     siguiente: '다음',
   },
 
+  visor: {
+    girarIzquierda: '반시계 방향으로 90° 회전',
+    girarDerecha: '시계 방향으로 90° 회전',
+    alejar: '축소',
+    acercar: '확대',
+    ajustar: '화면에 맞추고 회전 초기화',
+    pantallaCompleta: '전체 화면으로 보기',
+    salirPantallaCompleta: '전체 화면 종료 (Esc)',
+    ayuda: '드래그하여 이미지를 이동하고 마우스 휠로 확대합니다.',
+  },
+
   estudios: {
     titulo: '조사·교육',
     descripcion:
@@ -629,13 +688,14 @@ export const ko: Diccionario = {
   avisos: {
     titulo: '만료 알림',
     abrir: '만료 알림 보기',
-    vacio: '다음 한 달 이내에 만료되는 조사가 없습니다.',
+    vacio: '대기 중인 알림이 없습니다.',
     venceHoy: '오늘 만료',
     venceManana: '내일 만료',
     venceEn: '{dias}일 후 만료',
     vencioAyer: '어제 만료됨',
     vencioHace: '{dias}일 전에 만료됨',
     verTodos: '전체 조사 보기',
+    verControles: '소방 정비 점검으로 이동',
     falloCarga: '알림을 불러오지 못했습니다.',
   },
 
@@ -852,6 +912,8 @@ export const ko: Diccionario = {
     porRondin: '순찰별 이행률',
     visitados: '점검 완료',
     sinVisita: '미점검',
+    pendiente: '아직 진행 전',
+    cumplimientoParcial: '부분 이행률',
     descargar: 'Excel 내려받기',
     enviarCorreo: '메일로 보내기',
     correoDestino: '받는 사람 이메일',
@@ -878,6 +940,11 @@ export const ko: Diccionario = {
     activo: '사용',
     inactivo: '해제',
     codigo: 'QR 코드',
+    tituloCodigo: 'QR 코드 — {numero}번 지점',
+    baseNoConfigurada:
+      'NEXT_PUBLIC_BASE_URL이 비어 있어 코드의 링크가 상대 경로가 되며 QR이 ' +
+      '아무것도 열지 못합니다. .env 파일에 설정하고 라벨을 인쇄하기 전에 ' +
+      '프런트엔드를 다시 빌드하세요.',
     verCodigo: '코드 보기',
     crear: '새 점검 지점',
     editar: '점검 지점 편집',
@@ -889,6 +956,7 @@ export const ko: Diccionario = {
     eliminado: '지점을 삭제했습니다.',
     falloGuardar: '지점을 저장하지 못했습니다.',
     falloEliminar: '지점을 삭제하지 못했습니다.',
+    falloImprimir: 'QR 코드 시트를 생성하지 못했습니다.',
     confirmarEliminar: '점검 지점 삭제',
     confirmarEliminarDetalle:
       '{nombre} 지점이 삭제되고 QR 코드는 더 이상 작동하지 않습니다. 이전 ' +
@@ -896,6 +964,10 @@ export const ko: Diccionario = {
       '권장합니다.',
     faltaNumero: '지점 번호를 입력하세요.',
     faltaNombre: '지점 이름을 입력하세요.',
+    textoLargo: '최대 150자입니다.',
+    qrRetirado:
+      '이 지점은 사용 중지되었습니다. 코드는 확인용으로 남아 있지만 스캔해도 ' +
+      '다시 활성화할 때까지 방문이 기록되지 않습니다.',
     descargarQr: 'PNG 내려받기',
     ligaCopiada: '링크를 복사했습니다.',
     falloCopiar: '복사하지 못했습니다. 직접 입력하세요: {liga}',

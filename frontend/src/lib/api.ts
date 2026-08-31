@@ -12,10 +12,12 @@ import type {
   Area,
   AreaPlatica,
   Avisos,
+  AvisosPciMtto,
   BitacoraPaginada,
   CatalogoChecklist,
   CatalogoEstudios,
   EscaneoRegistrado,
+  CapturaPciMtto,
   CatalogoSqp,
   CierreHallazgo,
   CierrePayload,
@@ -46,6 +48,8 @@ import type {
   InspeccionSqpResumen,
   Insumo,
   InsumoPayload,
+  ListadoPciMtto,
+  RegistroPciMtto,
   Recepcion,
   RecepcionPayload,
   RecepcionesPaginadas,
@@ -914,7 +918,15 @@ export const enviarReporteRondines = (
   api.post<Mensaje>('/rondines/reporte/enviar', { fecha, turno, destinatario });
 
 /** La cookie httpOnly viaja sola, así que basta un <a download>. */
-export const URL_QR_PUNTOS = '/api/rondines/puntos/imprimir';
+/**
+ * Hoja imprimible con los códigos QR de los puntos activos.
+ *
+ * Va por `descargarArchivo` y no por un `<a download>`: el endpoint responde
+ * 422 cuando no hay puntos activos, y un ancla guardaría el JSON del error
+ * como si fuera el PDF.
+ */
+export const descargarQrPuntos = (): Promise<void> =>
+  descargarArchivo('/rondines/puntos/imprimir', 'qr_puntos_rondin.pdf');
 
 /**
  * Registra el escaneo de un punto. NO lleva sesión: la llama la página que
@@ -1100,4 +1112,112 @@ export const descargarExcelIncidencias = (
   descargarArchivo(
     `/controles/incidencias/exportar/excel?${queryIncidencias(filtros)}`,
     'incidencias.xlsx',
+  );
+
+// ---------------------------------------------------------------------------
+// PCI MTTO: mantenimiento del sistema contra incendios
+// ---------------------------------------------------------------------------
+
+/**
+ * Los registros del año, los años disponibles y los meses sin explicar.
+ *
+ * Todo en una sola petición: abrir la pestaña necesita las tres cosas a la vez
+ * y tres llamadas en cascada se notan en la laptop de planta.
+ */
+export const listarPciMtto = (anio: number): Promise<ListadoPciMtto> =>
+  api.get<ListadoPciMtto>(`/controles/pci-mtto?anio=${anio}`);
+
+/** Los meses sin justificar, para la campana del encabezado. */
+export const obtenerAvisosPciMtto = (): Promise<AvisosPciMtto> =>
+  api.get<AvisosPciMtto>('/controles/pci-mtto/avisos');
+
+/** Arma el multipart del formulario: los campos, las fotos y el documento. */
+function cuerpoPciMtto(datos: CapturaPciMtto): FormData {
+  const cuerpo = new FormData();
+  cuerpo.append('realizado', String(datos.realizado));
+  cuerpo.append('motivo', datos.motivo);
+
+  if (datos.realizado) {
+    cuerpo.append('fecha', datos.fecha);
+  }
+
+  datos.fotos.forEach((foto) => cuerpo.append('fotos', foto));
+
+  if (datos.reporte !== null) {
+    cuerpo.append('reporte', datos.reporte);
+  }
+
+  return cuerpo;
+}
+
+/** Da de alta el mes. Va por `enviarFormulario` porque lleva archivos. */
+export function registrarPciMtto(
+  datos: CapturaPciMtto,
+): Promise<RegistroPciMtto> {
+  const cuerpo = cuerpoPciMtto(datos);
+  cuerpo.append('anio', String(datos.anio));
+  cuerpo.append('mes', String(datos.mes));
+  return enviarFormulario<RegistroPciMtto>('/controles/pci-mtto', cuerpo);
+}
+
+/**
+ * Corrige un mes ya registrado. Es la única forma de arreglarlo: no hay
+ * borrado, porque borrar un cierre automático solo consigue que la vigilancia
+ * lo vuelva a levantar con el motivo otra vez en blanco.
+ *
+ * `conservaReporte` deja el documento que ya estaba cuando la corrección no
+ * adjunta uno nuevo: si no, cambiar una fecha obligaría a volver a subir el PDF.
+ */
+export function corregirPciMtto(
+  datos: CapturaPciMtto,
+  conservaReporte: boolean,
+): Promise<RegistroPciMtto> {
+  const cuerpo = cuerpoPciMtto(datos);
+  cuerpo.append('conserva_reporte', String(conservaReporte));
+  return enviarFormulario<RegistroPciMtto>(
+    `/controles/pci-mtto/${datos.anio}/${datos.mes}`,
+    cuerpo,
+    undefined,
+    'PUT',
+  );
+}
+
+/**
+ * Explica un mes que cerró sin mantenimiento.
+ *
+ * Con `actualizando` va por PUT, que exige permiso de edición porque pisa el
+ * texto de otra persona; el POST solo rellena un hueco vacío y lo puede hacer
+ * quien opera el control.
+ */
+export const guardarMotivoPciMtto = (
+  anio: number,
+  mes: number,
+  motivo: string,
+  actualizando: boolean,
+): Promise<RegistroPciMtto> => {
+  const ruta = `/controles/pci-mtto/${anio}/${mes}/motivo`;
+  return actualizando
+    ? api.put<RegistroPciMtto>(ruta, { motivo })
+    : api.post<RegistroPciMtto>(ruta, { motivo });
+};
+
+/** URL del reporte adjunto. La cookie de sesión viaja sola. */
+export const urlReportePciMtto = (anio: number, mes: number): string =>
+  `/api/controles/pci-mtto/${anio}/${mes}/reporte`;
+
+/** Baja el documento con el nombre que tenía al subirse. */
+export const descargarReportePciMtto = (
+  anio: number,
+  mes: number,
+): Promise<void> =>
+  descargarArchivo(
+    `/controles/pci-mtto/${anio}/${mes}/reporte`,
+    `reporte_${anio}_${String(mes).padStart(2, '0')}`,
+  );
+
+/** El año completo en Excel: la tabla y las evidencias. */
+export const descargarExcelPciMtto = (anio: number): Promise<void> =>
+  descargarArchivo(
+    `/controles/pci-mtto/exportar/excel?anio=${anio}`,
+    `pci_mtto_${anio}.xlsx`,
   );

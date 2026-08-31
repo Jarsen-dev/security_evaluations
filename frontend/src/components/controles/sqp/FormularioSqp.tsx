@@ -9,7 +9,7 @@ import { Card } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Input';
 import { Textarea } from '@/components/ui/Textarea';
 import { useBorrador } from '@/hooks/useBorrador';
-import { useTraduccion } from '@/lib/i18n';
+import { bilingue, unaLinea, useTraduccion } from '@/lib/i18n';
 import { useSesion } from '@/lib/sesion';
 import type {
   Area,
@@ -252,7 +252,7 @@ export function FormularioSqp({
 
         <div className="flex flex-col gap-1.5">
           <label htmlFor="area-sqp" className="text-sm font-medium text-texto">
-            {t('comun.area')}
+            {bilingue(t('comun.area'))}
           </label>
           <select
             id="area-sqp"
@@ -274,7 +274,7 @@ export function FormularioSqp({
           etiqueta={t('sqp.encargado')}
           name="encargado-sqp"
           value={encargado}
-          placeholder={t('sqp.encargadoPlaceholder')}
+          placeholder={unaLinea(t('sqp.encargadoPlaceholder'))}
           onChange={(evento) => setEncargado(evento.target.value)}
           disabled={guardando}
         />
@@ -283,7 +283,7 @@ export function FormularioSqp({
           etiqueta={t('sqp.cargo')}
           name="cargo-sqp"
           value={cargo}
-          placeholder={t('sqp.cargoPlaceholder')}
+          placeholder={unaLinea(t('sqp.cargoPlaceholder'))}
           onChange={(evento) => setCargo(evento.target.value)}
           disabled={guardando}
         />
@@ -335,7 +335,7 @@ export function FormularioSqp({
                               : 'border-borde text-texto-suave hover:border-borde-fuerte hover:text-texto',
                           )}
                         >
-                          {t(`sqp.${opcion.clave}`)}
+                          {bilingue(t(`sqp.${opcion.clave}`))}
                         </button>
                       );
                     })}
@@ -347,7 +347,7 @@ export function FormularioSqp({
                   <Textarea
                     name={`observaciones-${punto.orden}`}
                     value={respuesta.observaciones}
-                    placeholder={t('sqp.observacionesPlaceholder')}
+                    placeholder={unaLinea(t('sqp.observacionesPlaceholder'))}
                     onChange={(evento) => observar(punto.orden, evento.target.value)}
                     disabled={guardando}
                     error={
@@ -371,7 +371,7 @@ export function FormularioSqp({
 
                     {respuesta.fotos.length === 0 && (
                       <p role="alert" className="text-sm text-error">
-                        {t('sqp.faltaFoto')}
+                        {bilingue(t('sqp.faltaFoto'))}
                       </p>
                     )}
                   </div>
@@ -388,18 +388,18 @@ export function FormularioSqp({
           name="sustancias-sqp"
           value={sustancias}
           rows={6}
-          placeholder={t('sqp.sustanciasAyuda')}
+          placeholder={unaLinea(t('sqp.sustanciasAyuda'))}
           onChange={(evento) => setSustancias(evento.target.value)}
           disabled={guardando}
         />
         <p className="text-sm text-texto-tenue">
-          {t('sqp.sustanciasContador', { total: lineasSustancias.length })}
+          {bilingue(t('sqp.sustanciasContador', { total: lineasSustancias.length }))}
         </p>
       </Card>
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-sm text-texto-suave">
-          {faltanPuntos > 0
+          {bilingue(faltanPuntos > 0
             ? t('sqp.faltanPuntos', { total: faltanPuntos })
             : noSinObservaciones > 0
               ? t('sqp.faltanObservaciones', { total: noSinObservaciones })
@@ -408,7 +408,7 @@ export function FormularioSqp({
                 : t('sqp.progreso', {
                     contestados,
                     total: catalogo.puntos.length,
-                  })}
+                  }))}
         </p>
 
         <div className="flex flex-wrap items-center gap-3">
@@ -427,7 +427,7 @@ export function FormularioSqp({
             disabled={!puedeGuardar}
             cargando={guardando}
           >
-            {t('sqp.guardarInspeccion')}
+            {bilingue(t('sqp.guardarInspeccion'))}
           </Button>
         </div>
       </div>

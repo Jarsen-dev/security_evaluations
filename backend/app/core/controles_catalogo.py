@@ -834,3 +834,28 @@ TITULO_PLATICAS: Final[str] = "PLATICAS DIARIAS DE SEGURIDAD"
 # Cuántas fotos de evidencia admite un punto en NO OK o una plática. El tope
 # existe para que una petición con varias fotos no crezca sin control.
 MAX_FOTOS: Final[int] = 4
+
+
+# --- PCI MTTO: mantenimiento del sistema contra incendios -------------------
+
+# Primer mes que el control vigila. Va como constante versionada y no como
+# configuración a propósito: es un dato histórico, y dejarlo en un `.env`
+# permitiría reescribir el pasado por accidente —bajarlo inventaría meses
+# incumplidos que nadie pudo contestar; subirlo borraría faltas reales—.
+#
+# Septiembre y no agosto porque el control se estrena a fin de agosto, y cerrar
+# ese mes dejaría un solo día para capturarlo antes de la falta automática.
+PCI_PRIMER_MES: Final[tuple[int, int]] = (2026, 9)
+
+# Las mismas cuatro fotos que el resto de los controles, y 10 MB de reporte.
+#
+# La SUMA es lo que importa: Nginx corta el cuerpo en `client_max_body_size
+# 25M` (nginx/default.conf) y este POST manda el documento y las fotos en el
+# MISMO multipart. Con 4 x 2 MB de foto —el tope que ya impone `validar_foto`—
+# más 10 MB de reporte son 18 MB, que deja margen para las cabeceras.
+#
+# Subir cualquiera de los dos topes sin subir el de Nginx haría que el proxy
+# respondiera 413 con su HTML crudo antes de llegar al backend, y el operador
+# vería un error opaco en lugar del mensaje en español.
+MAX_FOTOS_PCI: Final[int] = 4
+MAX_BYTES_REPORTE_PCI: Final[int] = 10 * 1024 * 1024

@@ -17,7 +17,7 @@ import type { ReactNode } from 'react';
 
 import { COLORES, COLOR_POR_RANGO, ESTILO_TOOLTIP } from '@/components/estadisticas/colores';
 import { Card } from '@/components/ui/Card';
-import { useTraduccion } from '@/lib/i18n';
+import { bilingue, unaLinea, useTraduccion } from '@/lib/i18n';
 import type {
   EstadisticaArea,
   EstadisticaPregunta,
@@ -44,8 +44,8 @@ function Panel({
 
   return (
     <Card>
-      <h2 className="font-medium text-texto">{titulo}</h2>
-      {descripcion && <p className="mt-0.5 text-sm text-texto-tenue">{descripcion}</p>}
+      <h2 className="font-medium text-texto">{bilingue(titulo)}</h2>
+      {descripcion && <p className="mt-0.5 text-sm text-texto-tenue">{bilingue(descripcion)}</p>}
 
       <div className="mt-4" style={{ height: ALTURA }}>
         {hayDatos ? (
@@ -54,7 +54,7 @@ function Panel({
           </ResponsiveContainer>
         ) : (
           <div className="flex h-full items-center justify-center text-sm text-texto-tenue">
-            {t('graficas.sinDatos')}
+            {bilingue(t('graficas.sinDatos'))}
           </div>
         )}
       </div>
@@ -88,14 +88,14 @@ export function GraficaParticipacion({ datos }: { datos: EstadisticaArea[] }) {
         <Legend wrapperStyle={{ fontSize: 12, color: COLORES.texto }} />
         <Bar
           dataKey="intentos"
-          name={t('cuestionarios.respuestas')}
+          name={unaLinea(t('cuestionarios.respuestas'))}
           fill={COLORES.primario}
           radius={[4, 4, 0, 0]}
         />
         {hayMetas && (
           <Bar
             dataKey="meta"
-            name={t('graficas.meta')}
+            name={unaLinea(t('graficas.meta'))}
             fill={COLORES.meta}
             radius={[4, 4, 0, 0]}
           />
@@ -138,7 +138,7 @@ export function GraficaPromedioPorArea({
         <Tooltip
           contentStyle={ESTILO_TOOLTIP}
           cursor={{ fill: 'rgba(255,255,255,0.04)' }}
-          formatter={(valor: number) => [`${valor}%`, t('graficas.promedio')]}
+          formatter={(valor: number) => [`${valor}%`, unaLinea(t('graficas.promedio'))]}
         />
         <Bar dataKey="promedio" radius={[0, 4, 4, 0]}>
           {ordenados.map((fila) => (
@@ -172,7 +172,7 @@ export function GraficaDistribucion({ datos }: { datos: RangoDistribucion[] }) {
         <Tooltip
           contentStyle={ESTILO_TOOLTIP}
           cursor={{ fill: 'rgba(255,255,255,0.04)' }}
-          formatter={(valor: number) => [valor, t('metas.personas')]}
+          formatter={(valor: number) => [valor, unaLinea(t('metas.personas'))]}
         />
         <Bar dataKey="cantidad" radius={[4, 4, 0, 0]}>
           {datos.map((fila) => (
@@ -219,7 +219,7 @@ export function GraficaPreguntasFalladas({ datos }: { datos: EstadisticaPregunta
           cursor={{ fill: 'rgba(255,255,255,0.04)' }}
           formatter={(valor: number, _nombre, entrada) => [
             `${valor}% (${entrada.payload.incorrectas} de ${entrada.payload.total_respuestas})`,
-            t('graficas.incorrectas'),
+            unaLinea(t('graficas.incorrectas')),
           ]}
           labelFormatter={(_etiqueta, carga) => carga?.[0]?.payload?.texto ?? ''}
         />
@@ -251,7 +251,7 @@ export function GraficaLineaTiempo({ datos }: { datos: PuntoLineaTiempo[] }) {
           yAxisId="izq"
           type="monotone"
           dataKey="cantidad"
-          name={t('cuestionarios.respuestas')}
+          name={unaLinea(t('cuestionarios.respuestas'))}
           stroke={COLORES.primario}
           strokeWidth={2}
           dot={{ r: 3 }}
@@ -260,7 +260,7 @@ export function GraficaLineaTiempo({ datos }: { datos: PuntoLineaTiempo[] }) {
           yAxisId="der"
           type="monotone"
           dataKey="promedio"
-          name={t('graficas.promedioPorcentaje')}
+          name={unaLinea(t('graficas.promedioPorcentaje'))}
           stroke={COLORES.exito}
           strokeWidth={2}
           strokeDasharray="4 3"

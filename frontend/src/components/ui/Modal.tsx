@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, type ReactNode } from 'react';
 
+import { bilingue } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
 
 interface ModalProps {
@@ -87,9 +88,9 @@ export function Modal({
         )}
       >
         <header className="border-b border-borde px-6 py-4">
-          <h2 className="text-lg font-semibold text-texto">{titulo}</h2>
+          <h2 className="text-lg font-semibold text-texto">{bilingue(titulo)}</h2>
           {descripcion && (
-            <p className="mt-1 text-sm text-texto-suave">{descripcion}</p>
+            <p className="mt-1 text-sm text-texto-suave">{bilingue(descripcion)}</p>
           )}
         </header>
 

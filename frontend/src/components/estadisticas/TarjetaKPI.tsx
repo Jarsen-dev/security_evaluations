@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 
 import { Card } from '@/components/ui/Card';
+import { bilingue } from '@/lib/i18n';
 
 interface TarjetaKPIProps {
   etiqueta: string;
@@ -21,7 +22,7 @@ export function TarjetaKPI({
 }: TarjetaKPIProps) {
   return (
     <Card>
-      <p className="text-sm text-texto-suave">{etiqueta}</p>
+      <p className="text-sm text-texto-suave">{bilingue(etiqueta)}</p>
 
       <p className="mt-1 text-3xl font-semibold text-texto">
         {cargando ? (
@@ -36,7 +37,7 @@ export function TarjetaKPI({
       </p>
 
       {detalle && !cargando && (
-        <p className="mt-1 text-sm text-texto-tenue">{detalle}</p>
+        <p className="mt-1 text-sm text-texto-tenue">{bilingue(detalle)}</p>
       )}
     </Card>
   );

@@ -5,7 +5,7 @@ import {
   CLAVES_SEMAFORO,
 } from '@/components/controles/rayser/semaforo';
 import { AccionesRegistro } from '@/components/controles/AccionesRegistro';
-import { useIdioma } from '@/lib/i18n';
+import { bilingue, useIdioma } from '@/lib/i18n';
 import { urlFotoControl } from '@/lib/api';
 import type { RegistroRayser } from '@/lib/types';
 import { cn, formatearFechaIso } from '@/lib/utils';
@@ -39,7 +39,7 @@ export function TablaRayser({
   if (registros.length === 0) {
     return (
       <p className="rounded-tarjeta border border-borde bg-fondo-elevado px-4 py-8 text-center text-sm text-texto-suave">
-        {t('rayser.historialVacio')}
+        {bilingue(t('rayser.historialVacio'))}
       </p>
     );
   }
@@ -49,17 +49,17 @@ export function TablaRayser({
       <table className="w-full min-w-[52rem] border-collapse text-sm">
         <thead className="bg-fondo-sutil text-left text-texto-suave">
           <tr>
-            <th className="px-3 py-2 font-medium">{t('comun.fecha')}</th>
+            <th className="px-3 py-2 font-medium">{bilingue(t('comun.fecha'))}</th>
             {Array.from({ length: totalManometros }, (unused, indice) => (
               <th key={indice} className="px-3 py-2 text-center font-medium">
-                {t('rayser.manometro', { numero: indice + 1 })}
+                {bilingue(t('rayser.manometro', { numero: indice + 1 }))}
               </th>
             ))}
-            <th className="px-3 py-2 font-medium">{t('comun.observaciones')}</th>
-            <th className="px-3 py-2 font-medium">{t('comun.responsable')}</th>
-            <th className="px-3 py-2 font-medium">{t('rayser.evidencia')}</th>
+            <th className="px-3 py-2 font-medium">{bilingue(t('comun.observaciones'))}</th>
+            <th className="px-3 py-2 font-medium">{bilingue(t('comun.responsable'))}</th>
+            <th className="px-3 py-2 font-medium">{bilingue(t('rayser.evidencia'))}</th>
             <th className="px-3 py-2 text-right font-medium">
-              {t('comun.acciones')}
+              {bilingue(t('comun.acciones'))}
             </th>
           </tr>
         </thead>
@@ -83,7 +83,7 @@ export function TablaRayser({
                     {/* El color no basta: se rotula si quedó baja o alta. */}
                     {lectura.semaforo !== 'verde' && (
                       <span className="text-xs">
-                        {t(CLAVES_SEMAFORO[lectura.semaforo])}
+                        {bilingue(t(CLAVES_SEMAFORO[lectura.semaforo]))}
                       </span>
                     )}
                   </span>

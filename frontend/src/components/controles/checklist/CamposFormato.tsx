@@ -2,7 +2,7 @@
 
 import { Input } from '@/components/ui/Input';
 import { Textarea } from '@/components/ui/Textarea';
-import { useIdioma } from '@/lib/i18n';
+import { bilingue, useIdioma } from '@/lib/i18n';
 import type { CampoFormato } from '@/lib/types';
 import { cn } from '@/lib/utils';
 
@@ -87,7 +87,7 @@ export function CamposFormato({
                   );
                 })}
               </div>
-              {falta && <p className="text-sm text-texto-tenue">{t('comun.obligatorio')}</p>}
+              {falta && <p className="text-sm text-texto-tenue">{bilingue(t('comun.obligatorio'))}</p>}
             </div>
           );
         }

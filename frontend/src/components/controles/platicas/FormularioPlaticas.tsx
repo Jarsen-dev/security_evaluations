@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Input';
 import { useBorrador } from '@/hooks/useBorrador';
-import { useTraduccion } from '@/lib/i18n';
+import { bilingue, unaLinea, useTraduccion } from '@/lib/i18n';
 import { useSesion } from '@/lib/sesion';
 import type { AreaPlatica } from '@/lib/types';
 import { cn, fechaDeHoy } from '@/lib/utils';
@@ -103,9 +103,9 @@ export function FormularioPlaticas({
     <Card className="flex flex-col gap-5">
       <div>
         <h2 className="text-base font-semibold text-texto">
-          {t('platicas.registrar')}
+          {bilingue(t('platicas.registrar'))}
         </h2>
-        <p className="mt-1 text-sm text-texto-suave">{t('platicas.descripcion')}</p>
+        <p className="mt-1 text-sm text-texto-suave">{bilingue(t('platicas.descripcion'))}</p>
       </div>
 
       <AvisoBorrador fecha={borrador.esDeOtroDia ? borrador.fecha : null} />
@@ -124,7 +124,7 @@ export function FormularioPlaticas({
           etiqueta={t('platicas.tema')}
           name="tema-platica"
           value={tema}
-          placeholder={t('platicas.temaPlaceholder')}
+          placeholder={unaLinea(t('platicas.temaPlaceholder'))}
           onChange={(evento) => setTema(evento.target.value)}
           disabled={guardando}
           maxLength={300}
@@ -133,10 +133,10 @@ export function FormularioPlaticas({
 
       <div className="flex flex-col gap-2">
         <span className="text-sm font-medium text-texto">
-          {t('platicas.areas')}
+          {bilingue(t('platicas.areas'))}
           {!hayTema && (
             <span className="ml-2 font-normal text-texto-tenue">
-              {t('platicas.primeroTema')}
+              {bilingue(t('platicas.primeroTema'))}
             </span>
           )}
         </span>
@@ -180,13 +180,13 @@ export function FormularioPlaticas({
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-sm text-texto-tenue">
-          {!hayTema
+          {bilingue(!hayTema
             ? t('platicas.faltaTema')
             : !hayAreas
               ? t('platicas.faltaArea')
               : fotos.length === 0
                 ? t('platicas.faltaFoto')
-                : t('platicas.listo', { total: elegidas.length })}
+                : t('platicas.listo', { total: elegidas.length }))}
         </p>
 
         <div className="flex flex-wrap items-center gap-3">
@@ -205,7 +205,7 @@ export function FormularioPlaticas({
             disabled={!puedeGuardar}
             cargando={guardando}
           >
-            {t('checklist.confirmar')}
+            {bilingue(t('checklist.confirmar'))}
           </Button>
         </div>
       </div>

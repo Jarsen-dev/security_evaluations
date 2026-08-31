@@ -833,6 +833,11 @@ export interface Tablero {
   fin: string;
   puntos_activos: number;
   rondines: number;
+  /**
+   * Bloques del turno que ya ocurrieron. El cumplimiento se mide contra
+   * estos, no contra los seis: los rondines futuros no son faltas.
+   */
+  rondines_transcurridos: number;
   filas: FilaTablero[];
   visitados: number;
   total: number;
@@ -1013,4 +1018,67 @@ export interface FiltrosIncidencias {
   hasta: string;
   control?: string;
   estado?: EstadoIncidencia;
+}
+
+// --- PCI MTTO: mantenimiento del sistema contra incendios -------------------
+
+/** Un renglón de la tabla del control. Nunca trae el documento adjunto. */
+export interface RegistroPciMtto {
+  id: string;
+  anio: number;
+  mes: number;
+  /** Fecha del mantenimiento. Nula cuando el mes lo cerró el sistema. */
+  fecha: string | null;
+  realizado: boolean;
+  motivo: string | null;
+  /** La levantó la vigilancia automática, no una persona. */
+  automatico: boolean;
+  tiene_reporte: boolean;
+  reporte_nombre: string | null;
+  reporte_tamano: number | null;
+  responsable: string;
+  fotos: string[];
+  creado_at: string;
+  actualizado_at: string | null;
+}
+
+/** Un mes que el sistema cerró y sigue sin explicación. */
+export interface MesPendientePci {
+  anio: number;
+  mes: number;
+}
+
+/** Todo lo que la pestaña necesita para dibujarse, en una sola petición. */
+export interface ListadoPciMtto {
+  anio: number;
+  registros: RegistroPciMtto[];
+  anios: number[];
+  pendientes: MesPendientePci[];
+  /** Desde cuándo vigila el control; lo decide el servidor. */
+  primer_mes: MesPendientePci;
+}
+
+/** Un mes sin explicar, para la campana del encabezado. */
+export interface AvisoPciMtto {
+  /** 'AAAA-MM', estable entre peticiones. */
+  id: string;
+  anio: number;
+  mes: number;
+  meses_de_retraso: number;
+}
+
+export interface AvisosPciMtto {
+  total: number;
+  avisos: AvisoPciMtto[];
+}
+
+/** Lo que el formulario manda al registrar o corregir un mes. */
+export interface CapturaPciMtto {
+  anio: number;
+  mes: number;
+  realizado: boolean;
+  fecha: string;
+  motivo: string;
+  fotos: File[];
+  reporte: File | null;
 }

@@ -7,11 +7,12 @@ import { GuardiaModulo } from '@/components/GuardiaModulo';
 import { EnConstruccion } from '@/components/controles/EnConstruccion';
 import { PanelChecklist } from '@/components/controles/checklist/PanelChecklist';
 import { PanelIncidencias } from '@/components/controles/incidencias/PanelIncidencias';
+import { PanelPciMtto } from '@/components/controles/pci/PanelPciMtto';
 import { PanelPlaticas } from '@/components/controles/platicas/PanelPlaticas';
 import { PanelRayser } from '@/components/controles/rayser/PanelRayser';
 import { PanelSqp } from '@/components/controles/sqp/PanelSqp';
 import { Pestanas } from '@/components/ui/Pestanas';
-import { useTraduccion, type ClaveTraduccion } from '@/lib/i18n';
+import { bilingue, useTraduccion, type ClaveTraduccion } from '@/lib/i18n';
 
 /**
  * Controles del departamento de seguridad.
@@ -37,6 +38,7 @@ const CONTROLES: ReadonlyArray<{
   { clave: 'medicamento', etiqueta: 'controles.medicamento' },
   { clave: 'silos', etiqueta: 'controles.silos', checklist: 'silos' },
   { clave: 'tableros', etiqueta: 'controles.tableros', checklist: 'tableros' },
+  { clave: 'pci-mtto', etiqueta: 'controles.pciMtto' },
   // Va al final porque no es un formato del recorrido, sino la vista que junta
   // lo que salió mal en todos los demás.
   { clave: 'incidencias', etiqueta: 'incidencias.titulo' },
@@ -75,8 +77,8 @@ function ContenidoControles() {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-xl font-semibold text-texto">{t('controles.titulo')}</h1>
-        <p className="mt-1 text-sm text-texto-suave">{t('controles.descripcion')}</p>
+        <h1 className="text-xl font-semibold text-texto">{bilingue(t('controles.titulo'))}</h1>
+        <p className="mt-1 text-sm text-texto-suave">{bilingue(t('controles.descripcion'))}</p>
       </div>
 
       <Pestanas
@@ -93,6 +95,7 @@ function ContenidoControles() {
       {activa === 'incidencias' && <PanelIncidencias />}
       {activa === 'rayser' && <PanelRayser />}
       {activa === 'platicas' && <PanelPlaticas />}
+      {activa === 'pci-mtto' && <PanelPciMtto />}
       {actual?.checklist !== undefined && (
         // La clave va como `key` para que el panel se reinicie al cambiar de
         // control en vez de arrastrar el estado del anterior.
@@ -100,7 +103,9 @@ function ContenidoControles() {
       )}
       {actual !== undefined &&
         actual.checklist === undefined &&
-        !['sqp', 'rayser', 'platicas', 'incidencias'].includes(activa) && (
+        !['sqp', 'rayser', 'platicas', 'incidencias', 'pci-mtto'].includes(
+          activa,
+        ) && (
           <EnConstruccion nombre={t(actual.etiqueta)} />
         )}
     </div>

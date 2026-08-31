@@ -1,5 +1,6 @@
 import { forwardRef, type TextareaHTMLAttributes } from 'react';
 
+import { bilingue } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
 
 interface TextareaProps extends TextareaHTMLAttributes<HTMLTextAreaElement> {
@@ -21,7 +22,7 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(function 
     <div className="flex flex-col gap-1.5">
       {etiqueta && (
         <label htmlFor={idCampo} className="text-sm font-medium text-texto">
-          {etiqueta}
+          {bilingue(etiqueta)}
         </label>
       )}
 
@@ -42,13 +43,13 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(function 
 
       {error && (
         <p id={idError} role="alert" className="text-sm text-error">
-          {error}
+          {bilingue(error)}
         </p>
       )}
 
       {!error && ayuda && (
         <p id={idAyuda} className="text-sm text-texto-tenue">
-          {ayuda}
+          {bilingue(ayuda)}
         </p>
       )}
     </div>

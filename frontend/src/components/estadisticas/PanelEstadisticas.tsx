@@ -15,7 +15,7 @@ import { TablaIntentos } from '@/components/estadisticas/TablaIntentos';
 import { TarjetaKPI } from '@/components/estadisticas/TarjetaKPI';
 import { Button } from '@/components/ui/Button';
 import { useToast } from '@/components/ui/Toast';
-import { useTraduccion } from '@/lib/i18n';
+import { bilingue, unaLinea, useTraduccion } from '@/lib/i18n';
 import { useSesion } from '@/lib/sesion';
 import {
   ErrorDeApi,
@@ -279,13 +279,13 @@ export function PanelEstadisticas() {
     <section className="flex flex-col gap-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <h1 className="text-xl font-semibold text-texto">
-          {t('cuestionarios.pestanaEstadisticas')}
+          {bilingue(t('cuestionarios.pestanaEstadisticas'))}
         </h1>
 
         <div className="flex flex-wrap items-center gap-2">
           {puedeEditar && (
             <Button variante="fantasma" onClick={() => setMetasAbierto(true)}>
-              {t('estadisticas.configurarMetas')}
+              {bilingue(t('estadisticas.configurarMetas'))}
             </Button>
           )}
 
@@ -296,7 +296,7 @@ export function PanelEstadisticas() {
             cargando={descargando === 'excel'}
             onClick={() => void descargar('excel')}
           >
-            {t('estadisticas.descargarExcel')}
+            {bilingue(t('estadisticas.descargarExcel'))}
           </Button>
 
           <Button
@@ -305,7 +305,7 @@ export function PanelEstadisticas() {
             cargando={descargando === 'powerpoint'}
             onClick={() => void descargar('powerpoint')}
           >
-            {t('estadisticas.descargarPowerpoint')}
+            {bilingue(t('estadisticas.descargarPowerpoint'))}
           </Button>
         </div>
       </div>
@@ -314,7 +314,7 @@ export function PanelEstadisticas() {
       <div className="flex flex-wrap items-end gap-3 rounded-tarjeta border border-borde bg-fondo-elevado p-4">
         <div className="flex min-w-[16rem] flex-1 flex-col gap-1.5">
           <label htmlFor="cuestionario" className="text-sm font-medium text-texto">
-            {t('estadisticas.cuestionario')}
+            {bilingue(t('estadisticas.cuestionario'))}
           </label>
           <select
             id="cuestionario"
@@ -322,13 +322,13 @@ export function PanelEstadisticas() {
             onChange={(evento) => setCuestionarioId(evento.target.value)}
             className="h-10 rounded-md border border-borde bg-fondo px-3 text-sm text-texto focus:border-primario"
           >
-            <option value="">{t('estadisticas.seleccionaCuestionario')}</option>
+            <option value="">{unaLinea(t('estadisticas.seleccionaCuestionario'))}</option>
             {cuestionarios.map((cuestionario) => (
               <option key={cuestionario.id} value={cuestionario.id}>
                 {cuestionario.nombre} (
-                {t('estadisticas.respuestasContador', {
+                {unaLinea(t('estadisticas.respuestasContador', {
                   total: cuestionario.total_respuestas,
-                })}
+                }))}
                 )
               </option>
             ))}
@@ -337,7 +337,7 @@ export function PanelEstadisticas() {
 
         <div className="flex flex-col gap-1.5">
           <label htmlFor="area" className="text-sm font-medium text-texto">
-            {t('comun.area')}
+            {bilingue(t('comun.area'))}
           </label>
           <select
             id="area"
@@ -345,7 +345,7 @@ export function PanelEstadisticas() {
             onChange={(evento) => setArea(evento.target.value)}
             className="h-10 rounded-md border border-borde bg-fondo px-3 text-sm text-texto focus:border-primario"
           >
-            <option value="">{t('comun.areaTodas')}</option>
+            <option value="">{unaLinea(t('comun.areaTodas'))}</option>
             {areas.map((opcion) => (
               <option key={opcion.value} value={opcion.value}>
                 {opcion.label}
@@ -356,7 +356,7 @@ export function PanelEstadisticas() {
 
         <div className="flex flex-col gap-1.5">
           <label htmlFor="desde" className="text-sm font-medium text-texto">
-            {t('comun.desde')}
+            {bilingue(t('comun.desde'))}
           </label>
           <input
             id="desde"
@@ -369,7 +369,7 @@ export function PanelEstadisticas() {
 
         <div className="flex flex-col gap-1.5">
           <label htmlFor="hasta" className="text-sm font-medium text-texto">
-            {t('comun.hasta')}
+            {bilingue(t('comun.hasta'))}
           </label>
           <input
             id="hasta"
@@ -382,7 +382,7 @@ export function PanelEstadisticas() {
 
         {hayFiltros && (
           <Button variante="fantasma" onClick={limpiarFiltros}>
-            {t('estadisticas.limpiarFiltros')}
+            {bilingue(t('estadisticas.limpiarFiltros'))}
           </Button>
         )}
       </div>
@@ -398,9 +398,9 @@ export function PanelEstadisticas() {
 
       {cuestionarioId === '' && !error && (
         <div className="rounded-tarjeta border border-dashed border-borde p-10 text-center">
-          <p className="text-texto-suave">{t('estadisticas.seleccionaParaVer')}</p>
+          <p className="text-texto-suave">{bilingue(t('estadisticas.seleccionaParaVer'))}</p>
           {cuestionarios.length === 0 && (
-            <p className="mt-1 text-sm text-texto-tenue">{t('cuestionarios.vacio')}</p>
+            <p className="mt-1 text-sm text-texto-tenue">{bilingue(t('cuestionarios.vacio'))}</p>
           )}
         </div>
       )}
@@ -461,7 +461,7 @@ export function PanelEstadisticas() {
           </div>
 
           {cargando && (
-            <p className="text-sm text-texto-suave">{t('estadisticas.actualizando')}</p>
+            <p className="text-sm text-texto-suave">{bilingue(t('estadisticas.actualizando'))}</p>
           )}
 
           {/* --- Gráficas --- */}

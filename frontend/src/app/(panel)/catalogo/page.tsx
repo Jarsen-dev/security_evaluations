@@ -2,7 +2,7 @@
 
 import { PanelCatalogo } from '@/components/catalogo/PanelCatalogo';
 import { GuardiaModulo } from '@/components/GuardiaModulo';
-import { useTraduccion } from '@/lib/i18n';
+import { bilingue, useTraduccion } from '@/lib/i18n';
 
 /**
  * Catálogo de insumos de seguridad.
@@ -25,8 +25,8 @@ function ContenidoCatalogo() {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-xl font-semibold text-texto">{t('catalogo.titulo')}</h1>
-        <p className="mt-1 text-sm text-texto-suave">{t('catalogo.descripcion')}</p>
+        <h1 className="text-xl font-semibold text-texto">{bilingue(t('catalogo.titulo'))}</h1>
+        <p className="mt-1 text-sm text-texto-suave">{bilingue(t('catalogo.descripcion'))}</p>
       </div>
 
       <PanelCatalogo />

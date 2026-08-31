@@ -1,7 +1,7 @@
 'use client';
 
 import { Card } from '@/components/ui/Card';
-import { useIdioma } from '@/lib/i18n';
+import { bilingue, useIdioma } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
 import type { Tablero } from '@/lib/types';
 
@@ -31,7 +31,7 @@ export function MatrizRondines({ tablero }: { tablero: Tablero }) {
                 scope="col"
                 className="sticky left-0 z-10 bg-fondo-sutil px-5 py-3 text-left font-medium text-texto-suave"
               >
-                {t('rondines.punto')}
+                {bilingue(t('rondines.punto'))}
               </th>
               {Array.from({ length: tablero.rondines }, (_, indice) => (
                 <th
@@ -40,20 +40,23 @@ export function MatrizRondines({ tablero }: { tablero: Tablero }) {
                   className={cn(
                     'px-3 py-3 text-center font-medium',
                     // El rondín en curso se distingue: es el que se está
-                    // llenando mientras alguien mira la pantalla.
+                    // llenando mientras alguien mira la pantalla. Los que
+                    // todavía no ocurren se atenúan.
                     tablero.rondin_actual === indice
                       ? 'text-primario'
-                      : 'text-texto-suave',
+                      : indice < tablero.rondines_transcurridos
+                        ? 'text-texto-suave'
+                        : 'text-texto-tenue',
                   )}
                 >
-                  {t('rondines.rondin', { numero: indice + 1 })}
+                  {bilingue(t('rondines.rondin', { numero: indice + 1 }))}
                 </th>
               ))}
               <th
                 scope="col"
                 className="px-3 py-3 text-center font-medium text-texto-suave"
               >
-                {t('rondines.visitados')}
+                {bilingue(t('rondines.visitados'))}
               </th>
             </tr>
           </thead>
@@ -76,7 +79,11 @@ export function MatrizRondines({ tablero }: { tablero: Tablero }) {
 
                 {fila.rondines.map((celda, indice) => (
                   <td key={indice} className="px-3 py-2.5 text-center">
-                    {celda === null ? (
+                    {celda !== null ? (
+                      <span className="rounded-md bg-exito-suave px-2 py-1 font-medium text-exito">
+                        {hora(celda)}
+                      </span>
+                    ) : indice < tablero.rondines_transcurridos ? (
                       <span
                         className="text-error"
                         title={t('rondines.sinVisita')}
@@ -85,15 +92,20 @@ export function MatrizRondines({ tablero }: { tablero: Tablero }) {
                         —
                       </span>
                     ) : (
-                      <span className="rounded-md bg-exito-suave px-2 py-1 font-medium text-exito">
-                        {hora(celda)}
+                      /* El bloque todavía no ocurre: no es una falta. */
+                      <span
+                        className="text-texto-tenue"
+                        title={t('rondines.pendiente')}
+                        aria-label={t('rondines.pendiente')}
+                      >
+                        ·
                       </span>
                     )}
                   </td>
                 ))}
 
                 <td className="px-3 py-2.5 text-center text-texto-suave">
-                  {fila.visitados}/{tablero.rondines}
+                  {fila.visitados}/{tablero.rondines_transcurridos}
                 </td>
               </tr>
             ))}
@@ -105,14 +117,16 @@ export function MatrizRondines({ tablero }: { tablero: Tablero }) {
                 scope="row"
                 className="sticky left-0 z-10 bg-fondo-sutil px-5 py-3 text-left font-medium text-texto-suave"
               >
-                {t('rondines.porRondin')}
+                {bilingue(t('rondines.porRondin'))}
               </th>
               {tablero.por_rondin.map((visitados, indice) => (
                 <td
                   key={indice}
                   className="px-3 py-3 text-center font-medium text-texto"
                 >
-                  {((visitados / activos) * 100).toFixed(0)}%
+                  {indice < tablero.rondines_transcurridos
+                    ? `${((visitados / activos) * 100).toFixed(0)}%`
+                    : '—'}
                 </td>
               ))}
               <td className="px-3 py-3 text-center font-medium text-texto">

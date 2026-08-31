@@ -9,6 +9,7 @@ import {
   type ReactNode,
 } from 'react';
 
+import { bilingue } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
 
 type TonoToast = 'exito' | 'error' | 'info';
@@ -67,7 +68,7 @@ export function ProveedorToast({ children }: { children: ReactNode }) {
               TONOS[toast.tono],
             )}
           >
-            {toast.mensaje}
+            {bilingue(toast.mensaje)}
           </div>
         ))}
       </div>

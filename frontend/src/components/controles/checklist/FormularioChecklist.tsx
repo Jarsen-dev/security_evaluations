@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Textarea } from '@/components/ui/Textarea';
 import { useBorrador } from '@/hooks/useBorrador';
-import { useIdioma } from '@/lib/i18n';
+import { bilingue, unaLinea, useIdioma } from '@/lib/i18n';
 import { useSesion } from '@/lib/sesion';
 import type {
   CampoFormato,
@@ -248,7 +248,7 @@ export function FormularioChecklist({
       {camposEncabezado.length > 0 && (
         <Card className="flex flex-col gap-4">
           <h2 className="text-base font-semibold text-texto">
-            {t('checklist.encabezado')}
+            {bilingue(t('checklist.encabezado'))}
           </h2>
           <CamposFormato
             campos={camposEncabezado}
@@ -265,12 +265,12 @@ export function FormularioChecklist({
       <Card className="flex flex-col gap-4">
         <div>
           <h2 className="text-base font-semibold text-texto">
-            {catalogo.por_inspeccion
+            {bilingue(catalogo.por_inspeccion
               ? t('checklist.listaVerificacion')
-              : t('checklist.registroDelDia')}
+              : t('checklist.registroDelDia'))}
           </h2>
           <p className="mt-1 text-sm text-texto-suave">
-            {catalogo.subtitulo ?? t('checklist.descripcion')}
+            {bilingue(catalogo.subtitulo ?? t('checklist.descripcion'))}
           </p>
         </div>
 
@@ -371,7 +371,7 @@ export function FormularioChecklist({
                         etiqueta={t('comun.observaciones')}
                         name={`observaciones-${punto.orden}`}
                         value={actual.observaciones}
-                        placeholder={t('checklist.observacionesPlaceholder')}
+                        placeholder={unaLinea(t('checklist.observacionesPlaceholder'))}
                         onChange={(evento) =>
                           actualizar(punto.orden, { observaciones: evento.target.value })
                         }
@@ -394,7 +394,7 @@ export function FormularioChecklist({
 
                       {actual.fotos.length === 0 && (
                         <p role="alert" className="text-sm text-error">
-                          {t('checklist.faltaFoto')}
+                          {bilingue(t('checklist.faltaFoto'))}
                         </p>
                       )}
                     </div>
@@ -423,7 +423,7 @@ export function FormularioChecklist({
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-sm text-texto-tenue">
-          {faltanEncabezado > 0
+          {bilingue(faltanEncabezado > 0
             ? t('checklist.faltanEncabezado', { total: faltanEncabezado })
             : faltanPuntos > 0
               ? t('checklist.faltanPuntos', { total: faltanPuntos })
@@ -435,7 +435,7 @@ export function FormularioChecklist({
                     ? t('checklist.faltanFotos', { total: sinFotos })
                     : faltanSecciones > 0
                       ? t('checklist.faltanSecciones', { total: faltanSecciones })
-                      : `${t('comun.fecha')}: ${fecha}`}
+                      : `${unaLinea(t('comun.fecha'))}: ${fecha}`)}
         </p>
 
         <div className="flex flex-wrap items-center gap-3">
@@ -456,7 +456,7 @@ export function FormularioChecklist({
             disabled={!puedeGuardar}
             cargando={guardando}
           >
-            {t('checklist.confirmar')}
+            {bilingue(t('checklist.confirmar'))}
           </Button>
         </div>
       </div>

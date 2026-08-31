@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/Input';
 import { Modal } from '@/components/ui/Modal';
 import { Textarea } from '@/components/ui/Textarea';
 import { ErrorDeApi, guardarCierre, obtenerCierre, urlFotoControl } from '@/lib/api';
-import { useTraduccion } from '@/lib/i18n';
+import { bilingue, unaLinea, useTraduccion } from '@/lib/i18n';
 import type { CierrePayload, DetalleCierre, Hallazgo } from '@/lib/types';
 
 /** Tope de evidencias de verificación; el servidor aplica el mismo. */
@@ -162,20 +162,20 @@ export function ModalCierreHallazgo({
       pie={
         <>
           <Button variante="fantasma" onClick={onCerrar} disabled={guardando}>
-            {t('comun.cancelar')}
+            {bilingue(t('comun.cancelar'))}
           </Button>
           <Button
             onClick={() => void guardar()}
             disabled={!completo || cargando}
             cargando={guardando}
           >
-            {t('cierre.guardar')}
+            {bilingue(t('cierre.guardar'))}
           </Button>
         </>
       }
     >
       {cargando ? (
-        <p className="text-sm text-texto-suave">{t('comun.cargando')}</p>
+        <p className="text-sm text-texto-suave">{bilingue(t('comun.cargando'))}</p>
       ) : (
         <div className="flex flex-col gap-5">
           <ListaHallazgos hallazgos={detalle?.hallazgos ?? []} />
@@ -207,7 +207,7 @@ export function ModalCierreHallazgo({
           <Textarea
             etiqueta={t('cierre.accionInmediata')}
             name="cierre-accion"
-            placeholder={t('cierre.accionInmediataPlaceholder')}
+            placeholder={unaLinea(t('cierre.accionInmediataPlaceholder'))}
             value={datos.accion_inmediata}
             onChange={(evento) => cambiar('accion_inmediata', evento.target.value)}
             disabled={guardando}
@@ -218,7 +218,7 @@ export function ModalCierreHallazgo({
             <Input
               etiqueta={t('cierre.responsableAccion')}
               name="cierre-responsable"
-              placeholder={t('cierre.responsableAccionPlaceholder')}
+              placeholder={unaLinea(t('cierre.responsableAccionPlaceholder'))}
               value={datos.responsable_accion}
               onChange={(evento) => cambiar('responsable_accion', evento.target.value)}
               disabled={guardando}
@@ -237,9 +237,9 @@ export function ModalCierreHallazgo({
 
           <div className="flex flex-col gap-2">
             <span className="text-sm font-medium text-texto">
-              {t('cierre.verificacion')}
+              {bilingue(t('cierre.verificacion'))}
             </span>
-            <p className="text-sm text-texto-tenue">{t('cierre.verificacionAyuda')}</p>
+            <p className="text-sm text-texto-tenue">{bilingue(t('cierre.verificacionAyuda'))}</p>
 
             {/* Al actualizar, las que ya estaban siguen ahí mientras no se
                 elijan nuevas: el servidor solo reemplaza si vienen fotos. */}
@@ -281,7 +281,7 @@ export function ModalCierreHallazgo({
           />
 
           {!completo && (
-            <p className="text-sm text-texto-tenue">{t('cierre.faltanCampos')}</p>
+            <p className="text-sm text-texto-tenue">{bilingue(t('cierre.faltanCampos'))}</p>
           )}
         </div>
       )}
@@ -294,12 +294,12 @@ export function ListaHallazgos({ hallazgos }: { hallazgos: Hallazgo[] }) {
   const t = useTraduccion();
 
   if (hallazgos.length === 0) {
-    return <p className="text-sm text-texto-suave">{t('cierre.sinProblemas')}</p>;
+    return <p className="text-sm text-texto-suave">{bilingue(t('cierre.sinProblemas'))}</p>;
   }
 
   return (
     <section className="flex flex-col gap-3 rounded-md border border-error bg-error-suave/30 p-4">
-      <h3 className="text-sm font-semibold text-texto">{t('cierre.problemas')}</h3>
+      <h3 className="text-sm font-semibold text-texto">{bilingue(t('cierre.problemas'))}</h3>
 
       <ul className="flex flex-col gap-3">
         {hallazgos.map((hallazgo, indice) => (
@@ -352,11 +352,11 @@ function Descripcion({ hallazgos }: { hallazgos: Hallazgo[] }) {
 
   return (
     <div className="flex flex-col gap-1.5">
-      <span className="text-sm font-medium text-texto">{t('cierre.descripcion')}</span>
+      <span className="text-sm font-medium text-texto">{bilingue(t('cierre.descripcion'))}</span>
       <p className="whitespace-pre-line rounded-md border border-borde bg-fondo-sutil px-3 py-2 text-sm text-texto-suave">
         {texto || '—'}
       </p>
-      <p className="text-sm text-texto-tenue">{t('cierre.descripcionAyuda')}</p>
+      <p className="text-sm text-texto-tenue">{bilingue(t('cierre.descripcionAyuda'))}</p>
     </div>
   );
 }

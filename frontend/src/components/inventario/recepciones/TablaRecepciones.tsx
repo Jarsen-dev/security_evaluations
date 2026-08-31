@@ -11,7 +11,7 @@ import {
   obtenerTiposDocumento,
   urlFotoRecepcion,
 } from '@/lib/api';
-import { useIdioma } from '@/lib/i18n';
+import { bilingue, unaLinea, useIdioma } from '@/lib/i18n';
 import type {
   FiltrosRecepciones,
   RecepcionesPaginadas,
@@ -106,13 +106,13 @@ export function TablaRecepciones() {
       <div className="flex flex-wrap items-end gap-3 border-b border-borde bg-fondo/40 px-5 py-4">
         <div className="flex min-w-[16rem] flex-1 flex-col gap-1.5">
           <label htmlFor="recepciones-busqueda" className="text-xs font-medium text-texto-suave">
-            {t('comun.buscar')}
+            {bilingue(t('comun.buscar'))}
           </label>
           <input
             id="recepciones-busqueda"
             type="search"
             className={CLASES_CAMPO}
-            placeholder={t('recepciones.buscar')}
+            placeholder={unaLinea(t('recepciones.buscar'))}
             value={busqueda}
             onChange={(evento) => setBusqueda(evento.target.value)}
           />
@@ -120,7 +120,7 @@ export function TablaRecepciones() {
 
         <div className="flex flex-col gap-1.5">
           <label htmlFor="recepciones-formato" className="text-xs font-medium text-texto-suave">
-            {t('recepciones.formato')}
+            {bilingue(t('recepciones.formato'))}
           </label>
           <select
             id="recepciones-formato"
@@ -134,7 +134,7 @@ export function TablaRecepciones() {
               }));
             }}
           >
-            <option value="">{t('recepciones.todosLosFormatos')}</option>
+            <option value="">{unaLinea(t('recepciones.todosLosFormatos'))}</option>
             {tipos.map((tipo) => (
               <option key={tipo.slug} value={tipo.slug}>
                 {tipo.nombre}
@@ -144,7 +144,7 @@ export function TablaRecepciones() {
         </div>
 
         <span className="ml-auto text-sm text-texto-suave">
-          {t('recepciones.registros', { total })}
+          {bilingue(t('recepciones.registros', { total }))}
         </span>
       </div>
 
@@ -152,7 +152,7 @@ export function TablaRecepciones() {
         <div role="alert" className="flex items-center gap-3 border-b border-borde px-5 py-3 text-sm">
           <span className="text-texto">{errorCarga}</span>
           <Button variante="secundario" tamano="sm" onClick={() => void cargar()}>
-            {t('comun.reintentar')}
+            {bilingue(t('comun.reintentar'))}
           </Button>
         </div>
       )}
@@ -162,22 +162,22 @@ export function TablaRecepciones() {
           <thead className="bg-fondo-sutil">
             <tr>
               <th scope="col" className="px-5 py-3 text-left font-medium text-texto-suave">
-                {t('recepciones.proveedor')}
+                {bilingue(t('recepciones.proveedor'))}
               </th>
               <th scope="col" className="px-5 py-3 text-left font-medium text-texto-suave">
-                {t('recepciones.folio')}
+                {bilingue(t('recepciones.folio'))}
               </th>
               <th scope="col" className="px-5 py-3 text-left font-medium text-texto-suave">
-                {t('recepciones.fecha')}
+                {bilingue(t('recepciones.fecha'))}
               </th>
               <th scope="col" className="px-5 py-3 text-left font-medium text-texto-suave">
-                {t('recepciones.partidas')}
+                {bilingue(t('recepciones.partidas'))}
               </th>
               <th scope="col" className="px-5 py-3 text-left font-medium text-texto-suave">
-                {t('recepciones.capturadaEl')}
+                {bilingue(t('recepciones.capturadaEl'))}
               </th>
               <th scope="col" className="px-5 py-3 text-right">
-                <span className="sr-only">{t('comun.acciones')}</span>
+                <span className="sr-only">{bilingue(t('comun.acciones'))}</span>
               </th>
             </tr>
           </thead>
@@ -186,18 +186,18 @@ export function TablaRecepciones() {
             {cargando ? (
               <tr>
                 <td colSpan={COLUMNAS} className="px-5 py-8 text-center text-texto-suave">
-                  {t('comun.cargando')}
+                  {bilingue(t('comun.cargando'))}
                 </td>
               </tr>
             ) : total === 0 ? (
               <tr>
                 <td colSpan={COLUMNAS} className="px-5 py-10 text-center">
                   <p className="text-sm font-medium text-texto">
-                    {hayFiltros ? t('recepciones.sinCoincidencias') : t('recepciones.vacio')}
+                    {bilingue(hayFiltros ? t('recepciones.sinCoincidencias') : t('recepciones.vacio'))}
                   </p>
                   {!hayFiltros && (
                     <p className="mt-2 text-sm text-texto-suave">
-                      {t('recepciones.vacioAyuda')}
+                      {bilingue(t('recepciones.vacioAyuda'))}
                     </p>
                   )}
                 </td>
@@ -220,7 +220,7 @@ export function TablaRecepciones() {
                     {/* Se distingue lo capturado a mano de lo que leyó la IA:
                         es lo que permite auditar el módulo después. */}
                     {!recepcion.ocr_ok && (
-                      <Badge tono="alerta">{t('recepciones.manual')}</Badge>
+                      <Badge tono="alerta">{bilingue(t('recepciones.manual'))}</Badge>
                     )}
                   </td>
                   <td className="px-5 py-3 text-texto-tenue">
@@ -234,7 +234,7 @@ export function TablaRecepciones() {
                         rel="noreferrer"
                         className="text-sm text-primario hover:underline"
                       >
-                        {t('recepciones.verFoto')}
+                        {bilingue(t('recepciones.verFoto'))}
                       </a>
                     )}
                   </td>
@@ -248,7 +248,7 @@ export function TablaRecepciones() {
       {total > size && (
         <div className="flex items-center justify-between border-t border-borde px-5 py-3">
           <span className="text-sm text-texto-suave">
-            {t('recepciones.pagina', { pagina: paginaActual, total: totalPaginas })}
+            {bilingue(t('recepciones.pagina', { pagina: paginaActual, total: totalPaginas }))}
           </span>
           <div className="flex gap-2">
             <Button
@@ -257,7 +257,7 @@ export function TablaRecepciones() {
               disabled={paginaActual <= 1}
               onClick={() => setPagina(paginaActual - 1)}
             >
-              {t('recepciones.anterior')}
+              {bilingue(t('recepciones.anterior'))}
             </Button>
             <Button
               variante="secundario"
@@ -265,7 +265,7 @@ export function TablaRecepciones() {
               disabled={paginaActual >= totalPaginas}
               onClick={() => setPagina(paginaActual + 1)}
             >
-              {t('recepciones.siguiente')}
+              {bilingue(t('recepciones.siguiente'))}
             </Button>
           </div>
         </div>

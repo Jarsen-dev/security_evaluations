@@ -7,7 +7,7 @@ import { GuardiaModulo } from '@/components/GuardiaModulo';
 import { PanelRecepciones } from '@/components/inventario/recepciones/PanelRecepciones';
 import { TablaRecepciones } from '@/components/inventario/recepciones/TablaRecepciones';
 import { Pestanas } from '@/components/ui/Pestanas';
-import { useTraduccion, type ClaveTraduccion } from '@/lib/i18n';
+import { bilingue, useTraduccion, type ClaveTraduccion } from '@/lib/i18n';
 
 /**
  * Inventario.
@@ -60,8 +60,8 @@ function ContenidoInventario() {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-xl font-semibold text-texto">{t('inventario.titulo')}</h1>
-        <p className="mt-1 text-sm text-texto-suave">{t('inventario.descripcion')}</p>
+        <h1 className="text-xl font-semibold text-texto">{bilingue(t('inventario.titulo'))}</h1>
+        <p className="mt-1 text-sm text-texto-suave">{bilingue(t('inventario.descripcion'))}</p>
       </div>
 
       <Pestanas

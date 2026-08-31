@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 
 import { Button } from '@/components/ui/Button';
-import { useTraduccion } from '@/lib/i18n';
+import { bilingue, useTraduccion } from '@/lib/i18n';
 import { REDUCCION_EVIDENCIA, reducirImagen } from '@/lib/imagen';
 
 /**
@@ -108,9 +108,9 @@ export function CampoFotos({
   return (
     <div className="flex flex-col gap-2">
       <span className="text-sm font-medium text-texto">
-        {t('fotos.titulo')}{' '}
+        {bilingue(t('fotos.titulo'))}{' '}
         <span className="font-normal text-texto-tenue">
-          {t('fotos.contador', { total: fotos.length, maximo })}
+          {bilingue(t('fotos.contador', { total: fotos.length, maximo }))}
         </span>
       </span>
 
@@ -133,7 +133,7 @@ export function CampoFotos({
           cargando={procesando}
           disabled={deshabilitado || fotos.length >= maximo}
         >
-          {fotos.length === 0 ? t('fotos.agregar') : t('fotos.agregarOtra')}
+          {bilingue(fotos.length === 0 ? t('fotos.agregar') : t('fotos.agregarOtra'))}
         </Button>
       </div>
 

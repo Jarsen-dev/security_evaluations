@@ -17,6 +17,11 @@ const config: Config = {
     './src/app/**/*.{ts,tsx}',
     './src/components/**/*.{ts,tsx}',
     './src/hooks/**/*.{ts,tsx}',
+    // `lib/` es casi todo lógica sin JSX, pero no del todo: `lib/i18n/bilingue.tsx`
+    // pinta el subtítulo en español bajo el coreano. Sin esta línea, Tailwind no
+    // ve sus clases, no las genera y el subtítulo sale del mismo tamaño que el
+    // hangul, sin que nada falle de forma visible.
+    './src/lib/**/*.{ts,tsx}',
   ],
   theme: {
     extend: {
@@ -94,6 +99,12 @@ const config: Config = {
           'Noto Sans KR',
           'sans-serif',
         ],
+      },
+      fontSize: {
+        // Subtítulo en español debajo del coreano. Va en `em` y no en `rem`
+        // para encogerse respecto al texto que acompaña, que lo mismo es el
+        // título de un modal que la celda de una tabla.
+        subtitulo: ['0.8em', { lineHeight: '1.2' }],
       },
       spacing: {
         // Altura mínima de un objetivo táctil: los operadores contestan

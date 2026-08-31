@@ -446,3 +446,91 @@ class IncidenciaOut(BaseModel):
     responsable: str
     estado: str = Field(description="'pendiente' o 'cerrado'.")
     cierre: CierreOut | None
+
+
+# --- PCI MTTO: mantenimiento del sistema contra incendios -------------------
+
+
+class RegistroPciMttoOut(BaseModel):
+    """Un renglón de la tabla del control.
+
+    No lleva el documento adjunto, solo su nombre y su tamaño: son hasta 10 MB
+    por registro y el listado de un año trae doce.
+    """
+
+    id: uuid.UUID
+    anio: int
+    mes: int
+    #: Fecha del mantenimiento. Nula cuando el mes lo cerró el sistema.
+    fecha: date | None
+    realizado: bool
+    motivo: str | None
+    #: La levantó la vigilancia automática y nadie la ha explicado todavía si
+    #: además ``motivo`` viene nulo.
+    automatico: bool
+    tiene_reporte: bool
+    reporte_nombre: str | None
+    reporte_tamano: int | None
+    responsable: str
+    fotos: list[uuid.UUID] = Field(default_factory=list)
+    creado_at: datetime
+    actualizado_at: datetime | None
+
+
+class MesPendientePci(BaseModel):
+    """Un mes que el sistema cerró y sigue sin explicación."""
+
+    anio: int
+    mes: int
+
+
+class ListadoPciMtto(BaseModel):
+    """Todo lo que la pestaña necesita para dibujarse, en una sola petición.
+
+    Los registros del año, los años que existen para el filtro y los meses sin
+    explicar. Van juntos porque abrir la pestaña necesita las tres cosas a la
+    vez y tres peticiones en cascada se notan en la laptop de planta.
+    """
+
+    anio: int
+    registros: list[RegistroPciMttoOut]
+    anios: list[int]
+    pendientes: list[MesPendientePci]
+    #: Desde cuándo vigila el control. Viaja para que el panel no tenga que
+    #: repetir la constante del catálogo y pueda decir "todavía no arranca"
+    #: en lugar de ofrecer un mes que el servidor va a rechazar.
+    primer_mes: MesPendientePci
+
+
+class AvisoPciMtto(BaseModel):
+    """Un mes sin explicar, para la campana del encabezado."""
+
+    id: str = Field(description="'AAAA-MM', estable entre peticiones.")
+    anio: int
+    mes: int
+    meses_de_retraso: int
+
+
+class AvisosPciMtto(BaseModel):
+    """Lo que la campana dibuja del control PCI MTTO.
+
+    Sin textos: el backend no traduce interfaz (regla 6 del CLAUDE.md). El
+    panel arma la frase con `t()` y el nombre del mes con `Intl`.
+    """
+
+    total: int
+    avisos: list[AvisoPciMtto]
+
+
+class MotivoPciMtto(BaseModel):
+    """El motivo por el que un mes no tuvo mantenimiento."""
+
+    motivo: str = Field(min_length=1, max_length=2000)
+
+    @field_validator("motivo")
+    @classmethod
+    def _con_contenido(cls, valor: str) -> str:
+        limpio = valor.strip()
+        if not limpio:
+            raise ValueError("Captura el motivo por el que no se realizó.")
+        return limpio

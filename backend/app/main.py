@@ -36,7 +36,7 @@ from app.core.errors import (
 )
 from app.core.ratelimit import MiddlewareRateLimit
 from app.db.session import engine
-from app.services import reporte_automatico
+from app.services import pci_automatico, reporte_automatico
 
 logging.basicConfig(
     level=logging.INFO,
@@ -58,24 +58,33 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             settings.NEXT_PUBLIC_BASE_URL,
         )
 
-    # Reporte automático de rondines al cambio de turno. Corre en CADA
-    # worker de uvicorn; el candado de `envios_reporte_rondin` es lo que evita
-    # que salgan cuatro correos iguales (ver services/reporte_automatico.py).
-    tarea_reporte: asyncio.Task[None] | None = None
-    arrancar, motivo = reporte_automatico.debe_arrancar()
-    if arrancar:
-        tarea_reporte = asyncio.create_task(reporte_automatico.ejecutar())
-    else:
-        logger.info("Reporte automático de rondines apagado: %s", motivo)
+    # Tareas periódicas. Todas corren en CADA worker de uvicorn, así que cada
+    # una necesita su propio candado en la base para no duplicar su efecto:
+    # `envios_reporte_rondin` en el reporte de rondines, y la restricción
+    # `uq_pci_anio_mes` en el cierre de PCI MTTO.
+    periodicas = (
+        (reporte_automatico, "Reporte automático de rondines"),
+        (pci_automatico, "Cierre automático de PCI MTTO"),
+    )
+
+    tareas: list[asyncio.Task[None]] = []
+    for modulo, nombre in periodicas:
+        arrancar, motivo = modulo.debe_arrancar()
+        if arrancar:
+            tareas.append(asyncio.create_task(modulo.ejecutar()))
+        else:
+            logger.info("%s apagado: %s", nombre, motivo)
 
     yield
 
-    if tarea_reporte is not None:
-        tarea_reporte.cancel()
-        # Se espera a que termine de verdad: sin esto, el bucle podría quedar
+    for tarea in tareas:
+        tarea.cancel()
+
+    for tarea in tareas:
+        # Se espera a que terminen de verdad: sin esto, un bucle podría quedar
         # a medio ciclo con una sesión de base de datos abierta.
         with suppress(asyncio.CancelledError):
-            await tarea_reporte
+            await tarea
 
     logger.info("Cerrando conexiones a la base de datos")
     await engine.dispose()

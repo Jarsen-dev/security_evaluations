@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from 'react';
 
 import { Modal } from '@/components/ui/Modal';
 import { crearSesionQr, estadoSesionQr } from '@/lib/api';
-import { useTraduccion } from '@/lib/i18n';
+import { bilingue, useTraduccion } from '@/lib/i18n';
 
 const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL ?? '';
 
@@ -129,7 +129,7 @@ export function ModalQrCaptura({
               <canvas ref={lienzo} />
             </div>
             <p className="text-sm text-texto-suave" aria-live="polite">
-              {recibida ? t('recepciones.qrRecibida') : t('recepciones.qrEsperando')}
+              {bilingue(recibida ? t('recepciones.qrRecibida') : t('recepciones.qrEsperando'))}
             </p>
           </>
         )}

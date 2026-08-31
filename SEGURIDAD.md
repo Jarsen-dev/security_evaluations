@@ -1,7 +1,7 @@
 # Seguridad y exposición pública
 
 El sistema dejó de ser una aplicación de LAN: un túnel de Cloudflare lo publica
-en `https://evaluaciones.chwon.it.com` para que los ~500 empleados contesten con
+en `https://esh.chwon.it.com` para que los ~500 empleados contesten con
 datos móviles. Este documento cubre lo que cambió con eso, cómo se cierra el
 panel de administración y qué revisar antes de repartir el QR.
 
@@ -89,26 +89,26 @@ una aplicación **Self-hosted** por cada ruta del panel:
 
 | Aplicación | Dominio | Ruta |
 |---|---|---|
-| Panel — login | `evaluaciones.chwon.it.com` | `login` |
-| Panel — cuestionarios | `evaluaciones.chwon.it.com` | `cuestionarios` |
-| Panel — controles | `evaluaciones.chwon.it.com` | `controles` |
-| Panel — inventario | `evaluaciones.chwon.it.com` | `inventario` |
-| API — auth | `evaluaciones.chwon.it.com` | `api/auth` |
-| API — cuestionarios | `evaluaciones.chwon.it.com` | `api/cuestionarios` |
-| API — preguntas | `evaluaciones.chwon.it.com` | `api/preguntas` |
-| API — estadísticas | `evaluaciones.chwon.it.com` | `api/estadisticas` |
-| API — metas | `evaluaciones.chwon.it.com` | `api/metas-area` |
-| API — wifi | `evaluaciones.chwon.it.com` | `api/wifi` |
-| API — controles | `evaluaciones.chwon.it.com` | `api/controles` |
-| Panel — estudios | `evaluaciones.chwon.it.com` | `estudios` |
-| API — estudios | `evaluaciones.chwon.it.com` | `api/estudios` |
-| Panel — catálogo | `evaluaciones.chwon.it.com` | `catalogo` |
-| Panel — rondines | `evaluaciones.chwon.it.com` | `rondines` |
-| Panel — administración | `evaluaciones.chwon.it.com` | `administracion` |
-| API — catálogo | `evaluaciones.chwon.it.com` | `api/catalogo` |
-| API — rondines | `evaluaciones.chwon.it.com` | `api/rondines` |
-| API — inventario | `evaluaciones.chwon.it.com` | `api/inventario` |
-| API — administración | `evaluaciones.chwon.it.com` | `api/administracion` |
+| Panel — login | `esh.chwon.it.com` | `login` |
+| Panel — cuestionarios | `esh.chwon.it.com` | `cuestionarios` |
+| Panel — controles | `esh.chwon.it.com` | `controles` |
+| Panel — inventario | `esh.chwon.it.com` | `inventario` |
+| API — auth | `esh.chwon.it.com` | `api/auth` |
+| API — cuestionarios | `esh.chwon.it.com` | `api/cuestionarios` |
+| API — preguntas | `esh.chwon.it.com` | `api/preguntas` |
+| API — estadísticas | `esh.chwon.it.com` | `api/estadisticas` |
+| API — metas | `esh.chwon.it.com` | `api/metas-area` |
+| API — wifi | `esh.chwon.it.com` | `api/wifi` |
+| API — controles | `esh.chwon.it.com` | `api/controles` |
+| Panel — estudios | `esh.chwon.it.com` | `estudios` |
+| API — estudios | `esh.chwon.it.com` | `api/estudios` |
+| Panel — catálogo | `esh.chwon.it.com` | `catalogo` |
+| Panel — rondines | `esh.chwon.it.com` | `rondines` |
+| Panel — administración | `esh.chwon.it.com` | `administracion` |
+| API — catálogo | `esh.chwon.it.com` | `api/catalogo` |
+| API — rondines | `esh.chwon.it.com` | `api/rondines` |
+| API — inventario | `esh.chwon.it.com` | `api/inventario` |
+| API — administración | `esh.chwon.it.com` | `api/administracion` |
 
 > **Pendiente.** Doce aplicaciones son nuevas y **todavía no están dadas de
 > alta**: `controles`, `inventario`, `api/controles`, `api/inventario`,
@@ -157,12 +157,12 @@ Desde una red cualquiera, sin haber pasado por Access:
 
 ```bash
 # Debe redirigir a la pantalla de Cloudflare Access (302), no mostrar el login
-curl -sI https://evaluaciones.chwon.it.com/login | head -1
-curl -sI https://evaluaciones.chwon.it.com/api/estadisticas/resumen | head -1
+curl -sI https://esh.chwon.it.com/login | head -1
+curl -sI https://esh.chwon.it.com/api/estadisticas/resumen | head -1
 
 # Debe seguir funcionando sin pedir nada
-curl -s  https://evaluaciones.chwon.it.com/api/health
-curl -sI https://evaluaciones.chwon.it.com/r/<token-de-un-cuestionario> | head -1
+curl -s  https://esh.chwon.it.com/api/health
+curl -sI https://esh.chwon.it.com/r/<token-de-un-cuestionario> | head -1
 ```
 
 El panel sigue funcionando igual en el navegador: tras autenticarse en Access,
@@ -227,9 +227,9 @@ Ya en el servidor:
 
 ```bash
 docker compose up -d --build
-curl -s  https://evaluaciones.chwon.it.com/api/health          # {"status":"ok","db":"ok"}
-curl -sI https://evaluaciones.chwon.it.com/api/docs | head -1  # 404
-curl -sI https://evaluaciones.chwon.it.com/ | grep -i strict-transport-security
+curl -s  https://esh.chwon.it.com/api/health          # {"status":"ok","db":"ok"}
+curl -sI https://esh.chwon.it.com/api/docs | head -1  # 404
+curl -sI https://esh.chwon.it.com/ | grep -i strict-transport-security
 docker compose logs backend | tail -20                          # sin trazas de error
 ```
 

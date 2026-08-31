@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
 import { useToast } from '@/components/ui/Toast';
 import { ErrorDeApi, obtenerConfigWifi } from '@/lib/api';
-import { useTraduccion } from '@/lib/i18n';
+import { bilingue, useTraduccion } from '@/lib/i18n';
 import { copiarAlPortapapeles } from '@/lib/navegador';
 import type { ConfigWifi, CuestionarioResumen } from '@/lib/types';
 import { contenidoQrWifi } from '@/lib/wifi';
@@ -141,7 +141,7 @@ export function ModalQR({ abierto, cuestionario, onCerrar }: ModalQRProps) {
       descripcion={cuestionario?.nombre}
       pie={
         <Button variante="fantasma" onClick={onCerrar}>
-          {t('comun.cerrar')}
+          {bilingue(t('comun.cerrar'))}
         </Button>
       }
     >
@@ -151,8 +151,8 @@ export function ModalQR({ abierto, cuestionario, onCerrar }: ModalQRProps) {
             role="alert"
             className="rounded-md border border-alerta bg-alerta-suave px-3 py-2 text-sm text-texto-suave"
           >
-            <span className="font-medium text-alerta">{t('qr.advertencia')} </span>
-            {t('qr.baseLocal', { url: BASE_URL })}
+            <span className="font-medium text-alerta">{bilingue(t('qr.advertencia'))} </span>
+            {bilingue(t('qr.baseLocal', { url: BASE_URL }))}
           </p>
         )}
 
@@ -166,8 +166,8 @@ export function ModalQR({ abierto, cuestionario, onCerrar }: ModalQRProps) {
           {/* --- Cuestionario --- */}
           <section className="flex flex-col items-center gap-3 rounded-tarjeta border border-borde p-4">
             <div className="text-center">
-              <h3 className="font-medium text-texto">{t('qr.cuestionario')}</h3>
-              <p className="text-xs text-texto-tenue">{t('qr.escanearContestar')}</p>
+              <h3 className="font-medium text-texto">{bilingue(t('qr.cuestionario'))}</h3>
+              <p className="text-xs text-texto-tenue">{bilingue(t('qr.escanearContestar'))}</p>
             </div>
 
             <div className="rounded-lg bg-white p-2.5">
@@ -189,10 +189,10 @@ export function ModalQR({ abierto, cuestionario, onCerrar }: ModalQRProps) {
                   )
                 }
               >
-                {t('qr.descargarPng')}
+                {bilingue(t('qr.descargarPng'))}
               </Button>
               <Button tamano="sm" onClick={() => void copiarLiga()}>
-                {t('qr.copiarLiga')}
+                {bilingue(t('qr.copiarLiga'))}
               </Button>
             </div>
           </section>
@@ -200,8 +200,8 @@ export function ModalQR({ abierto, cuestionario, onCerrar }: ModalQRProps) {
           {/* --- Red WiFi --- */}
           <section className="flex flex-col items-center gap-3 rounded-tarjeta border border-borde p-4">
             <div className="text-center">
-              <h3 className="font-medium text-texto">{t('qr.red')}</h3>
-              <p className="text-xs text-texto-tenue">{t('qr.escanearConectar')}</p>
+              <h3 className="font-medium text-texto">{bilingue(t('qr.red'))}</h3>
+              <p className="text-xs text-texto-tenue">{bilingue(t('qr.escanearConectar'))}</p>
             </div>
 
             {contenidoWifi !== null && wifi !== null ? (
@@ -225,23 +225,23 @@ export function ModalQR({ abierto, cuestionario, onCerrar }: ModalQRProps) {
                       )
                     }
                   >
-                    {t('qr.descargarPng')}
+                    {bilingue(t('qr.descargarPng'))}
                   </Button>
                 </div>
               </>
             ) : (
               <div className="flex flex-1 items-center">
                 <p className="text-center text-sm text-texto-tenue">
-                  {t('qr.sinRed')}
+                  {bilingue(t('qr.sinRed'))}
                   <br />
-                  <span className="text-xs">{t('qr.sinRedDetalle')}</span>
+                  <span className="text-xs">{bilingue(t('qr.sinRedDetalle'))}</span>
                 </p>
               </div>
             )}
           </section>
         </div>
 
-        <p className="text-center text-xs text-texto-tenue">{t('qr.nota')}</p>
+        <p className="text-center text-xs text-texto-tenue">{bilingue(t('qr.nota'))}</p>
       </div>
     </Modal>
   );

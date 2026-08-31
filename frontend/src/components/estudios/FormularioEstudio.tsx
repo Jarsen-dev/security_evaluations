@@ -6,7 +6,7 @@ import { claveEtiqueta, type GrupoOpciones } from '@/components/estudios/opcione
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Textarea } from '@/components/ui/Textarea';
-import { useTraduccion, type ClaveTraduccion } from '@/lib/i18n';
+import { bilingue, unaLinea, useTraduccion, type ClaveTraduccion } from '@/lib/i18n';
 import type { CatalogoEstudios, Estudio, EstudioPayload, OpcionEstudio } from '@/lib/types';
 
 /** Mismo estilo que `Input`, para que el desplegable no desentone. */
@@ -133,7 +133,7 @@ export function FormularioEstudio({
   return (
     <section className="flex flex-col gap-5 rounded-tarjeta border border-borde bg-fondo-elevado p-5">
       <h2 className="text-base font-semibold text-texto">
-        {t(editando ? 'estudios.editando' : 'estudios.nuevo')}
+        {bilingue(t(editando ? 'estudios.editando' : 'estudios.nuevo'))}
       </h2>
 
       {/* Dos columnas: la izquierda identifica el estudio (Despacho a
@@ -275,17 +275,17 @@ export function FormularioEstudio({
 
       <div className="flex flex-wrap items-center gap-3">
         <Button onClick={() => void confirmar()} disabled={!completo} cargando={guardando}>
-          {t(editando ? 'estudios.guardarCambios' : 'estudios.confirmar')}
+          {bilingue(t(editando ? 'estudios.guardarCambios' : 'estudios.confirmar'))}
         </Button>
 
         {editando && (
           <Button variante="fantasma" onClick={onCancelar} disabled={guardando}>
-            {t('estudios.cancelarEdicion')}
+            {bilingue(t('estudios.cancelarEdicion'))}
           </Button>
         )}
 
         {!completo && (
-          <p className="text-sm text-texto-tenue">{t('estudios.faltanCampos')}</p>
+          <p className="text-sm text-texto-tenue">{bilingue(t('estudios.faltanCampos'))}</p>
         )}
       </div>
     </section>
@@ -321,15 +321,17 @@ function SelectorEstudio({
 }: SelectorProps) {
   const t = useTraduccion();
 
+  // `unaLinea` y no `bilingue`: esto se pinta dentro de un <option>, y ahí el
+  // navegador aplana cualquier markup y se come el salto de línea.
   function rotulo(opcion: OpcionEstudio): string {
     const clave: ClaveTraduccion | undefined = claveEtiqueta(grupo, opcion.clave);
-    return clave ? t(clave) : opcion.etiqueta;
+    return clave ? unaLinea(t(clave)) : opcion.etiqueta;
   }
 
   return (
     <div className="flex flex-col gap-1.5">
       <label htmlFor={id} className="text-sm font-medium text-texto">
-        {titulo}
+        {bilingue(titulo)}
       </label>
 
       <select

@@ -3,7 +3,7 @@
 import uuid
 from datetime import date, datetime
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
 
 def _texto(valor: str) -> str:
@@ -39,9 +39,14 @@ class PuntoRondinCrear(PuntoRondinBase):
 
 
 class PuntoRondinActualizar(PuntoRondinBase):
-    """Edición de un punto. El token no se toca: el QR impreso sigue vivo."""
+    """Edición de un punto. El token no se toca: el QR impreso sigue vivo.
 
-    activo: bool = True
+    ``activo`` es obligatorio y no trae default: el PUT reemplaza el recurso
+    entero, y con un default en ``True`` una petición que omitiera el campo
+    reactivaba un punto retirado sin que nadie lo hubiera pedido.
+    """
+
+    activo: bool
 
 
 class PuntoRondinOut(BaseModel):
@@ -84,6 +89,9 @@ class TableroOut(BaseModel):
     fin: datetime
     puntos_activos: int
     rondines: int
+    #: Bloques del turno que ya ocurrieron. El cumplimiento se mide contra
+    #: estos, no contra los seis: los rondines futuros no son faltas.
+    rondines_transcurridos: int
     filas: list[FilaTableroOut]
     visitados: int
     total: int
@@ -96,11 +104,17 @@ class TableroOut(BaseModel):
 
 
 class EnvioReporteIn(BaseModel):
-    """Petición de envío manual del reporte de un turno."""
+    """Petición de envío manual del reporte de un turno.
+
+    ``destinatario`` es ``EmailStr`` y no ``str``: con un ``str`` pelado, un
+    valor con comas se convertía en varios destinatarios reales al armar la
+    cabecera ``To``, y cualquier texto sin arroba solo fallaba mucho después,
+    ya dentro del SMTP.
+    """
 
     fecha: date
     turno: str
-    destinatario: str = Field(min_length=3, max_length=200)
+    destinatario: EmailStr = Field(max_length=200)
 
 
 class MensajeRondin(BaseModel):

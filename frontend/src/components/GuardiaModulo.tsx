@@ -1,6 +1,6 @@
 'use client';
 
-import { useTraduccion } from '@/lib/i18n';
+import { bilingue, useTraduccion } from '@/lib/i18n';
 import { useSesion } from '@/lib/sesion';
 import type { Modulo } from '@/lib/types';
 
@@ -25,7 +25,7 @@ export function GuardiaModulo({
   const { puede, cargando } = useSesion();
 
   if (cargando) {
-    return <p className="text-sm text-texto-suave">{t('comun.cargando')}</p>;
+    return <p className="text-sm text-texto-suave">{bilingue(t('comun.cargando'))}</p>;
   }
 
   if (!puede(modulo)) {
@@ -34,7 +34,7 @@ export function GuardiaModulo({
         role="alert"
         className="rounded-tarjeta border border-error bg-error-suave px-4 py-3 text-sm text-texto"
       >
-        {t('comun.sinAcceso')}
+        {bilingue(t('comun.sinAcceso'))}
       </div>
     );
   }

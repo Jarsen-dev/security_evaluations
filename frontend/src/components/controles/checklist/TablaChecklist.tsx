@@ -3,7 +3,7 @@
 import { AccionesRegistro } from '@/components/controles/AccionesRegistro';
 import { Badge } from '@/components/ui/Badge';
 import { urlFotoControl } from '@/lib/api';
-import { useIdioma } from '@/lib/i18n';
+import { bilingue, useIdioma } from '@/lib/i18n';
 import type { CatalogoChecklist, PuntoChecklist, RegistroChecklist } from '@/lib/types';
 import { cn, formatearFechaIso } from '@/lib/utils';
 
@@ -41,7 +41,7 @@ export function TablaChecklist({
   if (registros.length === 0) {
     return (
       <p className="rounded-tarjeta border border-borde bg-fondo-elevado px-4 py-8 text-center text-sm text-texto-suave">
-        {t('checklist.historialVacio')}
+        {bilingue(t('checklist.historialVacio'))}
       </p>
     );
   }
@@ -108,7 +108,7 @@ export function TablaChecklist({
       <table className="w-full min-w-[50rem] border-collapse text-sm">
         <thead className="bg-fondo-sutil text-left text-texto-suave">
           <tr>
-            <th className="px-3 py-2 font-medium">{t('comun.fecha')}</th>
+            <th className="px-3 py-2 font-medium">{bilingue(t('comun.fecha'))}</th>
 
             {columnasEncabezado.map((campo) => (
               <th key={campo.clave} className="px-3 py-2 font-medium">
@@ -117,7 +117,7 @@ export function TablaChecklist({
             ))}
 
             {catalogo.por_inspeccion ? (
-              <th className="px-3 py-2 font-medium">{t('checklist.hallazgos')}</th>
+              <th className="px-3 py-2 font-medium">{bilingue(t('checklist.hallazgos'))}</th>
             ) : (
               catalogo.puntos.map((punto) => (
                 <th key={punto.orden} className="px-3 py-2 text-center font-medium">
@@ -126,10 +126,10 @@ export function TablaChecklist({
               ))
             )}
 
-            <th className="px-3 py-2 font-medium">{t('comun.observaciones')}</th>
-            <th className="px-3 py-2 font-medium">{t('comun.responsable')}</th>
+            <th className="px-3 py-2 font-medium">{bilingue(t('comun.observaciones'))}</th>
+            <th className="px-3 py-2 font-medium">{bilingue(t('comun.responsable'))}</th>
             <th className="px-3 py-2 text-right font-medium">
-              {t('comun.acciones')}
+              {bilingue(t('comun.acciones'))}
             </th>
           </tr>
         </thead>
@@ -153,9 +153,9 @@ export function TablaChecklist({
               {catalogo.por_inspeccion ? (
                 <td className="px-3 py-2">
                   <Badge tono={registro.hay_hallazgos ? 'error' : 'exito'}>
-                    {t('checklist.hallazgosDetalle', {
+                    {bilingue(t('checklist.hallazgosDetalle', {
                       total: hallazgos(registro).length,
-                    })}
+                    }))}
                   </Badge>
                 </td>
               ) : (

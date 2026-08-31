@@ -15,6 +15,7 @@ from app.models.control import (
     PlaticaEsh,
     PuntoChecklist,
     RegistroChecklist,
+    RegistroPciMtto,
     RegistroRayser,
     RespuestaSqp,
 )
@@ -59,6 +60,7 @@ __all__ = [
     "PuntoRondin",
     "Recepcion",
     "RegistroChecklist",
+    "RegistroPciMtto",
     "RegistroRayser",
     "Respuesta",
     "RespuestaSqp",

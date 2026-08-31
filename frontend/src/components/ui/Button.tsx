@@ -19,10 +19,14 @@ const VARIANTES: Record<Variante, string> = {
   peligro: 'bg-error text-white hover:opacity-90',
 };
 
+// Altura MÍNIMA y no fija: en coreano cada botón lleva el español debajo como
+// subtítulo (ver `bilingue()`), así que el texto ocupa dos renglones y con una
+// altura cerrada el segundo quedaría recortado. En los otros dos idiomas el
+// `py` no cambia nada: el contenido de una línea no llega al mínimo.
 const TAMANOS: Record<Tamano, string> = {
-  sm: 'h-8 px-3 text-sm',
-  md: 'h-10 px-4 text-sm',
-  lg: 'h-tactil px-6 text-base',
+  sm: 'min-h-8 px-3 py-1 text-sm',
+  md: 'min-h-10 px-4 py-1.5 text-sm',
+  lg: 'min-h-tactil px-6 py-2 text-base',
 };
 
 export function Button({

@@ -23,7 +23,7 @@ import {
   type ErroresPregunta,
 } from '@/components/cuestionarios/TarjetaPregunta';
 import { Button } from '@/components/ui/Button';
-import { useTraduccion } from '@/lib/i18n';
+import { bilingue, useTraduccion } from '@/lib/i18n';
 import { idUnico } from '@/lib/navegador';
 import type { OpcionBorrador, PreguntaBorrador } from '@/lib/types';
 
@@ -188,7 +188,7 @@ export function ConstructorPreguntas({
 
       {preguntas.length === 0 && (
         <p className="rounded-tarjeta border border-dashed border-borde p-6 text-center text-sm text-texto-suave">
-          {t('constructor.sinPreguntas')}
+          {bilingue(t('constructor.sinPreguntas'))}
         </p>
       )}
 
@@ -197,7 +197,7 @@ export function ConstructorPreguntas({
           variante="secundario"
           onClick={() => onCambiar([...preguntas, preguntaVacia()])}
         >
-          {t('constructor.agregarPregunta')}
+          {bilingue(t('constructor.agregarPregunta'))}
         </Button>
       </div>
     </div>
