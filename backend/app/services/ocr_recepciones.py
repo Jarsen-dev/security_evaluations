@@ -71,6 +71,53 @@ MIN_CHARS_TEMPLATE: Final[int] = 100
 #: Arriba de esto es la misma foto resubida: no aporta señal nueva.
 UMBRAL_DEDUP_EJEMPLO: Final[float] = 0.98
 
+# Cuándo el sistema se atreve a elegir por el operador qué descripción de un
+# código recibió.
+#
+# NO se reutiliza `OCR_UMBRAL_SIMILITUD` (0.20): aquel está calibrado sobre
+# páginas completas, y sobre todo la asimetría está invertida. En la
+# clasificación de formatos el falso positivo lo corrige el operador; aquí un
+# falso positivo le suma la existencia al producto equivocado y el campo deja
+# de estar en ámbar, así que nadie vuelve a mirarlo. Ante la duda se pregunta.
+#
+# Los dos números salen de medir las 45 descripciones reales del catálogo:
+#
+#   - Productos DISTINTOS entre sí: p50=0.004, p90=0.100, p99=0.273. El umbral
+#     de 0.35 deja fuera ese ruido.
+#   - La descripción CORRECTA leída con 10% de ruido de OCR: score p50=0.583,
+#     p5=0.344; recortada a la mitad, p50=0.571. Por eso el umbral no puede
+#     ser 0.60 como se pensó primero: habría mandado a preguntar la mitad de
+#     los aciertos.
+#   - **El margen es lo que de verdad discrimina.** Hay pares distintos que
+#     puntúan altísimo entre sí —«DICLOFENACO GEL 60GR» contra «DICLOFENACO
+#     100MG C/20 TAB ULT» da 0.624—, y son justo los que compartirían código.
+#     En un acierto con ruido el margen está en 0.57 de mediana y 0.267 en el
+#     percentil 5; entre dos presentaciones parecidas se desploma. 0.20 separa
+#     los dos casos.
+#
+# Van como constantes y no como configuración: una variable nueva en
+# `config.py` hay que pasarla también en el `environment:` de docker-compose o
+# corre con el valor por omisión sin que nada lo diga. Y se recalibran
+# midiendo, no a ojo: el script está en el historial del cambio.
+# Cuánto tiene que ganarle el formato ganador al mejor de OTRO formato para
+# creerle. Es lo que resuelve las facturas CFDI: todas comparten la plantilla
+# del SAT —"VERSIÓN 4.0", el sello digital, la cadena de certificación— y con
+# dos o tres ejemplos el IDF no puede aprender que eso es relleno, así que el
+# parecido absoluto sube por igual para todo el mundo y deja de significar
+# nada. El cociente sí, porque ese piso común se cancela. Medido con facturas
+# reales de la planta: las que sí son del formato dan 1.30, 1.80 y 2.47; una
+# de un proveedor ajeno se parece a todos los formatos por igual y da ~1.0.
+FACTOR_DISTINCION: Final[float] = 1.20
+
+# Con UN SOLO formato en el corpus no hay contra quién comparar y el cociente
+# no existe, así que ahí manda un mínimo absoluto y más alto. Es el caso que
+# archivaba las facturas de REICI como MGPHARMA: puntuaban 0.314 sin nadie que
+# les hiciera sombra, mientras que una MGPHARMA de verdad daba 0.675.
+UMBRAL_SIN_COMPETENCIA: Final[float] = 0.40
+
+UMBRAL_DESCRIPCION: Final[float] = 0.35
+MARGEN_DESCRIPCION: Final[float] = 0.20
+
 # Tres límites SEPARADOS a propósito. El corpus de clasificación quiere MUCHOS
 # ejemplos; el prompt quiere POCOS. Sin esta separación, cada documento
 # aprendido haría la extracción más lenta y llenaría el contexto del modelo.
@@ -89,9 +136,13 @@ PROMPT_SISTEMA: Final[str] = (
     "tener errores de reconocimiento, saltos de línea irregulares o ruido) y "
     "SIEMPRE respondes con JSON válido, sin texto adicional ni markdown. La "
     'estructura es exactamente: {"proveedor": str, "folio": str, "fecha": '
-    '"YYYY-MM-DD", "items": [{"codigo": str, "cantidad": number}]}. '
-    '"folio" es el número de folio o de remisión del documento. "codigo" es '
-    "la clave o número de parte del producto tal como aparece en la hoja. "
+    '"YYYY-MM-DD", "items": [{"codigo": str, "descripcion": str, "cantidad": '
+    'number}]}. "folio" es el número de folio o de remisión del documento. '
+    '"codigo" es la clave o número de parte del producto tal como aparece en '
+    'la hoja. "descripcion" es el nombre del producto tal como aparece en esa '
+    "misma línea, copiado sin resumir y sin pasar de 60 caracteres: un mismo "
+    "código puede amparar productos distintos y es lo único que los "
+    "distingue. "
     "Si un campo no aparece en el texto o no puedes interpretarlo con "
     "confianza (incluye texto manuscrito que el OCR no pudo leer), usa null "
     "para ese campo. NUNCA inventes ni aproximes un valor que no esté "
@@ -212,6 +263,214 @@ def texto_ocr_desde_imagen(imagen_bytes: bytes) -> str:
 # --- Paso 2: clasificación -------------------------------------------------
 
 
+def _similitudes(consulta: str, corpus: list[str]) -> list[float]:
+    """Coseno TF-IDF de ``consulta`` contra cada texto de ``corpus``.
+
+    Es la capa de abajo que comparten la clasificación de formatos y el
+    emparejado de descripciones. Tres invariantes que no se pueden tocar:
+
+    - la consulta va **al final**, y el vectorizador se ajusta sobre el corpus
+      y la consulta **juntos**: el IDF depende del conjunto, así que no se
+      puede precalcular ni cachear por corpus;
+    - `VECTORIZER_KWARGS` es el mismo para todos (n-gramas de carácter);
+    - si revienta —corpus degenerado, vocabulario vacío— se devuelve una lista
+      vacía y quien llama degrada; nunca propaga.
+    """
+    if not consulta.strip() or not corpus:
+        return []
+
+    try:
+        matriz = TfidfVectorizer(**VECTORIZER_KWARGS).fit_transform(corpus + [consulta])
+        return [float(valor) for valor in cosine_similarity(matriz[-1], matriz[:-1])[0]]
+    except Exception:
+        logger.warning("TF-IDF falló; se degrada sin similitudes", exc_info=True)
+        return []
+
+
+def _normalizar(texto: str) -> str:
+    """Minúsculas y sin acentos, para comparar descripciones.
+
+    Sin esto, «GUANTES DE NITRÍLO» pierde puntos contra «guantes de nitrilo»
+    por diferencias que a nadie le importan.
+    """
+    sin_acentos = (
+        unicodedata.normalize("NFKD", texto).encode("ascii", "ignore").decode("ascii")
+    )
+    return " ".join(sin_acentos.lower().split())
+
+
+def mejor_coincidencia(
+    texto: str, candidatos: list[str]
+) -> tuple[int | None, float, float]:
+    """Elige la descripción del catálogo que más se parece a la del papel.
+
+    Devuelve ``(indice, score, margen)``, con ``indice`` en ``None`` cuando no
+    hay suficiente confianza como para decidir por el operador.
+
+    Con **un solo candidato no se compara nada**: quien llama ya sabe que no
+    hay ambigüedad, y con un corpus de un documento el IDF es degenerado y el
+    coseno no significa nada.
+
+    El margen contra el segundo mejor pesa tanto como el score: dos
+    presentaciones del mismo medicamento se parecen muchísimo entre sí, y
+    justo ahí es donde la elección tiene que ser del operador.
+    """
+    if len(candidatos) < 2 or not texto.strip():
+        return None, 0.0, 0.0
+
+    similitudes = _similitudes(_normalizar(texto), [_normalizar(c) for c in candidatos])
+    if not similitudes:
+        return None, 0.0, 0.0
+
+    mejor = max(range(len(similitudes)), key=lambda i: similitudes[i])
+    score = similitudes[mejor]
+    segundo = max(
+        (valor for indice, valor in enumerate(similitudes) if indice != mejor),
+        default=0.0,
+    )
+    margen = score - segundo
+
+    decide = score >= UMBRAL_DESCRIPCION and margen >= MARGEN_DESCRIPCION
+    logger.info(
+        "emparejado de descripción → %s (score=%.3f, 2ª=%.3f, margen=%.3f, "
+        "umbrales=%.2f/%.2f, %d candidatos)",
+        candidatos[mejor] if decide else "sin decidir",
+        score,
+        segundo,
+        margen,
+        UMBRAL_DESCRIPCION,
+        MARGEN_DESCRIPCION,
+        len(candidatos),
+    )
+
+    return (mejor if decide else None), score, margen
+
+
+# El RFC de una empresa mexicana: 3 letras (4 si es persona física), la fecha
+# de constitución y la homoclave.
+PATRON_RFC = re.compile(r"\b[A-ZÑ&]{3,4}\d{6}[A-Z0-9]{3}\b")
+
+#: El RFC del SAT aparece en todas las facturas del país, así que no puede
+#: identificar a un proveedor. Va como constante porque no se descarta solo:
+#: si un solo formato del corpus lo tiene legible, la regla de "lo compartido
+#: no distingue" no llega a verlo como compartido.
+# Opciones de generación del modelo.
+#
+# `repeat_penalty` no es un ajuste fino: presiona contra el BUCLE. Con el OCR
+# ruidoso el modelo puede repetir las mismas partidas hasta agotar el
+# presupuesto de tokens y devolver un JSON cortado a media palabra —o sea,
+# nada—. Medido sobre la hoja que lo destapó (16 renglones reales): sin
+# penalizar, 51 partidas en 35 s y JSON inválido; con 3000 tokens de margen,
+# 96 partidas en 66 s y también inválido. **Más espacio empeora el problema**,
+# así que el tope se queda donde está.
+#
+# 1.2 y no más: a 1.3 el modelo empieza a saltarse renglones legítimos —una
+# hoja de 21 partidas devolvía 18—. Entre 1.1 y 1.2 ninguna las pierde.
+#
+# Y el bucle es **intermitente**: la misma hoja con la misma penalización unas
+# veces lo hace y otras no, así que la garantía no está aquí sino en la red de
+# `_cerrar_json_truncado()` y `_sin_repetidos()`.
+OPCIONES_MODELO: Final[dict[str, Any]] = {
+    "temperature": 0.1,
+    "num_predict": 1600,
+    "repeat_penalty": 1.2,
+}
+
+RFC_SAT: Final[str] = "SAT970701NN3"
+
+#: Cuántos caracteres puede errar el OCR y seguir siendo el mismo RFC. Medido
+#: con documentos reales: el de la planta se leyó de cinco formas distintas
+#: —CWM020627SJ7, CWMO020627SJ7, CWM0206278J7…— y todas están a uno o dos
+#: caracteres de distancia.
+TOLERANCIA_RFC: Final[int] = 2
+
+
+def _rfcs(texto: str) -> set[str]:
+    """Los RFC que aparecen en un texto de OCR."""
+    limpio = re.sub(r"[^A-Za-z0-9Ññ&\s]", "", texto.upper())
+    return set(PATRON_RFC.findall(limpio))
+
+
+def _mismo_rfc(uno: str, otro: str) -> bool:
+    """Si dos lecturas son el mismo RFC, tolerando errores del OCR.
+
+    Distancia de edición pequeña, calculada aquí y no con una dependencia
+    nueva: son cadenas de doce caracteres y un puñado de comparaciones.
+    """
+    if abs(len(uno) - len(otro)) > TOLERANCIA_RFC:
+        return False
+
+    previa = list(range(len(otro) + 1))
+    for i, letra in enumerate(uno, 1):
+        actual = [i]
+        for j, contra in enumerate(otro, 1):
+            actual.append(
+                min(previa[j] + 1, actual[j - 1] + 1, previa[j - 1] + (letra != contra))
+            )
+        previa = actual
+    return previa[-1] <= TOLERANCIA_RFC
+
+
+def _emisores(ejemplos: list[EjemploPlantilla]) -> dict[str, set[str]]:
+    """RFC que identifican a cada formato, quitando los que no distinguen.
+
+    En una factura hay al menos tres RFC: el del emisor, el del receptor —que
+    es siempre esta planta— y el del SAT. Los dos últimos aparecen en todos los
+    formatos, así que se descartan por eso mismo: **lo que sale en más de un
+    formato no identifica a ninguno**. No hace falta configurar cuál es el RFC
+    de la planta ni mantenerlo al día, y de paso se descartan solas las cinco
+    lecturas distintas que el OCR hace de él.
+    """
+    por_formato: dict[str, set[str]] = {}
+    for ejemplo in ejemplos:
+        por_formato.setdefault(ejemplo.tipo, set()).update(_rfcs(ejemplo.texto_ocr))
+
+    compartidos: set[str] = set()
+    tipos = list(por_formato)
+    for indice, uno in enumerate(tipos):
+        for otro in tipos[indice + 1:]:
+            for rfc_uno in por_formato[uno]:
+                for rfc_otro in por_formato[otro]:
+                    if _mismo_rfc(rfc_uno, rfc_otro):
+                        compartidos.update({rfc_uno, rfc_otro})
+
+    return {
+        tipo: {
+            rfc
+            for rfc in rfcs
+            if rfc not in compartidos and not _mismo_rfc(rfc, RFC_SAT)
+        }
+        for tipo, rfcs in por_formato.items()
+    }
+
+
+def _firma_del_emisor(
+    texto_ocr: str, tipo: str, ejemplos: list[EjemploPlantilla]
+) -> bool | None:
+    """Si el documento lo emite quien emite los ejemplos de ese formato.
+
+    ``True`` si coincide, ``False`` si lo firma otro, y ``None`` cuando no hay
+    con qué decidir —el OCR no leyó ningún RFC, o el formato no tiene ninguno
+    propio porque es una remisión sin datos fiscales—.
+
+    Es la señal más fuerte del documento y por eso vale en los dos sentidos.
+    Confirma: dos facturas del mismo proveedor pueden parecerse poco entre sí
+    —cambian los conceptos, el importe, media hoja— y el parecido de texto se
+    queda corto, pero quien la firma no cambia. Y descarta: dos proveedores del
+    mismo giro comparten plantilla fiscal y vocabulario, y ahí el texto tampoco
+    los separa.
+    """
+    propios = _emisores(ejemplos).get(tipo, set())
+    del_documento = {
+        rfc for rfc in _rfcs(texto_ocr) if not _mismo_rfc(rfc, RFC_SAT)
+    }
+
+    if not propios or not del_documento:
+        return None
+
+    return any(_mismo_rfc(rfc, propio) for rfc in del_documento for propio in propios)
+
+
 def clasificar(texto_ocr: str, ejemplos: list[EjemploPlantilla]) -> str:
     """Devuelve el tipo de documento más parecido, o ``desconocido``.
 
@@ -223,41 +482,66 @@ def clasificar(texto_ocr: str, ejemplos: list[EjemploPlantilla]) -> str:
     if not texto_ocr.strip() or not ejemplos:
         return TIPO_DESCONOCIDO
 
-    try:
-        corpus = [ejemplo.texto_ocr for ejemplo in ejemplos] + [texto_ocr]
-        matriz = TfidfVectorizer(**VECTORIZER_KWARGS).fit_transform(corpus)
-        similitudes = cosine_similarity(matriz[-1], matriz[:-1])[0]
-    except Exception:
-        logger.warning("TF-IDF falló; se sigue con tipo desconocido", exc_info=True)
+    similitudes = _similitudes(texto_ocr, [ejemplo.texto_ocr for ejemplo in ejemplos])
+    if not similitudes:
         return TIPO_DESCONOCIDO
 
-    mejor = int(similitudes.argmax())
+    mejor = max(range(len(similitudes)), key=lambda i: similitudes[i])
     tipo_ganador = ejemplos[mejor].tipo
-    score = float(similitudes[mejor])
+    score = similitudes[mejor]
 
     # El mejor score de OTRO tipo y el margen son lo único que permite
     # recalibrar el umbral sin adivinar. Se loguean siempre.
     otros = [
-        float(valor)
+        valor
         for indice, valor in enumerate(similitudes)
         if ejemplos[indice].tipo != tipo_ganador
     ]
     segundo = max(otros) if otros else 0.0
 
     logger.info(
-        "clasificación TF-IDF → %s (score=%.3f, 2º tipo=%.3f, margen=%.3f, "
-        "umbral=%.3f, %d ejemplos de %d tipos)",
+        "clasificación TF-IDF → %s (score=%.3f, 2º tipo=%.3f, cociente=%.2f, "
+        "piso=%.3f, factor=%.2f, %d ejemplos de %d tipos)",
         tipo_ganador,
         score,
         segundo,
-        score - segundo,
+        score / segundo if segundo else float("inf"),
         settings.OCR_UMBRAL_SIMILITUD,
+        FACTOR_DISTINCION,
         len(ejemplos),
         len({ejemplo.tipo for ejemplo in ejemplos}),
     )
 
+    # Piso absoluto: por debajo de esto no se parece a nada y da igual el
+    # cociente.
     if score < settings.OCR_UMBRAL_SIMILITUD:
         return TIPO_DESCONOCIDO
+
+    # Sin otro formato con el que comparar, el cociente no significa nada.
+    if not otros:
+        return tipo_ganador if score >= UMBRAL_SIN_COMPETENCIA else TIPO_DESCONOCIDO
+
+    # Lo que decide: cuánto le gana al mejor de OTRO formato. Un documento de
+    # un proveedor nuevo se parece a todos por igual y no pasa de aquí.
+    # Quién firma el papel pesa más que el parecido del texto, en los dos
+    # sentidos: si coincide el RFC del emisor da igual que la hoja de este mes
+    # traiga otros conceptos, y si no coincide da igual lo mucho que se
+    # parezcan dos proveedores del mismo giro.
+    firma = _firma_del_emisor(texto_ocr, tipo_ganador, ejemplos)
+
+    if firma is False:
+        logger.info(
+            "descartado %s: el RFC del emisor no es el de sus ejemplos", tipo_ganador
+        )
+        return TIPO_DESCONOCIDO
+
+    if firma is True:
+        return tipo_ganador
+
+    # Sin RFC con el que decidir, manda el texto.
+    if score < segundo * FACTOR_DISTINCION:
+        return TIPO_DESCONOCIDO
+
     return tipo_ganador
 
 
@@ -300,14 +584,85 @@ def _extraer_json(crudo: str) -> dict[str, Any]:
     try:
         datos = json.loads(crudo)
     except json.JSONDecodeError:
+        # Primero, el bloque entre llaves: cubre el markdown y las frases
+        # alrededor. Si eso tampoco parsea —el caso de la respuesta cortada,
+        # donde el bloque queda con la lista abierta— se intenta cerrarla.
+        datos = None
         encontrado = re.search(r"\{[\s\S]*\}", crudo)
-        if encontrado is None:
+        if encontrado is not None:
+            try:
+                datos = json.loads(encontrado.group(0))
+            except json.JSONDecodeError:
+                datos = None
+
+        if datos is None:
+            datos = _cerrar_json_truncado(crudo)
+        if datos is None:
             raise
-        datos = json.loads(encontrado.group(0))
 
     if not isinstance(datos, dict):
         raise ValueError("La respuesta del modelo no es un objeto JSON.")
+
+    if isinstance(datos.get("items"), list):
+        datos["items"] = _sin_repetidos(datos["items"])
+
     return datos
+
+
+def _cerrar_json_truncado(crudo: str) -> dict[str, Any] | None:
+    """Rescata una respuesta que se cortó a mitad de la lista de partidas.
+
+    Cuando el modelo agota su presupuesto de tokens deja el JSON abierto y sin
+    la última partida terminada. Antes eso se perdía entero; aquí se tira lo
+    que quedó a medias y se cierran las llaves, que es lo que haría cualquiera
+    a mano. Es una red: lo que evita el corte de verdad es la penalización a
+    la repetición (ver `OPCIONES_MODELO`).
+    """
+    corte = crudo.rfind("}")
+    if corte == -1:
+        return None
+
+    tronco = crudo[: corte + 1]
+    for cierre in ("]}", "}]}", "}", ""):
+        try:
+            datos = json.loads(tronco + cierre)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(datos, dict):
+            logger.warning("La respuesta del modelo venía cortada; se rescató lo leído")
+            return datos
+
+    return None
+
+
+def _sin_repetidos(items: list[Any]) -> list[Any]:
+    """Quita las partidas repetidas que deja un bucle del modelo.
+
+    Con el OCR ruidoso el modelo puede repetir los mismos renglones docenas de
+    veces: en la hoja que destapó esto emitió 51 partidas de 16 reales. Se
+    comparan código y cantidad juntos.
+
+    El precio es que una hoja con dos renglones idénticos —mismo código Y misma
+    cantidad— pierde uno, y el operador lo vuelve a agregar con un clic. A
+    cambio no se le presentan cincuenta partidas fantasma que tendría que
+    borrar una por una.
+    """
+    vistas: set[tuple[str, Any]] = set()
+    limpias: list[Any] = []
+
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        clave = (str(item.get("codigo")).strip().lower(), item.get("cantidad"))
+        if clave in vistas:
+            continue
+        vistas.add(clave)
+        limpias.append(item)
+
+    if len(limpias) < len(items):
+        logger.info("Se descartaron %d partidas repetidas", len(items) - len(limpias))
+
+    return limpias
 
 
 def encontrar_campos_null(datos: Any, ruta: str = "") -> list[str]:
@@ -333,6 +688,35 @@ def encontrar_campos_null(datos: Any, ruta: str = "") -> list[str]:
     return rutas
 
 
+def _con_esquema_vigente(esperado: dict[str, Any]) -> dict[str, Any]:
+    """Completa un ejemplo guardado con las llaves que el prompt pide hoy.
+
+    `INSTRUCCION_FINAL` le ordena al modelo seguir "EXACTAMENTE la misma
+    estructura JSON de los ejemplos anteriores", y una demostración pesa más
+    que el prompt de sistema: un ejemplo curado de antes de que existiera
+    ``descripcion`` le enseñaría a no emitirla, y justo en los formatos que
+    mejor conoce. No se puede rellenar con la descripción del catálogo —sería
+    enseñarle a inventar texto que no está en la hoja—, así que va ``None``,
+    que es lo que el propio prompt manda usar cuando un campo no aparece.
+
+    Los curados no se borran solos y no hay pantalla para quitarlos, así que
+    esta red vale la pena aunque hoy el corpus esté vacío.
+    """
+    items = esperado.get("items")
+    if not isinstance(items, list):
+        return esperado
+
+    return {
+        **esperado,
+        "items": [
+            {"codigo": None, "descripcion": None, "cantidad": None, **item}
+            if isinstance(item, dict)
+            else item
+            for item in items
+        ],
+    }
+
+
 def _mensajes_few_shot(texto_ocr: str, ejemplos: list[EjemploPlantilla]) -> list[dict]:
     """Arma la conversación con los pares de ejemplo del tipo detectado.
 
@@ -349,7 +733,9 @@ def _mensajes_few_shot(texto_ocr: str, ejemplos: list[EjemploPlantilla]) -> list
         mensajes.append(
             {
                 "role": "assistant",
-                "content": json.dumps(ejemplo.json_esperado, ensure_ascii=False),
+                "content": json.dumps(
+                    _con_esquema_vigente(ejemplo.json_esperado), ensure_ascii=False
+                ),
             }
         )
 
@@ -399,7 +785,7 @@ async def _estructurar(texto_ocr: str, ejemplos: list[EjemploPlantilla]) -> dict
                 "messages": _mensajes_few_shot(texto_ocr, ejemplos),
                 "stream": False,
                 "format": "json",
-                "options": {"temperature": 0.1, "num_predict": 800},
+                "options": OPCIONES_MODELO,
             },
             timeout=espera,
         )

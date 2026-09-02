@@ -16,10 +16,13 @@ import sys
 
 from sqlalchemy import select
 
+from app.core.config import DIRECTORIO_FORMATOS
 from app.core.constants import LONGITUD_MINIMA_CONTRASENA, MODULOS_PERMISO
 from app.core.security import hashear_contrasena
 from app.db.session import SessionLocal, engine
 from app.models.admin_user import AdminUser
+from app.models.recepcion import EjemploPlantillaRecepcion, PlantillaRecepcion
+from app.services import espejo_formatos
 
 # El usuario creado por la CLI es superadministrador con acceso completo: es
 # la vía de rescate cuando no queda nadie que pueda entrar al panel. Los
@@ -118,6 +121,57 @@ async def listar_admins() -> None:
         print(f"{admin.username:<20} {rol:<16} {estado:<12} {ultimo}")
 
 
+async def exportar_formatos() -> None:
+    """Vuelca a disco los ejemplos del clasificador que ya están en la base.
+
+    El espejo se escribe al aprender, así que sin este comando la carpeta
+    arranca vacía en una base que ya tiene formatos aprendidos —y en un
+    servidor donde el volumen se creó después—.
+
+    Es un comando y no una tarea de arranque a propósito: una tarea del
+    `lifespan` correría en cada uno de los cuatro workers de uvicorn.
+    """
+    async with SessionLocal() as db:
+        filas = (
+            await db.execute(
+                select(
+                    PlantillaRecepcion.slug,
+                    PlantillaRecepcion.nombre,
+                    EjemploPlantillaRecepcion.imagen,
+                    EjemploPlantillaRecepcion.tipo,
+                    EjemploPlantillaRecepcion.texto_ocr,
+                    EjemploPlantillaRecepcion.json_esperado,
+                )
+                .join(
+                    EjemploPlantillaRecepcion,
+                    EjemploPlantillaRecepcion.plantilla_id == PlantillaRecepcion.id,
+                )
+                .order_by(
+                    PlantillaRecepcion.slug, EjemploPlantillaRecepcion.creado_at
+                )
+            )
+        ).all()
+
+    if not filas:
+        print("No hay formatos aprendidos que exportar.")
+        return
+
+    for slug, nombre, imagen, tipo, texto, esperado in filas:
+        espejo_formatos.guardar_ejemplo(
+            slug=slug,
+            nombre=nombre,
+            imagen=imagen,
+            tipo_mime=tipo,
+            texto_ocr=texto,
+            json_esperado=esperado,
+        )
+        # Un segundo entre ejemplos: la carpeta lleva el sello de tiempo con
+        # resolución de segundo y dos del mismo formato se pisarían.
+        await asyncio.sleep(1.05)
+
+    print(f"{len(filas)} ejemplo(s) exportado(s) a {DIRECTORIO_FORMATOS}.")
+
+
 def construir_parser() -> argparse.ArgumentParser:
     """Arma el parser de argumentos de la CLI."""
     parser = argparse.ArgumentParser(
@@ -141,6 +195,11 @@ def construir_parser() -> argparse.ArgumentParser:
 
     subcomandos.add_parser("listar-admins", help="Lista los usuarios del panel.")
 
+    subcomandos.add_parser(
+        "exportar-formatos",
+        help="Vuelca a disco los formatos que el OCR ya tiene aprendidos.",
+    )
+
     return parser
 
 
@@ -153,6 +212,8 @@ async def _ejecutar(args: argparse.Namespace) -> None:
             )
         elif args.comando == "listar-admins":
             await listar_admins()
+        elif args.comando == "exportar-formatos":
+            await exportar_formatos()
     finally:
         await engine.dispose()
 

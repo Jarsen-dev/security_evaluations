@@ -269,15 +269,35 @@ docker compose exec backend python -m app.cli create-admin --username admin --re
 
 La pestaña **Catálogo** guarda los insumos de seguridad de la planta:
 medicamento, EPP, señalización y extintores. De cada uno se registra su
-proveedor, su ubicación, la existencia actual y los topes de inventario.
+proveedor, su ubicación, los topes de inventario y dos números que conviene no
+confundir.
 
-El color de la columna Estado sale del servidor, no del navegador:
+**El código puede repetirse.** Un mismo código de proveedor ampara varios
+productos, y lo que los distingue es la **descripción**: por eso es obligatoria
+y no puede haber dos insumos con el mismo código y la misma descripción. Al
+recibir mercancía, el sistema ofrece las descripciones de ese código y propone
+la que más se parece a lo que dice la remisión; si no está seguro, deja la
+elección al operador y no permite guardar hasta que elija.
+
+Los dos números:
+
+- **Piezas por caja**: cuántas pastillas, tabletas o unidades trae cada caja o
+  paquete. Es un dato del producto y solo cambia si el proveedor cambia la
+  presentación.
+- **Existencia**: el inventario real, en piezas sueltas. Lo suman las
+  recepciones —las cajas capturadas por las piezas de cada una— y se corrige
+  aquí a mano tras el conteo físico.
+
+El color de la columna Estado sale del servidor, no del navegador, y se mide
+contra el máximo:
 
 | Color | Significa |
 |---|---|
-| Verde — Normal | La existencia está entre el mínimo y el máximo |
-| Rojo — Bajo mínimo | Falta reponer |
+| Verde — Normal | Del 75 % del máximo hacia arriba |
+| Amarillo — A la mitad | Entre el 35 % y el 75 % |
+| Rojo — Bajo | Por debajo del 35 %, o por debajo del mínimo capturado |
 | Naranja — Excedido | Hay más de lo que se planeó almacenar |
+| Gris — Sin topes | El insumo no tiene máximo: no hay contra qué medirlo |
 
 El filtro de estado sirve para armar la lista de compra de un vistazo.
 
@@ -286,8 +306,10 @@ desde Excel**. Los insumos nuevos se dan de alta y los que ya existen se
 omiten, así que volver a subir un archivo nunca pisa lo capturado; las filas
 con problemas se reportan con su número para corregirlas en el origen.
 
-Es un catálogo, no un almacén: la existencia se corrige a mano tras el conteo.
-El sistema de recepciones y salidas se construirá encima más adelante.
+Las entradas no se capturan aquí: se fotografían en **Inventario → Recepciones**
+y la pestaña **Inventario → Stock** muestra el resultado, con los mismos
+filtros y la fila teñida según el semáforo. Todavía no hay salidas: lo que se
+consume se descuenta corrigiendo la existencia tras el conteo.
 
 ### Rondines de seguridad
 

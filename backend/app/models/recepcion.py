@@ -185,10 +185,15 @@ class Recepcion(Base):
 class ItemRecepcion(Base):
     """Una partida del documento.
 
-    ``descripcion`` y ``unidad_medida`` son **snapshot del catálogo al momento
-    de guardar**, no un join: si mañana cambia el catálogo, el documento
-    histórico sigue diciendo lo que se recibió el día que se recibió. Por eso
-    ``insumo_id`` puede quedar en NULL sin que el renglón pierda sentido.
+    ``descripcion``, ``unidad_medida`` y ``piezas_por_empaque`` son **snapshot
+    del catálogo al momento de guardar**, no un join: si mañana cambia el
+    catálogo, el documento histórico sigue diciendo lo que se recibió el día
+    que se recibió. Por eso ``insumo_id`` puede quedar en NULL sin que el
+    renglón pierda sentido.
+
+    ``cantidad`` son **cajas o paquetes**, que es lo que el operador lee del
+    papel y teclea. Lo que entró al inventario son
+    ``cantidad * piezas_por_empaque`` piezas.
     """
 
     __tablename__ = "recepciones_items"
@@ -212,8 +217,14 @@ class ItemRecepcion(Base):
     descripcion: Mapped[str | None] = mapped_column(Text, nullable=True)
     unidad_medida: Mapped[str] = mapped_column(String(10), nullable=False)
     cantidad: Mapped[int] = mapped_column(Integer, nullable=False)
+    piezas_por_empaque: Mapped[int] = mapped_column(Integer, nullable=False)
 
     recepcion: Mapped[Recepcion] = relationship(back_populates="items")
+
+    @property
+    def piezas(self) -> int:
+        """Lo que esta partida sumó al inventario."""
+        return self.cantidad * self.piezas_por_empaque
 
 
 class SesionQrRecepcion(Base):

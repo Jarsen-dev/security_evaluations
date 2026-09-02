@@ -3,17 +3,23 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { Badge } from '@/components/ui/Badge';
+import { BotonIcono, FilaAcciones } from '@/components/ui/BotonIcono';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
+import { IconoOjo } from '@/components/ui/Iconos';
+import { Modal } from '@/components/ui/Modal';
+import { VisorImagen } from '@/components/ui/VisorImagen';
 import {
   ErrorDeApi,
   listarRecepciones,
+  obtenerRecepcion,
   obtenerTiposDocumento,
   urlFotoRecepcion,
 } from '@/lib/api';
 import { bilingue, unaLinea, useIdioma } from '@/lib/i18n';
 import type {
   FiltrosRecepciones,
+  Recepcion,
   RecepcionesPaginadas,
   TipoDocumento,
 } from '@/lib/types';
@@ -35,6 +41,14 @@ export function TablaRecepciones() {
   const [tipos, setTipos] = useState<TipoDocumento[]>([]);
   const [cargando, setCargando] = useState(true);
   const [errorCarga, setErrorCarga] = useState('');
+
+  const [detalle, setDetalle] = useState<Recepcion | null>(null);
+  const [detalleAbierto, setDetalleAbierto] = useState(false);
+  const [errorDetalle, setErrorDetalle] = useState('');
+  // La foto se toma del renglón y no de `detalle`: así aparece mientras las
+  // partidas todavía se están cargando, y sigue estando si esa consulta falla
+  // —que es justo cuando hace falta mirar el papel—.
+  const [fotoDetalle, setFotoDetalle] = useState<string | null>(null);
 
   const [busqueda, setBusqueda] = useState('');
   const [filtros, setFiltros] = useState<FiltrosRecepciones>({});
@@ -97,6 +111,21 @@ export function TablaRecepciones() {
   const paginaActual = datos?.page ?? 1;
   const totalPaginas = Math.max(1, Math.ceil(total / size));
   const hayFiltros = busqueda !== '' || filtros.tipo_documento !== undefined;
+
+  async function abrirDetalle(recepcion: Recepcion) {
+    setDetalle(null);
+    setErrorDetalle('');
+    setFotoDetalle(recepcion.foto_id);
+    setDetalleAbierto(true);
+
+    try {
+      setDetalle(await obtenerRecepcion(recepcion.id));
+    } catch (error: unknown) {
+      setErrorDetalle(
+        error instanceof ErrorDeApi ? error.message : t('recepciones.falloDetalle'),
+      );
+    }
+  }
 
   const fecha = (valor: string) =>
     new Date(valor).toLocaleString(locale, { dateStyle: 'short', timeStyle: 'short' });
@@ -227,16 +256,17 @@ export function TablaRecepciones() {
                     {fecha(recepcion.creado_at)}
                   </td>
                   <td className="px-5 py-3 text-right">
-                    {recepcion.foto_id !== null && (
-                      <a
-                        href={urlFotoRecepcion(recepcion.foto_id)}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="text-sm text-primario hover:underline"
-                      >
-                        {bilingue(t('recepciones.verFoto'))}
-                      </a>
-                    )}
+                    {/* Con el código repetible, el conteo de partidas ya no
+                        dice a qué producto entró la mercancía. El detalle trae
+                        además la foto, así que ya no hay enlace aparte para
+                        abrirla en otra pestaña. */}
+                    <FilaAcciones>
+                      <BotonIcono
+                        etiqueta={t('recepciones.verDetalle')}
+                        icono={<IconoOjo />}
+                        onClick={() => void abrirDetalle(recepcion)}
+                      />
+                    </FilaAcciones>
                   </td>
                 </tr>
               ))
@@ -270,6 +300,94 @@ export function TablaRecepciones() {
           </div>
         </div>
       )}
+
+      <Modal
+        abierto={detalleAbierto}
+        onCerrar={() => setDetalleAbierto(false)}
+        titulo={t('recepciones.detalle')}
+        descripcion={
+          detalle === null
+            ? undefined
+            : `${detalle.proveedor ?? '—'} · ${detalle.folio ?? '—'}`
+        }
+        ancho="xl"
+      >
+        {/* Lado a lado, igual que la pantalla de captura: lo que se compara
+            es la hoja contra las partidas, y apiladas obligaba a subir y bajar
+            para cotejar cada renglón. En una pantalla angosta se apilan, que
+            ahí no hay ancho para dos columnas. */}
+        <div className="grid gap-4 lg:grid-cols-2">
+          {/* El mismo visor de la captura: la remisión llega como la tomó el
+              operador —de lado, o con la letra demasiado chica—, y consultar
+              el histórico exige leerla igual que corregirla. */}
+          {fotoDetalle !== null ? (
+            <div className="overflow-hidden rounded-tarjeta border border-borde">
+              <VisorImagen
+                src={urlFotoRecepcion(fotoDetalle)}
+                alt={t('recepciones.fotoRemision')}
+                className="h-[45vh] w-full lg:h-[60vh]"
+              />
+            </div>
+          ) : (
+            <p className="text-sm text-texto-suave">{bilingue(t('recepciones.sinFoto'))}</p>
+          )}
+
+          {errorDetalle !== '' ? (
+            <p role="alert" className="text-sm text-error">
+              {errorDetalle}
+            </p>
+          ) : detalle === null ? (
+            <p className="text-sm text-texto-suave">{bilingue(t('comun.cargando'))}</p>
+          ) : (
+            // La tabla se desplaza dentro de su columna y no arrastra el modal
+            // entero: así la foto se queda quieta mientras se recorren las
+            // partidas, que es justo para lo que sirve verlas juntas.
+            <div className="overflow-auto lg:max-h-[60vh]">
+              <table className="w-full min-w-[26rem] text-sm">
+                <thead className="bg-fondo-sutil">
+                  <tr>
+                    <th scope="col" className="px-3 py-2 text-left font-medium text-texto-suave">
+                      {bilingue(t('recepciones.codigo'))}
+                    </th>
+                    <th scope="col" className="px-3 py-2 text-left font-medium text-texto-suave">
+                      {bilingue(t('recepciones.descripcionItem'))}
+                    </th>
+                    <th scope="col" className="px-3 py-2 text-right font-medium text-texto-suave">
+                      {bilingue(t('recepciones.cajas'))}
+                    </th>
+                    <th scope="col" className="px-3 py-2 text-right font-medium text-texto-suave">
+                      {bilingue(t('recepciones.piezasTotales'))}
+                    </th>
+                    <th scope="col" className="px-3 py-2 text-left font-medium text-texto-suave">
+                      {bilingue(t('recepciones.unidad'))}
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {/* Todo es el snapshot guardado con el documento: si el
+                      catálogo cambió después, la remisión sigue diciendo lo que
+                      se recibió el día que se recibió. */}
+                  {detalle.items.map((item) => (
+                    <tr key={item.id} className="border-b border-borde last:border-0">
+                      <td className="px-3 py-2 font-medium text-texto">{item.codigo}</td>
+                      <td className="px-3 py-2 text-texto-suave">
+                        {item.descripcion ?? '—'}
+                      </td>
+                      <td className="px-3 py-2 text-right text-texto-suave">
+                        {item.cantidad.toLocaleString(locale)}
+                      </td>
+                      <td className="px-3 py-2 text-right font-medium text-texto">
+                        {item.piezas.toLocaleString(locale)}
+                      </td>
+                      <td className="px-3 py-2 text-texto-suave">{item.unidad_medida}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </Modal>
     </Card>
   );
 }

@@ -37,7 +37,8 @@ export interface DatosInsumo {
   unidad_medida: string;
   proveedor: string;
   ubicacion: string;
-  cantidad: string;
+  piezas_por_empaque: string;
+  existencia: string;
   minimo: string;
   maximo: string;
 }
@@ -49,7 +50,10 @@ const VACIO: DatosInsumo = {
   unidad_medida: '',
   proveedor: '',
   ubicacion: '',
-  cantidad: '0',
+  // Una caja trae al menos una pieza; la existencia de un insumo recién dado
+  // de alta sí arranca en cero.
+  piezas_por_empaque: '1',
+  existencia: '0',
   minimo: '0',
   maximo: '0',
 };
@@ -71,7 +75,7 @@ export function ModalInsumo({
   const [errores, setErrores] = useState<Partial<Record<keyof DatosInsumo, string>>>({});
 
   const editando = insumo !== null;
-  const vistaPrevia = clasificar(datos.cantidad, datos.minimo, datos.maximo);
+  const vistaPrevia = clasificar(datos.existencia, datos.minimo, datos.maximo);
 
   // Se recarga al abrir, no al montar: el modal vive en el árbol todo el
   // tiempo y sin esto conservaría lo tecleado del insumo anterior.
@@ -91,7 +95,8 @@ export function ModalInsumo({
             unidad_medida: insumo.unidad_medida,
             proveedor: insumo.proveedor ?? '',
             ubicacion: insumo.ubicacion ?? '',
-            cantidad: String(insumo.cantidad),
+            piezas_por_empaque: String(insumo.piezas_por_empaque),
+            existencia: String(insumo.existencia),
             minimo: String(insumo.minimo),
             maximo: String(insumo.maximo),
           },
@@ -112,9 +117,21 @@ export function ModalInsumo({
     const esquema = z
       .object({
         codigo: z.string().trim().min(1, t('catalogo.faltaCodigo')),
+        // Obligatoria: es lo único que distingue a dos insumos con el mismo
+        // código, y el índice único de la base es la pareja de los dos.
+        descripcion: z.string().trim().min(1, t('catalogo.faltaDescripcion')),
         categoria: z.string().trim().min(1, t('catalogo.faltaCategoria')),
         unidad_medida: z.string().trim().min(1, t('catalogo.faltaUnidad')),
-        cantidad: entero,
+        // Las piezas por caja son el único número que no admite cero: con
+        // cero, una recepción daría entrada a nada.
+        piezas_por_empaque: z
+          .string()
+          .trim()
+          .refine(
+            (valor) => /^\d+$/.test(valor) && Number(valor) >= 1,
+            t('catalogo.piezasInvalidas'),
+          ),
+        existencia: entero,
         minimo: entero,
         maximo: entero,
       })
@@ -257,6 +274,8 @@ export function ModalInsumo({
             <Textarea
               name="descripcion"
               etiqueta={t('catalogo.descripcionCampo')}
+              ayuda={t('catalogo.descripcionAyuda')}
+              error={errores.descripcion}
               rows={2}
               value={datos.descripcion}
               onChange={(evento) =>
@@ -278,12 +297,25 @@ export function ModalInsumo({
           </div>
 
           <Input
-            name="cantidad"
-            etiqueta={t('catalogo.cantidad')}
+            name="piezas_por_empaque"
+            etiqueta={t('catalogo.piezasPorCaja')}
+            ayuda={t('catalogo.piezasPorCajaAyuda')}
             inputMode="numeric"
-            value={datos.cantidad}
-            error={errores.cantidad}
-            onChange={(evento) => setDatos({ ...datos, cantidad: evento.target.value })}
+            value={datos.piezas_por_empaque}
+            error={errores.piezas_por_empaque}
+            onChange={(evento) =>
+              setDatos({ ...datos, piezas_por_empaque: evento.target.value })
+            }
+          />
+
+          <Input
+            name="existencia"
+            etiqueta={t('catalogo.existencia')}
+            ayuda={t('catalogo.existenciaAyuda')}
+            inputMode="numeric"
+            value={datos.existencia}
+            error={errores.existencia}
+            onChange={(evento) => setDatos({ ...datos, existencia: evento.target.value })}
           />
 
           <div className="grid grid-cols-2 gap-3">

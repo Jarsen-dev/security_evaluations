@@ -7,7 +7,8 @@ import {
   claveEtiqueta,
   type GrupoOpciones,
 } from '@/components/estudios/opciones';
-import { Button } from '@/components/ui/Button';
+import { BotonIcono, FilaAcciones } from '@/components/ui/BotonIcono';
+import { IconoBote, IconoLapiz } from '@/components/ui/Iconos';
 import { bilingue, useIdioma, type ClaveTraduccion } from '@/lib/i18n';
 import type { CatalogoEstudios, Estudio, OpcionEstudio } from '@/lib/types';
 import { fechaDeHoy, formatearFechaIso } from '@/lib/utils';
@@ -174,22 +175,19 @@ export function TablaEstudios({
 
                 {puedeEditar && (
                   <td className="whitespace-nowrap px-3 py-2 text-center">
-                    <div className="flex justify-center gap-1">
-                      <Button
-                        variante="fantasma"
-                        tamano="sm"
+                    <FilaAcciones alineacion="centro">
+                      <BotonIcono
+                        etiqueta={t('comun.editar')}
+                        icono={<IconoLapiz />}
                         onClick={() => onEditar(estudio)}
-                      >
-                        {bilingue(t('comun.editar'))}
-                      </Button>
-                      <Button
-                        variante="fantasma"
-                        tamano="sm"
+                      />
+                      <BotonIcono
+                        etiqueta={t('comun.eliminar')}
+                        icono={<IconoBote />}
+                        tono="error"
                         onClick={() => onEliminar(estudio)}
-                      >
-                        {bilingue(t('comun.eliminar'))}
-                      </Button>
-                    </div>
+                      />
+                    </FilaAcciones>
                   </td>
                 )}
               </tr>

@@ -38,9 +38,32 @@ SLUG_INVALIDO = (
 )
 FORMATO_DUPLICADO = "Ya existe un formato registrado con ese nombre."
 DEMASIADOS_CURADOS = (
-    "Este formato ya tiene el máximo de ejemplos de referencia. Borra uno "
-    "antes de agregar otro."
+    "Este formato ya tiene sus ejemplos de referencia. Borra uno desde la "
+    "pestaña de Formatos si quieres enseñarle otro."
 )
+
+
+#: Motivo cuando la foto ya se aprendió: no es un error, es un no-op.
+YA_APRENDIDO = "Este formato ya tenía guardada esta misma hoja como ejemplo."
+
+
+def decidir_ejemplo_curado(texto_ocr: str, curados: list[str]) -> str | None:
+    """Qué hacer con un ejemplo de referencia nuevo.
+
+    Devuelve ``None`` si hay que guardarlo, o el motivo por el que no.
+
+    Va aparte y sin base de datos porque es la regla que más se rompía: una
+    hoja con dos remisiones son dos guardados con la MISMA foto, y sin la
+    comparación por texto el segundo duplicaba el ejemplo y el tercero se
+    estrellaba contra el tope, perdiendo todo lo de ese guardado.
+    """
+    if texto_ocr in curados:
+        return YA_APRENDIDO
+
+    if len(curados) >= ocr.MAX_EJEMPLOS_CURADOS:
+        return DEMASIADOS_CURADOS
+
+    return None
 
 
 async def corpus(db: AsyncSession) -> list[EjemploPlantilla]:
@@ -124,6 +147,7 @@ async def registrar_formato(
     """Da de alta un formato nuevo con su primer ejemplo curado.
 
     Si el formato ya existe se le agrega el ejemplo, hasta el tope de curados.
+    Volver a registrarlo con la **misma** foto no hace nada y no falla.
     """
     slug = ocr.slugify(nombre)
     if not slug:
@@ -145,14 +169,23 @@ async def registrar_formato(
             await db.rollback()
             raise ConflictoDeNegocio(FORMATO_DUPLICADO) from exc
     else:
-        curados = await db.scalar(
-            select(func.count(EjemploPlantillaRecepcion.id)).where(
-                EjemploPlantillaRecepcion.plantilla_id == plantilla.id,
-                EjemploPlantillaRecepcion.clase == CLASE_CURADO,
-            )
+        curados = list(
+            (
+                await db.scalars(
+                    select(EjemploPlantillaRecepcion.texto_ocr).where(
+                        EjemploPlantillaRecepcion.plantilla_id == plantilla.id,
+                        EjemploPlantillaRecepcion.clase == CLASE_CURADO,
+                    )
+                )
+            ).all()
         )
-        if (curados or 0) >= ocr.MAX_EJEMPLOS_CURADOS:
-            raise ConflictoDeNegocio(DEMASIADOS_CURADOS)
+
+        motivo = decidir_ejemplo_curado(texto_ocr, curados)
+        if motivo == YA_APRENDIDO:
+            logger.info("El formato %s ya tenía este ejemplo; no se duplica", slug)
+            return plantilla
+        if motivo is not None:
+            raise ConflictoDeNegocio(motivo)
 
     db.add(
         EjemploPlantillaRecepcion(

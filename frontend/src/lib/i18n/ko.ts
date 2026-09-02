@@ -519,11 +519,26 @@ export const ko: Diccionario = {
     titulo: '재고',
     descripcion: '의약품 및 기타 안전 물품의 재고입니다.',
     recepciones: '입고',
+    stock: '재고',
     historial: '이력',
     enConstruccion: '준비 중',
     enConstruccionDetalle:
       '재고는 아직 Excel 파일로 관리합니다. 입력 규칙이 정해지는 대로 여기에서 ' +
       '사용할 수 있습니다.',
+  },
+
+  stock: {
+    titulo: '재고 현황',
+    descripcion:
+      '현재 창고에 있는 낱개 수량입니다. 입고를 확정할 때마다 입력한 상자 수에 ' +
+      '상자당 개수를 곱한 만큼 더해집니다.',
+    actualizar: '새로 고침',
+    existencia: '수량',
+    registros: '자재 {total}건',
+    vacio: '아직 카탈로그에 자재가 없습니다.',
+    vacioAyuda: '카탈로그 탭에서 첫 자재를 등록하세요.',
+    sinCoincidencias: '필터와 일치하는 자재가 없습니다.',
+    falloCarga: '재고를 불러오지 못했습니다.',
   },
 
   recepciones: {
@@ -551,6 +566,18 @@ export const ko: Diccionario = {
     unidad: '단위',
     agregarPartida: '품목 추가',
     quitarPartida: '품목 삭제',
+    porCaja: '상자당 {piezas}개',
+    formatoAprendido: '이 서류로 「{formato}」 서식을 학습했습니다.',
+    elegirDescripcion: '설명 선택',
+    variasDescripciones:
+      '이 코드에는 제품이 {total}개 있습니다. 저장하기 전에 입고한 제품을 선택하세요.',
+    faltaInsumo: '입고한 설명을 선택하세요.',
+    verDetalle: '상세 보기',
+    detalle: '입고 상세',
+    cajas: '상자',
+    piezasTotales: '개수',
+    falloDetalle: '상세 정보를 불러오지 못했습니다.',
+    entranPiezas: '{piezas}개가 입고됩니다',
     noRegistrado: '미등록',
     noRegistradoAyuda: '이 코드는 카탈로그에 없습니다. 저장 전에 등록하세요.',
     irAlCatalogo: '카탈로그로 이동',
@@ -579,13 +606,19 @@ export const ko: Diccionario = {
     qrRecibida: '사진을 받았습니다. 처리 중…',
     qrExpirada: '코드가 만료되었습니다. 새로 생성하세요.',
     qrFallo: '코드를 생성하지 못했습니다.',
+    qrSinConexion:
+      '사진을 기다리는 동안 서버 연결이 끊어졌습니다. 새 코드를 생성하세요.',
+    qrSoloLocal:
+      'localhost로 접속 중입니다. 휴대폰에서는 휴대폰 자신을 가리키므로 '
+      + '코드를 사용하려면 네트워크 주소나 도메인으로 패널을 여세요.',
     buscar: '공급업체 또는 전표 번호로 검색…',
     formato: '양식',
     todosLosFormatos: '모든 양식',
     capturadaPor: '등록자',
     capturadaEl: '등록 일시',
     totalPartidas: '품목 {total}건',
-    verFoto: '사진 보기',
+    fotoRemision: '납품서 사진',
+    sinFoto: '사진 없이 등록된 입고입니다.',
     manual: '수동 입력',
     vacio: '아직 등록된 입고가 없습니다.',
     vacioAyuda: '첫 납품서를 촬영해 시작하세요.',
@@ -825,13 +858,20 @@ export const ko: Diccionario = {
       '재고 한도를 관리합니다.',
     nuevo: '새 물품',
     codigo: '코드',
-    codigoAyuda: '물품을 식별합니다. 중복될 수 없습니다.',
+    codigoAyuda:
+      '공급업체 코드입니다. 중복될 수 있으며, 같은 코드의 두 자재를 구분하는 것은 ' +
+      '설명입니다.',
+    descripcionAyuda: '필수 항목입니다. 같은 코드의 자재를 구분하는 기준입니다.',
     descripcionCampo: '설명',
     categoria: '분류',
     unidadMedida: '단위',
     proveedor: '공급업체',
     ubicacion: '위치',
-    cantidad: '수량',
+    piezasPorCaja: '상자당 개수',
+    piezasPorCajaAyuda:
+      '상자나 묶음 하나에 들어 있는 개수입니다. 입고 시 입력한 수량에 곱해집니다.',
+    existencia: '재고 수량',
+    existenciaAyuda: '실제 재고 수량입니다. 실사 후 여기에서 수정하세요.',
     minimo: '최소 재고',
     maximo: '최대 재고',
     rango: '최소 / 최대',
@@ -857,20 +897,26 @@ export const ko: Diccionario = {
     falloEliminar: '물품을 삭제하지 못했습니다.',
     confirmarEliminar: '물품 삭제',
     confirmarEliminarDetalle:
-      '「{codigo}」이(가) 카탈로그에서 삭제됩니다. 이 작업은 되돌릴 수 없습니다.',
+      '「{codigo} · {descripcion}」이(가) 카탈로그에서 삭제됩니다. 이 작업은 되돌릴 수 ' +
+      '없습니다.',
     faltaCodigo: '물품의 코드를 입력하세요.',
     faltaCategoria: '분류를 선택하세요.',
     faltaUnidad: '단위를 선택하세요.',
     numeroInvalido: '0 이상의 정수를 입력하세요.',
+    faltaDescripcion: '설명을 입력하세요.',
+    piezasInvalidas: '1 이상의 정수를 입력하세요.',
     rangoInvertido: '최대값은 최소값보다 작을 수 없습니다.',
   },
 
   semaforoInsumo: {
-    bajo: '최소 미만',
+    bajo: '부족',
+    medio: '절반',
     normal: '정상',
     excedido: '최대 초과',
+    sinTopes: '기준 미설정',
     ayuda:
-      '재고가 최소값에 미치지 못하면 최소 미만, 최대값을 넘으면 최대 초과입니다.',
+      '최대값의 75 % 이상이면 초록, 그 아래는 노랑, 35 % 미만이거나 최소값보다 ' +
+      '적으면 빨강입니다. 최대값이 없는 자재는 회색으로 표시됩니다.',
   },
 
   importarCatalogo: {

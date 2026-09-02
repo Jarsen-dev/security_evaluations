@@ -1,6 +1,8 @@
 'use client';
 
+import { BotonIcono, FilaAcciones } from '@/components/ui/BotonIcono';
 import { Button } from '@/components/ui/Button';
+import { IconoOjo } from '@/components/ui/Iconos';
 import { Card } from '@/components/ui/Card';
 import { bilingue, unaLinea, useIdioma, type ClaveTraduccion } from '@/lib/i18n';
 import type { Area, ColumnaOrdenable, IntentosPaginados } from '@/lib/types';
@@ -264,16 +266,18 @@ export function TablaIntentos({
                   </td>
 
                   <td className="px-5 py-3">
-                    <Button
-                      variante="secundario"
-                      tamano="sm"
-                      onClick={() => onVerRespuestas(intento.id)}
-                      aria-label={t('estadisticas.verRespuestasDe', {
-                        nombre: intento.nombre,
-                      })}
-                    >
-                      {bilingue(t('estadisticas.verRespuestas'))}
-                    </Button>
+                    <FilaAcciones>
+                      {/* La etiqueta lleva el nombre de quien contestó: en una
+                          tabla de cincuenta renglones, «Ver respuestas» a secas
+                          no dice de quién. */}
+                      <BotonIcono
+                        etiqueta={t('estadisticas.verRespuestasDe', {
+                          nombre: intento.nombre,
+                        })}
+                        icono={<IconoOjo />}
+                        onClick={() => onVerRespuestas(intento.id)}
+                      />
+                    </FilaAcciones>
                   </td>
                 </tr>
               ))}

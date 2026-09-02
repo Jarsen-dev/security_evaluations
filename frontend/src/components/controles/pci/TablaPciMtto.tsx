@@ -1,6 +1,6 @@
 'use client';
 
-import { BotonIcono } from '@/components/controles/AccionesRegistro';
+import { BotonIcono, FilaAcciones } from '@/components/ui/BotonIcono';
 import { IconoDescargar, IconoLapiz, IconoOjo } from '@/components/ui/Iconos';
 import { urlFotoControl } from '@/lib/api';
 import { bilingue, useIdioma } from '@/lib/i18n';
@@ -121,7 +121,7 @@ export function TablaPciMtto({
                   )}
                 </td>
                 <td className="px-3 py-2">
-                  <div className="flex items-center justify-end gap-1">
+                  <FilaAcciones>
                     <BotonIcono
                       etiqueta={t('pciMtto.reporteDescargar')}
                       icono={<IconoDescargar />}
@@ -141,7 +141,7 @@ export function TablaPciMtto({
                         onClick={() => onCorregir(registro)}
                       />
                     )}
-                  </div>
+                  </FilaAcciones>
                 </td>
               </tr>
             );

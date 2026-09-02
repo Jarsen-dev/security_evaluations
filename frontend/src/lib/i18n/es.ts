@@ -551,11 +551,27 @@ export const es = {
     descripcion:
       'Inventario de medicamento y demás insumos de seguridad.',
     recepciones: 'Recepciones',
+    stock: 'Stock',
     historial: 'Historial',
     enConstruccion: 'En construcción',
     enConstruccionDetalle:
       'El inventario todavía se lleva en el archivo de Excel. Se habilitará aquí ' +
       'en cuanto se definan sus reglas de captura.',
+  },
+
+  stock: {
+    titulo: 'Existencias',
+    descripcion:
+      'Lo que hay hoy en el almacén, en piezas sueltas. Cada recepción ' +
+      'confirmada suma las cajas capturadas multiplicadas por las piezas que ' +
+      'trae cada una.',
+    actualizar: 'Actualizar',
+    existencia: 'Cantidad',
+    registros: '{total} insumo(s)',
+    vacio: 'Todavía no hay insumos en el catálogo.',
+    vacioAyuda: 'Da de alta el primero en la pestaña de Catálogo.',
+    sinCoincidencias: 'Ningún insumo coincide con los filtros.',
+    falloCarga: 'No se pudieron cargar las existencias.',
   },
 
   recepciones: {
@@ -585,6 +601,18 @@ export const es = {
     unidad: 'Unidad',
     agregarPartida: 'Agregar partida',
     quitarPartida: 'Quitar partida',
+    porCaja: '{piezas} por caja',
+    formatoAprendido: 'Formato «{formato}» aprendido con este documento.',
+    elegirDescripcion: 'Elige la descripción',
+    variasDescripciones:
+      'Este código ampara {total} productos. Elige cuál recibiste antes de guardar.',
+    faltaInsumo: 'Elige cuál de las descripciones recibiste.',
+    verDetalle: 'Ver detalle',
+    detalle: 'Detalle de la recepción',
+    cajas: 'Cajas',
+    piezasTotales: 'Piezas',
+    falloDetalle: 'No se pudo cargar el detalle.',
+    entranPiezas: 'Entran {piezas} piezas',
     noRegistrado: 'No registrado',
     noRegistradoAyuda: 'Este código no está en el catálogo. Agrégalo antes de guardar.',
     irAlCatalogo: 'Ir a Catálogo',
@@ -614,13 +642,21 @@ export const es = {
     qrRecibida: 'Foto recibida. Procesando…',
     qrExpirada: 'El código expiró. Genera uno nuevo.',
     qrFallo: 'No se pudo generar el código.',
+    qrSinConexion:
+      'Se perdió la conexión con el servidor mientras se esperaba la foto. '
+      + 'Genera un código nuevo.',
+    qrSoloLocal:
+      'Estás entrando por localhost, que en el celular apunta al celular '
+      + 'mismo. Abre el panel por la dirección de la red o por el dominio '
+      + 'para poder usar el código.',
     buscar: 'Buscar por proveedor o folio…',
     formato: 'Formato',
     todosLosFormatos: 'Todos los formatos',
     capturadaPor: 'Capturada por',
     capturadaEl: 'Fecha de captura',
     totalPartidas: '{total} partida(s)',
-    verFoto: 'Ver foto',
+    fotoRemision: 'Foto de la remisión',
+    sinFoto: 'Esta recepción se capturó sin foto.',
     manual: 'Captura manual',
     vacio: 'Todavía no se ha registrado ninguna recepción.',
     vacioAyuda: 'Fotografía la primera remisión para empezar.',
@@ -866,13 +902,21 @@ export const es = {
       'extintores, con su existencia y sus topes de inventario.',
     nuevo: 'Nuevo insumo',
     codigo: 'Código',
-    codigoAyuda: 'Identifica al insumo. No puede repetirse.',
+    codigoAyuda:
+      'La clave del proveedor. Puede repetirse: lo que distingue a dos ' +
+      'insumos con el mismo código es su descripción.',
+    descripcionAyuda: 'Obligatoria. Es lo que distingue a dos insumos con el mismo código.',
     descripcionCampo: 'Descripción',
     categoria: 'Categoría',
     unidadMedida: 'Unidad de medida',
     proveedor: 'Proveedor',
     ubicacion: 'Ubicación',
-    cantidad: 'Cantidad',
+    piezasPorCaja: 'Piezas por caja',
+    piezasPorCajaAyuda:
+      'Cuántas piezas trae cada caja o paquete. Se multiplica por lo que se ' +
+      'capture en una recepción.',
+    existencia: 'Existencia',
+    existenciaAyuda: 'El inventario real, en piezas. Corrígelo tras el conteo físico.',
     minimo: 'Mín. inventario',
     maximo: 'Máx. inventario',
     rango: 'Mín. / Máx.',
@@ -898,21 +942,27 @@ export const es = {
     falloEliminar: 'No se pudo eliminar el insumo.',
     confirmarEliminar: 'Eliminar insumo',
     confirmarEliminarDetalle:
-      '«{codigo}» se borrará del catálogo. Esta acción no se puede deshacer.',
+      '«{codigo} · {descripcion}» se borrará del catálogo. Esta acción no se ' +
+      'puede deshacer.',
     faltaCodigo: 'Escribe el código del insumo.',
     faltaCategoria: 'Elige una categoría.',
     faltaUnidad: 'Elige una unidad de medida.',
     numeroInvalido: 'Escribe un número entero de 0 o más.',
+    faltaDescripcion: 'Escribe la descripción.',
+    piezasInvalidas: 'Escribe un número entero de 1 o más.',
     rangoInvertido: 'El máximo no puede ser menor que el mínimo.',
   },
 
   semaforoInsumo: {
-    bajo: 'Bajo mínimo',
+    bajo: 'Bajo',
+    medio: 'A la mitad',
     normal: 'Normal',
     excedido: 'Excedido',
+    sinTopes: 'Sin topes',
     ayuda:
-      'Bajo mínimo cuando la existencia no alcanza el mínimo; excedido cuando ' +
-      'pasa del máximo.',
+      'Verde del 75 % del máximo hacia arriba, amarillo hasta ahí, y rojo por ' +
+      'debajo del 35 % o del mínimo capturado. Gris mientras el insumo no ' +
+      'tenga máximo: sin tope no hay contra qué medirlo.',
   },
 
   importarCatalogo: {

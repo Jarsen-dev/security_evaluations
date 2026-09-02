@@ -114,6 +114,12 @@ const config: Config = {
       borderRadius: {
         tarjeta: '0.625rem',
       },
+      zIndex: {
+        // La pantalla completa del visor tiene que quedar POR ENCIMA del modal
+        // (`z-50`): el historial abre la foto de la remisión dentro de uno, y
+        // con el mismo valor quién gana lo decidiría el orden del DOM.
+        visor: '60',
+      },
     },
   },
   plugins: [],

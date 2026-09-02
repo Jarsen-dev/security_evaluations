@@ -8,6 +8,9 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 from app.core.constants import (
     CATEGORIAS_INSUMO,
     CATEGORIAS_VALIDAS,
+    LONGITUD_DESCRIPCION,
+    TOPE_EXISTENCIA,
+    TOPE_PIEZAS,
     UNIDADES_MEDIDA,
     UNIDADES_VALIDAS,
 )
@@ -54,20 +57,21 @@ class _InsumoBase(BaseModel):
     """Campos comunes al alta y a la edición."""
 
     codigo: str = Field(min_length=1, max_length=150)
-    descripcion: str | None = Field(default=None, max_length=2000)
+    # Obligatoria: es lo único que distingue a dos insumos con el mismo código.
+    # El tope de 300 es el de la columna, que entra al índice único.
+    descripcion: str = Field(min_length=1, max_length=LONGITUD_DESCRIPCION)
     categoria: str = Field(max_length=30)
     unidad_medida: str = Field(max_length=10)
     proveedor: str | None = Field(default=None, max_length=150)
     ubicacion: str | None = Field(default=None, max_length=150)
-    cantidad: int = Field(default=0, ge=0)
-    minimo: int = Field(default=0, ge=0)
-    maximo: int = Field(default=0, ge=0)
+    piezas_por_empaque: int = Field(default=1, ge=1, le=TOPE_PIEZAS)
+    existencia: int = Field(default=0, ge=0, le=TOPE_EXISTENCIA)
+    minimo: int = Field(default=0, ge=0, le=TOPE_EXISTENCIA)
+    maximo: int = Field(default=0, ge=0, le=TOPE_EXISTENCIA)
 
     _limpiar_categoria = field_validator("categoria")(_validar_categoria)
     _limpiar_unidad_medida = field_validator("unidad_medida")(_validar_unidad_medida)
-    _limpiar_opcionales = field_validator("descripcion", "proveedor", "ubicacion")(
-        _texto_opcional
-    )
+    _limpiar_opcionales = field_validator("proveedor", "ubicacion")(_texto_opcional)
 
     @field_validator("codigo")
     @classmethod
@@ -75,6 +79,20 @@ class _InsumoBase(BaseModel):
         limpio = _texto(valor)
         if not limpio:
             raise ValueError("El código del insumo es obligatorio.")
+        return limpio
+
+    # Validador propio y no `_texto_opcional`: aquel deja en `None` lo que
+    # quede vacío, y "   " saldría como un «campo requerido» genérico en vez
+    # del mensaje que explica por qué hace falta.
+    @field_validator("descripcion")
+    @classmethod
+    def _limpiar_descripcion(cls, valor: str) -> str:
+        limpio = _texto(valor)
+        if not limpio:
+            raise ValueError(
+                "La descripción es obligatoria: es lo que distingue a dos "
+                "insumos con el mismo código."
+            )
         return limpio
 
     @model_validator(mode="after")
@@ -102,6 +120,10 @@ class InsumoActualizar(_InsumoBase):
 class InsumoOut(BaseModel):
     """Insumo tal como sale de la API.
 
+    ``piezas_por_empaque`` es el contenido de una caja y ``existencia`` el
+    inventario real en piezas: son dos datos distintos y la pantalla los
+    muestra por separado.
+
     ``estado`` lo calcula el servidor (ver ``models/insumo.estado_insumo``);
     el frontend no lo deduce, solo lo pinta.
     """
@@ -110,12 +132,13 @@ class InsumoOut(BaseModel):
 
     id: uuid.UUID
     codigo: str
-    descripcion: str | None = None
+    descripcion: str
     categoria: str
     unidad_medida: str
     proveedor: str | None = None
     ubicacion: str | None = None
-    cantidad: int
+    piezas_por_empaque: int
+    existencia: int
     minimo: int
     maximo: int
     estado: str

@@ -4,6 +4,11 @@ Confirmar una recepción hace dos cosas indivisibles: deja el documento con sus
 partidas y **suma la existencia** de cada insumo del catálogo. Las partidas
 son, de hecho, el rastro de esa entrada: dicen qué código, cuánto y de qué
 documento vino.
+
+Lo que se captura son cajas o paquetes —es lo que dice la remisión— y lo que
+entra al inventario son piezas: la conversión la hace este servicio con las
+``piezas_por_empaque`` del catálogo, que además quedan guardadas en la partida
+para que el documento histórico no cambie si mañana cambia la presentación.
 """
 
 import logging
@@ -26,7 +31,7 @@ from app.models.recepcion import (
     Recepcion,
     SesionQrRecepcion,
 )
-from app.schemas.recepcion import RecepcionCrear
+from app.schemas.recepcion import ItemRecepcionCrear, RecepcionCrear
 from app.services import insumo_service
 
 logger = logging.getLogger(__name__)
@@ -98,7 +103,7 @@ async def obtener_foto(db: AsyncSession, foto_id: uuid.UUID) -> FotoRecepcion:
 
 
 def _codigos_faltantes(
-    datos: RecepcionCrear, encontrados: dict[str, Insumo]
+    datos: RecepcionCrear, encontrados: dict[str, list[Insumo]]
 ) -> list[str]:
     """Códigos del documento que no están en el catálogo, en orden de captura."""
     faltantes: list[str] = []
@@ -107,6 +112,41 @@ def _codigos_faltantes(
         if clave not in encontrados and item.codigo not in faltantes:
             faltantes.append(item.codigo)
     return faltantes
+
+
+def _resolver_insumo(item: ItemRecepcionCrear, candidatos: list[Insumo]) -> Insumo:
+    """Decide a qué insumo entra la partida.
+
+    Un mismo código ampara varios productos, así que el código no basta: quien
+    captura elige la descripción y manda su ``insumo_id``.
+
+    El id se busca **entre los candidatos de ese código**, no por sí solo. Si
+    se resolviera a secas, un cliente podría mandar un código y el id de otro
+    insumo cualquiera: la partida se guardaría con el snapshot del otro y el
+    código tecleado se ignoraría en silencio.
+
+    Sin id y con varios candidatos se rechaza en vez de elegir. Eso cubre
+    también la carrera: entre que la IA leyó la remisión y el operador guarda,
+    alguien pudo dar de alta una segunda descripción para ese código, y una
+    partida que era inequívoca dejó de serlo.
+    """
+    if item.insumo_id is not None:
+        for insumo in candidatos:
+            if insumo.id == item.insumo_id:
+                return insumo
+        raise ErrorDeNegocio(
+            f"La descripción elegida ya no corresponde al código "
+            f"«{item.codigo}». Vuelve a elegirla."
+        )
+
+    if len(candidatos) == 1:
+        return candidatos[0]
+
+    raise ErrorDeNegocio(
+        f"El código «{item.codigo}» tiene varias descripciones. Elige cuál de "
+        f"ellas recibiste.",
+        [insumo.descripcion for insumo in candidatos],
+    )
 
 
 async def crear(
@@ -121,6 +161,9 @@ async def crear(
     Valida **todos** los códigos de una sola consulta y, si falta alguno,
     falla con la lista completa: hacer que el usuario descubra los faltantes
     de uno en uno sería una tortura con una remisión de veinte partidas.
+
+    Qué insumo recibe cada partida lo decide ``_resolver_insumo()``: el código
+    puede amparar varios productos y el desempate viaja en el ``insumo_id``.
     """
     if not datos.items:
         raise ErrorDeNegocio(SIN_PARTIDAS)
@@ -157,7 +200,11 @@ async def crear(
     por_insumo: dict[uuid.UUID, int] = defaultdict(int)
 
     for item in datos.items:
-        insumo = catalogo[item.codigo.lower()]
+        insumo = _resolver_insumo(item, catalogo[item.codigo.lower()])
+        # Lo que el operador teclea son CAJAS; al inventario entran piezas. La
+        # conversión se hace aquí y con el dato del catálogo: el cliente manda
+        # lo que dice el papel y nunca el total.
+        piezas = item.cantidad * insumo.piezas_por_empaque
         db.add(
             ItemRecepcion(
                 recepcion_id=recepcion.id,
@@ -167,19 +214,20 @@ async def crear(
                 descripcion=insumo.descripcion,
                 unidad_medida=insumo.unidad_medida,
                 cantidad=item.cantidad,
+                piezas_por_empaque=insumo.piezas_por_empaque,
             )
         )
-        por_insumo[insumo.id] += item.cantidad
+        por_insumo[insumo.id] += piezas
 
     # El incremento se hace en SQL, no leyendo-modificando-escribiendo: con
     # cuatro workers de uvicorn dos recepciones simultáneas del mismo insumo
     # se pisarían y una de las dos entradas se perdería en silencio.
-    for insumo_id, cantidad in por_insumo.items():
+    for insumo_id, piezas in por_insumo.items():
         await db.execute(
             update(Insumo)
             .where(Insumo.id == insumo_id)
             .values(
-                cantidad=Insumo.cantidad + cantidad,
+                existencia=Insumo.existencia + piezas,
                 actualizado_at=datetime.now(UTC),
             )
         )

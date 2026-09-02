@@ -5,7 +5,9 @@ import { useCallback, useEffect, useState } from 'react';
 import { ModalPunto, type DatosPunto } from '@/components/rondines/ModalPunto';
 import { ModalQrPunto } from '@/components/rondines/ModalQrPunto';
 import { Badge } from '@/components/ui/Badge';
+import { BotonIcono, FilaAcciones } from '@/components/ui/BotonIcono';
 import { Button } from '@/components/ui/Button';
+import { IconoBote, IconoLapiz, IconoQr } from '@/components/ui/Iconos';
 import { DialogoConfirmacion } from '@/components/ui/DialogoConfirmacion';
 import { useToast } from '@/components/ui/Toast';
 import {
@@ -228,37 +230,32 @@ export function PanelPuntos() {
                     </Badge>
                   </td>
                   <td className="px-5 py-3">
-                    <div className="flex justify-end gap-2">
-                      <Button
-                        variante="secundario"
-                        tamano="sm"
+                    <FilaAcciones>
+                      <BotonIcono
+                        etiqueta={t('puntosRondin.verCodigo')}
+                        icono={<IconoQr />}
                         onClick={() => setVerQr(punto)}
-                      >
-                        {bilingue(t('puntosRondin.verCodigo'))}
-                      </Button>
+                      />
 
                       {puedeEditar && (
                         <>
-                          <Button
-                            variante="secundario"
-                            tamano="sm"
+                          <BotonIcono
+                            etiqueta={t('comun.editar')}
+                            icono={<IconoLapiz />}
                             onClick={() => {
                               setEditando(punto);
                               setModalAbierto(true);
                             }}
-                          >
-                            {bilingue(t('comun.editar'))}
-                          </Button>
-                          <Button
-                            variante="peligro"
-                            tamano="sm"
+                          />
+                          <BotonIcono
+                            etiqueta={t('comun.eliminar')}
+                            icono={<IconoBote />}
+                            tono="error"
                             onClick={() => setPorEliminar(punto)}
-                          >
-                            {bilingue(t('comun.eliminar'))}
-                          </Button>
+                          />
                         </>
                       )}
-                    </div>
+                    </FilaAcciones>
                   </td>
                 </tr>
               ))}

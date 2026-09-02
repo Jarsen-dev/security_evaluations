@@ -18,6 +18,18 @@ DIRECTORIO_ESTATICOS = Path(__file__).resolve().parents[2] / "static"
 RUTA_LOGO = DIRECTORIO_ESTATICOS / "Logo.png"
 
 
+# Espejo en disco de los formatos que el clasificador aprende: una carpeta por
+# formato con la foto, el JSON y el texto del OCR, para poder revisarlos como
+# archivos. **Fuera de `static/` a propósito**: aquel se sirve en /api/static
+# SIN sesión —el formulario público necesita el logo— y el túnel lo publica,
+# así que ahí dentro las remisiones quedarían al alcance de cualquiera.
+#
+# Es una copia, no la fuente: el clasificador sigue leyendo de la base. Y
+# necesita el volumen declarado en docker-compose.yml, o se vacía en cada
+# `--build` sin que nada falle de forma visible.
+DIRECTORIO_FORMATOS = Path(__file__).resolve().parents[2] / "ocr_formatos"
+
+
 def hay_logo() -> bool:
     """Indica si el logo está disponible en disco."""
     return RUTA_LOGO.is_file()
@@ -184,12 +196,18 @@ class Settings(BaseSettings):
     OLLAMA_HOST: str = "http://192.168.1.56:11434"
     OLLAMA_TEXT_MODEL: str = "llama3.2:latest"
 
-    # Umbral del clasificador TF-IDF. Calibrado contra documentos reales: los
-    # aciertos caen en 0.41-0.76 y los formatos ajenos no pasan de 0.149.
-    # Subirlo sale caro (a 0.25 el acierto bajo ruido cae de 40% a 7% sin
-    # ganar rechazo) y de los dos errores el falso negativo duele más: obliga
-    # a dar de alta un formato duplicado, mientras que un falso positivo lo
-    # corrige el operador en la pantalla de revisión.
+    # Piso absoluto del clasificador TF-IDF: por debajo de esto un documento no
+    # se parece a nada conocido. **Quien decide de verdad es el cociente**
+    # contra el mejor de otro formato (`FACTOR_DISTINCION` en
+    # `ocr_recepciones.py`), porque todas las facturas CFDI comparten la
+    # plantilla del SAT y el parecido absoluto sube por igual para todos los
+    # formatos. Medido con documentos reales de la planta: las facturas que sí
+    # son del formato puntúan 0.227, 0.312 y 0.632 —el absoluto no las
+    # distingue de una ajena, que daba 0.314— pero le ganan al segundo formato
+    # por 1.30, 1.80 y 2.47 veces, mientras que una ajena empata con todos.
+    #
+    # Estuvo en 0.40 unas horas, con el cociente sin implementar: rechazaba las
+    # facturas legítimas del mismo proveedor a partir de la segunda.
     OCR_UMBRAL_SIMILITUD: float = Field(default=0.20, ge=0.0, le=1.0)
 
     # Presupuesto de tiempo en capas. La regla que no se puede romper: el

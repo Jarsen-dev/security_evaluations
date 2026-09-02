@@ -880,6 +880,41 @@ export function importarCatalogoExcel(
 /** La cookie httpOnly viaja sola, así que basta un <a download>. */
 export const URL_PLANTILLA_CATALOGO = '/api/catalogo/plantilla-excel';
 
+// --- Existencias (pestaña Stock de Inventario) -----------------------------
+//
+// La existencia vive en el catálogo, pero la pestaña que la consulta es de
+// Inventario y los permisos son distintos: quien tiene `inventario` y no
+// `catalogo` recibiría 403 llamando a `/catalogo`. Por eso hay dos endpoints
+// gemelos bajo `/inventario`, con los mismos filtros y la misma respuesta.
+
+export const listarStock = (
+  filtros: FiltrosCatalogo,
+  pagina = 1,
+  senal?: AbortSignal,
+): Promise<InsumosPaginados> =>
+  api.get<InsumosPaginados>(
+    `/inventario/stock?${consultaCatalogo(filtros, pagina)}`,
+    senal,
+  );
+
+/**
+ * Las descripciones que ampara un código, para la captura de recepciones.
+ *
+ * Va por `/inventario` y no por `/catalogo`: aquel exige otro módulo, y al
+ * almacenista sin permiso de catálogo le respondía 403 en cada código.
+ */
+export const insumosPorCodigo = (
+  codigo: string,
+  senal?: AbortSignal,
+): Promise<Insumo[]> =>
+  api.get<Insumo[]>(`/inventario/insumos?codigo=${encodeURIComponent(codigo)}`, senal);
+
+/** Las mismas categorías del catálogo, bajo el permiso de inventario. */
+export const obtenerCategoriasStock = (): Promise<string[]> =>
+  api
+    .get<{ categorias: string[] }>('/inventario/stock/categorias')
+    .then((datos) => datos.categorias);
+
 // --- Rondines de seguridad -------------------------------------------------
 
 export const obtenerTablero = (fecha: string, turno: TurnoRondin): Promise<Tablero> =>

@@ -712,19 +712,28 @@ export interface Estudio extends EstudioPayload {
 
 // --- Catálogo de insumos ---------------------------------------------------
 
-/** Semáforo de la existencia contra su rango. Lo decide el backend. */
-export type EstadoInsumo = 'bajo' | 'normal' | 'excedido';
+/**
+ * Semáforo de la existencia contra sus topes. Lo decide el backend.
+ *
+ * `sin_topes` no es un nivel de inventario sino la ausencia de referencia: el
+ * insumo no tiene máximo capturado y no hay contra qué medirlo.
+ */
+export type EstadoInsumo = 'bajo' | 'medio' | 'normal' | 'excedido' | 'sin_topes';
 
 /** Un renglón del catálogo de insumos de seguridad. */
 export interface Insumo {
   id: string;
   codigo: string;
-  descripcion: string | null;
+  /** Obligatoria: es lo que distingue a dos insumos con el mismo código. */
+  descripcion: string;
   categoria: string;
   unidad_medida: string;
   proveedor: string | null;
   ubicacion: string | null;
-  cantidad: number;
+  /** Piezas que trae cada caja o paquete. Dato del producto, no del almacén. */
+  piezas_por_empaque: number;
+  /** Inventario real, en piezas sueltas. */
+  existencia: number;
   minimo: number;
   maximo: number;
   estado: EstadoInsumo;
@@ -735,12 +744,13 @@ export interface Insumo {
 /** Alta y edición de un insumo (los dos mandan lo mismo). */
 export interface InsumoPayload {
   codigo: string;
-  descripcion: string | null;
+  descripcion: string;
   categoria: string;
   unidad_medida: string;
   proveedor: string | null;
   ubicacion: string | null;
-  cantidad: number;
+  piezas_por_empaque: number;
+  existencia: number;
   minimo: number;
   maximo: number;
 }
@@ -753,12 +763,11 @@ export interface InsumosPaginados {
   items: Insumo[];
 }
 
-/** Filtros de la pantalla de catálogo. */
+/** Filtros de las pantallas de catálogo y de stock, que son los mismos. */
 export interface FiltrosCatalogo {
   busqueda?: string;
   categoria?: string;
-  /** Solo se filtra por los dos estados que piden acción. */
-  estado?: 'bajo' | 'excedido';
+  estado?: EstadoInsumo;
 }
 
 /** Resumen de una carga masiva desde Excel. */
@@ -858,10 +867,26 @@ export interface EscaneoRegistrado {
 
 // --- Recepciones de mercancía ----------------------------------------------
 
+/** Una de las descripciones que ampara un código. */
+export interface CandidatoInsumo {
+  id: string;
+  descripcion: string;
+  unidad_medida: string;
+  piezas_por_empaque: number;
+}
+
 /** Una partida tal como la captura o corrige el operador. */
 export interface ItemRecepcionPayload {
   codigo: string;
   cantidad: number;
+  /**
+   * Cuál de las descripciones de ese código se recibió. El código puede
+   * amparar varios productos, así que sin esto el servidor rechaza la partida
+   * en vez de adivinar.
+   */
+  insumo_id: string | null;
+  /** La descripción tal como la dice el papel, no la del catálogo. */
+  descripcion: string | null;
 }
 
 /** Lo que se manda al confirmar un documento. */
@@ -885,12 +910,19 @@ export interface ItemRecepcion {
   codigo: string;
   descripcion: string | null;
   unidad_medida: string;
+  /** Cajas o paquetes, que es lo que dice el papel. */
   cantidad: number;
+  /** Piezas por caja al momento de guardar: snapshot, no un join. */
+  piezas_por_empaque: number;
+  /** Lo que esta partida sumó al inventario. */
+  piezas: number;
 }
 
 /** Un documento de recepción guardado. */
 export interface Recepcion {
   id: string;
+  /** Por qué no se aprendió el formato, si es que no se aprendió. */
+  aviso?: string | null;
   foto_id: string | null;
   proveedor: string | null;
   folio: string | null;
@@ -933,10 +965,21 @@ export interface ResultadoOcr {
   ocr_ok: boolean;
   tipo_documento: string;
   tipo_conocido: boolean;
+  /** El nombre legible del formato; `tipo_documento` es el identificador. */
+  tipo_nombre: string | null;
   proveedor: string | null;
   folio: string | null;
   fecha: string | null;
-  items: Array<{ codigo?: string | null; cantidad?: number | null }>;
+  items: Array<{
+    codigo?: string | null;
+    cantidad?: number | null;
+    /** Lo que la IA leyó en ese renglón de la remisión. */
+    descripcion?: string | null;
+    /** La descripción del catálogo que el servidor eligió, si estuvo seguro. */
+    insumo_id?: string | null;
+    /** Todas las del código, para ofrecerlas sin otra vuelta al servidor. */
+    candidatos?: CandidatoInsumo[];
+  }>;
   advertencias: string[];
   ocr_raw: Record<string, unknown> | null;
   error: string | null;

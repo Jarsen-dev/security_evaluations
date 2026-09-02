@@ -1,10 +1,13 @@
 """Catálogo de insumos de seguridad.
 
-Es un catálogo, no un almacén: la existencia se captura a mano tras el conteo.
-El sistema de recepciones y salidas se construirá encima más adelante.
+Cada renglón lleva dos números que se confunden fácil: ``piezas_por_empaque``
+es lo que trae una caja del producto, y ``existencia`` es el inventario real en
+piezas. La existencia la suman las recepciones y se corrige a mano tras el
+conteo físico; las piezas por empaque solo cambian si cambia la presentación.
 """
 
 import uuid
+from collections import defaultdict
 from datetime import UTC, datetime
 from typing import Any
 
@@ -13,7 +16,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.errors import ConflictoDeNegocio, RecursoNoEncontrado
-from app.models.insumo import ESTADO_BAJO, ESTADO_EXCEDIDO, Insumo
+from app.models.insumo import EXPRESIONES_ESTADO, Insumo
 from app.schemas.catalogo import InsumoActualizar, InsumoCrear
 
 #: Renglones por pantalla. Fijo: el catálogo se hojea, no se configura.
@@ -24,9 +27,24 @@ TAMANO_PAGINA: int = 50
 COMODINES_LIKE = str.maketrans({"\\": "\\\\", "%": "\\%", "_": "\\_"})
 
 CODIGO_DUPLICADO = (
-    "Ya existe un insumo con ese código. Los códigos no distinguen mayúsculas."
+    "Ya existe un insumo con ese código y esa misma descripción. Un código "
+    "puede repetirse, pero la descripción tiene que distinguirlos. Ni el "
+    "código ni la descripción distinguen mayúsculas."
 )
 NO_EXISTE = "El insumo no existe."
+
+#: Cuánto de la descripción cabe en un renglón de bitácora. El middleware
+#: recorta en 300 contando el prefijo del catálogo ("Editó un insumo: "), así
+#: que una descripción larga se comería el resto del renglón.
+LARGO_ETIQUETA_BITACORA = 80
+
+
+def etiquetar(insumo: Insumo) -> str:
+    """Cómo se nombra un insumo en la bitácora y en los diálogos.
+
+    Con el código repetible, `codigo` por sí solo ya no dice cuál fue.
+    """
+    return f"{insumo.codigo} · {insumo.descripcion[:LARGO_ETIQUETA_BITACORA]}"
 
 
 def _condiciones(
@@ -54,10 +72,11 @@ def _condiciones(
     if categoria:
         condiciones.append(Insumo.categoria == categoria)
 
-    if estado == ESTADO_BAJO:
-        condiciones.append(Insumo.cantidad < Insumo.minimo)
-    elif estado == ESTADO_EXCEDIDO:
-        condiciones.append(Insumo.cantidad > Insumo.maximo)
+    # El semáforo se arma en `models/insumo.py`, pegado a `estado_insumo()`:
+    # la regla es una cascada de cinco ramas y tenerla escrita dos veces la
+    # condenaba a divergir. La ruta ya validó que el estado exista.
+    if estado:
+        condiciones.append(EXPRESIONES_ESTADO[estado])
 
     return condiciones
 
@@ -72,8 +91,13 @@ async def _obtener(db: AsyncSession, insumo_id: uuid.UUID) -> Insumo:
 
 async def mapa_por_codigo(
     db: AsyncSession, codigos: set[str]
-) -> dict[str, Insumo]:
+) -> dict[str, list[Insumo]]:
     """Busca varios insumos por código en **una sola** consulta.
+
+    Cada código trae una **lista**: un mismo código de proveedor ampara varios
+    productos y lo que los distingue es la descripción. Devolver uno solo haría
+    que la recepción le sumara la existencia al primero que apareciera, sin que
+    nada avisara.
 
     La clave del diccionario es el código en minúsculas, porque así es el
     índice único: quien llama debe buscar con ``codigo.lower()``. Se resuelve
@@ -84,9 +108,30 @@ async def mapa_por_codigo(
         return {}
 
     filas = await db.scalars(
-        select(Insumo).where(func.lower(Insumo.codigo).in_(codigos))
+        select(Insumo)
+        .where(func.lower(Insumo.codigo).in_(codigos))
+        .order_by(func.lower(Insumo.descripcion))
     )
-    return {insumo.codigo.lower(): insumo for insumo in filas.all()}
+
+    mapa: dict[str, list[Insumo]] = defaultdict(list)
+    for insumo in filas.all():
+        mapa[insumo.codigo.lower()].append(insumo)
+    return dict(mapa)
+
+
+async def por_codigo(db: AsyncSession, codigo: str) -> list[Insumo]:
+    """Todos los insumos que comparten un código exacto.
+
+    Es lo que necesita la captura de recepciones para ofrecer las descripciones
+    de un código. Coincidencia exacta, no parcial: el buscador del catálogo
+    hace otra cosa.
+    """
+    filas = await db.scalars(
+        select(Insumo)
+        .where(func.lower(Insumo.codigo) == codigo.strip().lower())
+        .order_by(func.lower(Insumo.descripcion))
+    )
+    return list(filas.all())
 
 
 async def listar(
@@ -109,7 +154,10 @@ async def listar(
     filas = await db.scalars(
         select(Insumo)
         .where(*condiciones)
-        .order_by(func.lower(Insumo.codigo))
+        # El código ya no es único: sin desempate, dos insumos que lo comparten
+        # pueden salir en distinto orden entre páginas, repetirse en una y
+        # perderse en otra.
+        .order_by(func.lower(Insumo.codigo), func.lower(Insumo.descripcion), Insumo.id)
         .offset((page - 1) * TAMANO_PAGINA)
         .limit(TAMANO_PAGINA)
     )
@@ -160,16 +208,17 @@ async def actualizar(
 
 
 async def eliminar(db: AsyncSession, insumo_id: uuid.UUID) -> str:
-    """Borra un insumo y devuelve su código.
+    """Borra un insumo y devuelve cómo se llamaba.
 
     Después del DELETE ya no hay de dónde leerlo, y la bitácora necesita
-    decir qué se eliminó.
+    decir qué se eliminó. Va con la descripción y no solo con el código: el
+    código puede repetirse y por sí solo ya no identifica la fila.
     """
     insumo = await _obtener(db, insumo_id)
-    codigo = insumo.codigo
+    etiqueta = etiquetar(insumo)
     await db.delete(insumo)
     await db.commit()
-    return codigo
+    return etiqueta
 
 
 async def importar(db: AsyncSession, filas: list[InsumoCrear]) -> tuple[int, int]:
@@ -179,29 +228,36 @@ async def importar(db: AsyncSession, filas: list[InsumoCrear]) -> tuple[int, int
     actualizarse a propósito: así un archivo viejo no puede pisar existencias
     que ya se corrigieron en el panel.
 
-    Los códigos ya presentes se resuelven con **una** consulta, no una por
+    Lo que decide si una fila "ya existe" es la pareja **código +
+    descripción**, igual que el índice único: un mismo código puede traer
+    varias descripciones y todas son insumos distintos.
+
+    Las parejas ya presentes se resuelven con **una** consulta, no una por
     fila, y se compara en minúsculas porque así es el índice único.
     """
     if not filas:
         return 0, 0
 
     codigos = {fila.codigo.lower() for fila in filas}
-    existentes = set(
-        (
-            await db.scalars(
-                select(func.lower(Insumo.codigo)).where(
+    existentes = {
+        (codigo, descripcion.lower())
+        for codigo, descripcion in (
+            await db.execute(
+                select(func.lower(Insumo.codigo), Insumo.descripcion).where(
                     func.lower(Insumo.codigo).in_(codigos)
                 )
             )
         ).all()
-    )
+    }
 
     creados = 0
     omitidos = 0
-    vistos: set[str] = set()
+    vistos: set[tuple[str, str]] = set()
 
     for fila in filas:
-        clave = fila.codigo.lower()
+        # La clave es la pareja, no el código: un archivo con dos
+        # descripciones del mismo código tiene que dar de alta las dos.
+        clave = (fila.codigo.lower(), fila.descripcion.lower())
         # `vistos` atrapa los repetidos DENTRO del mismo archivo, que la
         # consulta de arriba no puede ver todavía.
         if clave in existentes or clave in vistos:

@@ -29,12 +29,13 @@ function aPayload(datos: DatosInsumo): InsumoPayload {
 
   return {
     codigo: datos.codigo.trim(),
-    descripcion: opcional(datos.descripcion),
+    descripcion: datos.descripcion.trim(),
     categoria: datos.categoria,
     unidad_medida: datos.unidad_medida,
     proveedor: opcional(datos.proveedor),
     ubicacion: opcional(datos.ubicacion),
-    cantidad: Number(datos.cantidad),
+    piezas_por_empaque: Number(datos.piezas_por_empaque),
+    existencia: Number(datos.existencia),
     minimo: Number(datos.minimo),
     maximo: Number(datos.maximo),
   };
@@ -247,7 +248,10 @@ export function PanelCatalogo() {
         mensaje={
           porEliminar === null
             ? ''
-            : t('catalogo.confirmarEliminarDetalle', { codigo: porEliminar.codigo })
+            : t('catalogo.confirmarEliminarDetalle', {
+                codigo: porEliminar.codigo,
+                descripcion: porEliminar.descripcion,
+              })
         }
         procesando={eliminando}
         onConfirmar={() => void confirmarEliminacion()}

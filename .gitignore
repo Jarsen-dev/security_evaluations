@@ -60,3 +60,7 @@ Thumbs.db
 # --- Logs -----------------------------------------------------------------
 *.log
 logs/
+
+# Espejo de los formatos que aprende el OCR: son remisiones reales de
+# proveedores y no tienen por qué viajar en el repositorio.
+backend/ocr_formatos/

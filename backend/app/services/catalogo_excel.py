@@ -14,7 +14,7 @@ from typing import Any
 from openpyxl import Workbook, load_workbook
 from openpyxl.styles import Alignment, Font
 
-from app.core.constants import CATEGORIAS_INSUMO, UNIDADES_MEDIDA
+from app.core.constants import CATEGORIAS_INSUMO, LONGITUD_DESCRIPCION, UNIDADES_MEDIDA
 from app.core.errors import ErrorDeNegocio
 from app.services.exportacion_comun import ajustar_anchos, escribir_encabezados
 
@@ -37,7 +37,8 @@ ENCABEZADOS: list[str] = [
     "Unidad de medida",
     "Proveedor",
     "Ubicación",
-    "Cantidad",
+    "Piezas por caja",
+    "Existencia",
     "Mínimo",
     "Máximo",
 ]
@@ -50,12 +51,18 @@ CLAVES: dict[str, str] = {
     "unidad de medida": COLUMNA_UNIDAD,
     "proveedor": "proveedor",
     "ubicacion": "ubicacion",
-    "cantidad": "cantidad",
+    "piezas por caja": "piezas_por_empaque",
+    # El encabezado viejo se sigue aceptando y apunta a las piezas por caja:
+    # es lo que de hecho se capturaba en esa columna antes de separarla de la
+    # existencia. Un archivo guardado el año pasado importa con el mismo
+    # significado que tenía.
+    "cantidad": "piezas_por_empaque",
+    "existencia": "existencia",
     "minimo": "minimo",
     "maximo": "maximo",
 }
 
-ANCHOS = [20, 42, 18, 18, 26, 24, 12, 12, 12]
+ANCHOS = [20, 42, 18, 18, 26, 24, 16, 14, 12, 12]
 
 
 @dataclass
@@ -112,6 +119,19 @@ def _entero(valor: Any, campo: str) -> int:
     if numero < 0:
         raise ValueError(f"{campo} no puede ser negativo.")
     return numero
+
+
+def _resolver_descripcion(valor: Any) -> str:
+    """La descripción es obligatoria y no puede ir vacía.
+
+    Lanza en vez de dejarla en `None` para que la fila se reporte con su
+    número, como la categoría y la unidad: un insumo sin descripción ya no se
+    puede distinguir de otro con el mismo código.
+    """
+    texto = _texto_celda(valor)
+    if not texto:
+        raise ValueError("Falta la descripción.")
+    return texto[:LONGITUD_DESCRIPCION]
 
 
 def _resolver_categoria(valor: Any) -> str:
@@ -201,6 +221,7 @@ def parsear_excel(contenido: bytes) -> ResultadoLectura:
         mapa = _mapear_columnas(encabezados)
         for obligatoria, etiqueta in (
             (COLUMNA_CODIGO, "Código"),
+            ("descripcion", "Descripción"),
             (COLUMNA_CATEGORIA, "Categoría"),
             (COLUMNA_UNIDAD, "Unidad de medida"),
         ):
@@ -233,8 +254,9 @@ def parsear_excel(contenido: bytes) -> ResultadoLectura:
             try:
                 datos = {
                     "codigo": codigo,
-                    "descripcion": _texto_celda(_celda(fila, mapa.get("descripcion")))
-                    or None,
+                    "descripcion": _resolver_descripcion(
+                        _celda(fila, mapa.get("descripcion"))
+                    ),
                     "categoria": _resolver_categoria(
                         _celda(fila, mapa.get(COLUMNA_CATEGORIA))
                     ),
@@ -245,7 +267,20 @@ def parsear_excel(contenido: bytes) -> ResultadoLectura:
                     or None,
                     "ubicacion": _texto_celda(_celda(fila, mapa.get("ubicacion")))
                     or None,
-                    "cantidad": _entero(_celda(fila, mapa.get("cantidad")), "Cantidad"),
+                    # Una caja trae al menos una pieza: la celda vacía vale 1
+                    # y no 0, que haría que la recepción no diera entrada a
+                    # nada. Se normaliza aquí en vez de rechazar la fila, que
+                    # es lo que pasaría al chocar con el `ge=1` del schema.
+                    "piezas_por_empaque": max(
+                        1,
+                        _entero(
+                            _celda(fila, mapa.get("piezas_por_empaque")),
+                            "Las piezas por caja",
+                        ),
+                    ),
+                    "existencia": _entero(
+                        _celda(fila, mapa.get("existencia")), "La existencia"
+                    ),
                     "minimo": _entero(_celda(fila, mapa.get("minimo")), "El mínimo"),
                     "maximo": _entero(_celda(fila, mapa.get("maximo")), "El máximo"),
                 }
@@ -285,9 +320,10 @@ def generar_plantilla() -> BytesIO:
             "PZA",
             "Suministros Industriales del Norte",
             "Almacén — anaquel A3",
-            120,
-            50,
-            200,
+            100,
+            1200,
+            500,
+            2000,
         ]
     )
     ajustar_anchos(hoja, ANCHOS)
@@ -301,13 +337,31 @@ def generar_plantilla() -> BytesIO:
         ("Borra el renglón de ejemplo antes de importar.", False),
         ("", False),
         ("Columnas obligatorias", True),
-        ("Código: identifica al insumo. No puede repetirse.", False),
+        (
+            "Código: la clave del proveedor. Puede repetirse entre insumos "
+            "distintos.",
+            False,
+        ),
+        (
+            "Descripción: es lo que distingue a dos insumos con el mismo "
+            "código, así que no puede ir vacía.",
+            False,
+        ),
         ("Categoría: una de las de abajo, tal cual está escrita.", False),
         ("Unidad de medida: una de las de abajo, tal cual está escrita.", False),
         ("", False),
         ("Columnas opcionales", True),
-        ("Descripción, Proveedor y Ubicación pueden ir vacías.", False),
-        ("Cantidad, Mínimo y Máximo: números enteros. Vacío cuenta como 0.", False),
+        ("Proveedor y Ubicación pueden ir vacías.", False),
+        (
+            "Piezas por caja: cuántas piezas trae cada caja o paquete "
+            "(pastillas, tabletas, unidades). Vacío cuenta como 1.",
+            False,
+        ),
+        (
+            "Existencia, Mínimo y Máximo: piezas sueltas, no cajas. "
+            "Vacío cuenta como 0.",
+            False,
+        ),
         ("El máximo no puede ser menor que el mínimo.", False),
         ("", False),
         ("Categorías válidas", True),
@@ -318,7 +372,12 @@ def generar_plantilla() -> BytesIO:
         ("", False),
         ("Qué pasa al importar", True),
         ("Los insumos nuevos se dan de alta.", False),
-        ("Los que ya existen se omiten: el archivo no pisa lo capturado.", False),
+        (
+            "Se omite la fila cuyo código Y descripción ya existen: el archivo "
+            "no pisa lo capturado, pero sí da de alta una descripción nueva de "
+            "un código que ya estaba.",
+            False,
+        ),
         ("Una fila con problemas no invalida el resto; se reporta su número.", False),
     ]
 

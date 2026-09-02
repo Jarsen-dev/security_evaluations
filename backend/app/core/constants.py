@@ -77,9 +77,12 @@ LONGITUD_MINIMA_CONTRASENA: Final[int] = 8
 # que no queden escritas a mano en dos lugares que se desincronizan.
 CATEGORIAS_INSUMO: Final[tuple[str, ...]] = (
     "Medicamento",
+    "Enfermería",
     "EPP",
     "Señalización",
     "Extintores",
+    # "Otros" va al final a propósito: es el cajón de sastre y en el selector
+    # se lee como la última opción, no como una más.
     "Otros",
 )
 
@@ -91,6 +94,24 @@ CATEGORIAS_VALIDAS: Final[frozenset[str]] = frozenset(CATEGORIAS_INSUMO)
 # nunca las tenga escritas a mano.
 UNIDADES_MEDIDA: Final[tuple[str, ...]] = ("TAB", "ML", "PZA")
 UNIDADES_VALIDAS: Final[frozenset[str]] = frozenset(UNIDADES_MEDIDA)
+
+# Topes de los números del inventario. No son una regla de negocio: son la
+# defensa contra el desbordamiento del INTEGER de PostgreSQL. La entrada de una
+# recepción es `cajas x piezas_por_empaque`, y sin acotar los dos factores el
+# producto puede pasarse de int4; entonces la base responde "integer out of
+# range" y el operador ve un 500 en crudo en lugar del mensaje en español.
+# Acotados así, la partida más grande posible (10 000 cajas de 100 000 piezas)
+# sigue cabiendo con holgura.
+# Tope de la descripción del insumo. No es una regla de dominio: es lo que la
+# hace indexable. La descripción entra al índice único junto con el código, y
+# una entrada de btree no pasa de ~2704 bytes; con 2000 caracteres, un alta
+# fallaría con "index row size exceeds maximum", que no es un IntegrityError y
+# saldría como 500 en vez del 409 en español.
+LONGITUD_DESCRIPCION: Final[int] = 300
+
+TOPE_PIEZAS: Final[int] = 100_000
+TOPE_EXISTENCIA: Final[int] = 100_000_000
+TOPE_CAJAS_RECEPCION: Final[int] = 10_000
 
 
 # --- Rondines de seguridad -------------------------------------------------

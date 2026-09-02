@@ -1,7 +1,8 @@
 'use client';
 
 import { Badge } from '@/components/ui/Badge';
-import { Button } from '@/components/ui/Button';
+import { BotonIcono, FilaAcciones } from '@/components/ui/BotonIcono';
+import { IconoBote, IconoEncender, IconoLapiz } from '@/components/ui/Iconos';
 import { bilingue, unaLinea, useIdioma } from '@/lib/i18n';
 import type { Modulo, Usuario } from '@/lib/types';
 
@@ -114,38 +115,36 @@ export function TablaUsuarios({
                 </td>
 
                 <td className="px-5 py-3">
-                  <div className="flex justify-end gap-2">
-                    <Button
-                      variante="secundario"
-                      tamano="sm"
+                  <FilaAcciones>
+                    <BotonIcono
+                      etiqueta={t('comun.editar')}
+                      icono={<IconoLapiz />}
                       onClick={() => onEditar(usuario)}
-                    >
-                      {bilingue(t('comun.editar'))}
-                    </Button>
+                    />
 
                     {!esPropio && (
                       <>
-                        <Button
-                          variante="secundario"
-                          tamano="sm"
+                        <BotonIcono
+                          etiqueta={
+                            usuario.activo
+                              ? t('usuarios.desactivar')
+                              : t('usuarios.activar')
+                          }
+                          icono={<IconoEncender />}
+                          tono={usuario.activo ? 'exito' : 'neutro'}
                           cargando={ocupado}
                           onClick={() => onAlternarActivo(usuario)}
-                        >
-                          {bilingue(usuario.activo
-                            ? t('usuarios.desactivar')
-                            : t('usuarios.activar'))}
-                        </Button>
+                        />
 
-                        <Button
-                          variante="peligro"
-                          tamano="sm"
+                        <BotonIcono
+                          etiqueta={t('comun.eliminar')}
+                          icono={<IconoBote />}
+                          tono="error"
                           onClick={() => onEliminar(usuario)}
-                        >
-                          {bilingue(t('comun.eliminar'))}
-                        </Button>
+                        />
                       </>
                     )}
-                  </div>
+                  </FilaAcciones>
                 </td>
               </tr>
             );

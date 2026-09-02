@@ -6,6 +6,8 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from app.core.constants import LONGITUD_DESCRIPCION, TOPE_CAJAS_RECEPCION
+
 
 def _texto_opcional(valor: str | None) -> str | None:
     """Recorta espacios y deja en ``None`` lo que quede vacío."""
@@ -16,10 +18,32 @@ def _texto_opcional(valor: str | None) -> str | None:
 
 
 class ItemRecepcionCrear(BaseModel):
-    """Una partida capturada o corregida por el operador."""
+    """Una partida capturada o corregida por el operador.
+
+    ``cantidad`` son **cajas o paquetes**: lo que dice el papel. Las piezas que
+    entran al inventario las calcula el servicio multiplicando por las del
+    catálogo, nunca el cliente.
+
+    El ``codigo`` por sí solo no identifica al insumo —puede repetirse— y por
+    eso viaja también el ``insumo_id`` de la descripción elegida.
+
+    El tope no es una regla de negocio sino la defensa contra el
+    desbordamiento del INTEGER: ver ``TOPE_CAJAS_RECEPCION``.
+    """
 
     codigo: str = Field(min_length=1, max_length=150)
-    cantidad: int = Field(gt=0)
+    cantidad: int = Field(gt=0, le=TOPE_CAJAS_RECEPCION)
+
+    #: Cuál de las descripciones de ese código se recibió. Es obligatorio en
+    #: cuanto el código ampara más de un insumo: sin él, el servicio rechaza la
+    #: partida en vez de adivinar (ver ``recepcion_service._resolver_insumo``).
+    insumo_id: uuid.UUID | None = None
+
+    #: La descripción **tal como la dice el papel**, no la del catálogo. Es lo
+    #: que alimenta el corpus de ejemplos del OCR: enseñarle al modelo a emitir
+    #: la descripción del catálogo sería enseñarle a inventar texto que no está
+    #: en la hoja, justo lo que su propio prompt le prohíbe.
+    descripcion: str | None = Field(default=None, max_length=LONGITUD_DESCRIPCION)
 
     @field_validator("codigo")
     @classmethod
@@ -28,6 +52,8 @@ class ItemRecepcionCrear(BaseModel):
         if not limpio:
             raise ValueError("El código del insumo es obligatorio.")
         return limpio
+
+    _limpiar_descripcion = field_validator("descripcion")(_texto_opcional)
 
 
 class RecepcionCrear(BaseModel):
@@ -57,6 +83,12 @@ class RecepcionCrear(BaseModel):
 
 
 class ItemRecepcionOut(BaseModel):
+    """Una partida del histórico.
+
+    ``cantidad`` son cajas y ``piezas`` lo que sumó al inventario: se mandan
+    los dos números para que el panel no tenga que multiplicar.
+    """
+
     model_config = ConfigDict(from_attributes=True)
 
     id: uuid.UUID
@@ -64,12 +96,20 @@ class ItemRecepcionOut(BaseModel):
     descripcion: str | None = None
     unidad_medida: str
     cantidad: int
+    piezas_por_empaque: int
+    piezas: int
 
 
 class RecepcionOut(BaseModel):
     """Una recepción tal como la consume el panel."""
 
     model_config = ConfigDict(from_attributes=True)
+
+    #: Por qué no se aprendió el formato de este documento, si es que no se
+    #: aprendió. La recepción se guarda igual —un fallo aprendiendo no puede
+    #: deshacer una entrada de almacén—, pero callarlo dejaba al operador
+    #: creyendo que su formato había quedado registrado.
+    aviso: str | None = None
 
     id: uuid.UUID
     foto_id: uuid.UUID | None = None
@@ -110,6 +150,9 @@ class ResultadoOcr(BaseModel):
     tipo_documento: str
     #: ``True`` si el formato ya está registrado; si no, se le pedirá nombre.
     tipo_conocido: bool
+    #: El nombre legible del formato reconocido. `tipo_documento` es el
+    #: identificador interno y no es lo que hay que enseñarle a nadie.
+    tipo_nombre: str | None = None
     proveedor: str | None = None
     folio: str | None = None
     fecha: str | None = None

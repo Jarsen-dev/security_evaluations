@@ -105,6 +105,30 @@ export function IconoDescargar(props: IconoProps) {
   );
 }
 
+/** Activar o desactivar algo que sigue existiendo: una cuenta, un punto. */
+export function IconoEncender(props: IconoProps) {
+  return (
+    <Svg {...props}>
+      <path d="M12 3v9" />
+      <path d="M18.4 6.6a9 9 0 1 1-12.8 0" />
+    </Svg>
+  );
+}
+
+/** Ver el código QR de un punto de rondín. */
+export function IconoQr(props: IconoProps) {
+  return (
+    <Svg {...props}>
+      <rect x="3" y="3" width="7" height="7" rx="1" />
+      <rect x="14" y="3" width="7" height="7" rx="1" />
+      <rect x="3" y="14" width="7" height="7" rx="1" />
+      <path d="M14 14h3v3h-3z" />
+      <path d="M21 14v3" />
+      <path d="M14 21h7" />
+    </Svg>
+  );
+}
+
 /** Girar 90° en contra de las manecillas. */
 export function IconoGirarIzquierda(props: IconoProps) {
   return (

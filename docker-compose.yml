@@ -120,6 +120,14 @@ services:
       # archivos, y uvicorn lee UVICORN_WORKERS automáticamente (prefijo
       # UVICORN_ de su CLI), así que el valor corrupto le impide arrancar.
       UVICORN_WORKERS: "4"
+    volumes:
+      # El ÚNICO volumen escribible del backend, y solo para el espejo de los
+      # formatos aprendidos: una carpeta por formato con la foto, el JSON y el
+      # texto del OCR, para poder abrirlos como archivos desde el servidor.
+      # Sin este montaje, la carpeta se vacía en cada `--build` sin que nada
+      # falle de forma visible. Todo lo demás —evidencias, fotos de recepción,
+      # el corpus— sigue en la base, no en disco.
+      - ./backend/ocr_formatos:/app/ocr_formatos
     networks:
       - evaluaciones_net
     healthcheck:

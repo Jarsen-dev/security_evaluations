@@ -1,11 +1,12 @@
 'use client';
 
 import { Button } from '@/components/ui/Button';
+import { Combobox } from '@/components/ui/Combobox';
 import { Input } from '@/components/ui/Input';
-import { bilingue, unaLinea, useTraduccion } from '@/lib/i18n';
+import { bilingue, unaLinea, useIdioma } from '@/lib/i18n';
 import { idUnico } from '@/lib/navegador';
 import { cn } from '@/lib/utils';
-import type { Insumo } from '@/lib/types';
+import type { CandidatoInsumo } from '@/lib/types';
 
 /** Un documento en edición, con sus partidas. */
 export interface Documento {
@@ -15,6 +16,8 @@ export interface Documento {
   fecha: string;
   tipo_documento: string;
   tipo_conocido: boolean;
+  /** El nombre legible del formato; `tipo_documento` es el identificador. */
+  tipoNombre: string;
   ocr_ok: boolean;
   ocr_raw: Record<string, unknown> | null;
   /** Rutas que devolvió la IA: `"fecha"`, `"items[0].cantidad"`. */
@@ -23,13 +26,28 @@ export interface Documento {
   items: PartidaBorrador[];
 }
 
+/**
+ * Lo que devuelve la consulta de un código.
+ *
+ * Discriminado a propósito: con un simple `CandidatoInsumo[]` no hay forma de
+ * distinguir "este código no existe" de "no se pudo preguntar", y confundir
+ * las dos cosas marcaba en rojo códigos válidos cada vez que fallaba la red.
+ */
+export type ResultadoCodigo =
+  | { estado: 'ok'; candidatos: CandidatoInsumo[] }
+  | { estado: 'fallo' };
+
 export interface PartidaBorrador {
   idLocal: string;
   codigo: string;
   cantidad: string;
-  /** Lo que devolvió el catálogo al salir del campo de código. */
-  insumo: Insumo | null;
-  /** `true` cuando ya se consultó y no existe. */
+  /** La descripción tal como la dice el papel; se teclea o la lee la IA. */
+  descripcion: string;
+  /** Todas las del código: un código ampara varios productos. */
+  candidatos: CandidatoInsumo[];
+  /** Cuál se eligió. `null` mientras nadie haya elegido. */
+  insumoId: string | null;
+  /** `true` cuando ya se consultó el código y no existe. */
   noRegistrado: boolean;
 }
 
@@ -51,7 +69,7 @@ interface BloqueDocumentoProps {
   total: number;
   onCambiar: (documento: Documento) => void;
   onQuitar: () => void;
-  onBuscarCodigo: (codigo: string) => Promise<Insumo | null>;
+  onBuscarCodigo: (codigo: string) => Promise<ResultadoCodigo>;
   errores: Record<string, string>;
 }
 
@@ -64,7 +82,7 @@ export function BloqueDocumento({
   onBuscarCodigo,
   errores,
 }: BloqueDocumentoProps) {
-  const t = useTraduccion();
+  const { t, locale } = useIdioma();
 
   // Si la IA no leyó nada, TODO el formulario va en ámbar: no hay un campo
   // concreto que culpar, se capturó a mano de principio a fin.
@@ -86,12 +104,37 @@ export function BloqueDocumento({
   async function resolverCodigo(partida: PartidaBorrador) {
     const codigo = partida.codigo.trim();
     if (codigo === '') {
-      actualizarPartida(partida.idLocal, { insumo: null, noRegistrado: false });
+      actualizarPartida(partida.idLocal, {
+        candidatos: [],
+        insumoId: null,
+        noRegistrado: false,
+      });
       return;
     }
 
-    const insumo = await onBuscarCodigo(codigo);
-    actualizarPartida(partida.idLocal, { insumo, noRegistrado: insumo === null });
+    const resultado = await onBuscarCodigo(codigo);
+
+    // Si la consulta falló no se puede afirmar que el código no existe: eso
+    // pintaba en rojo códigos perfectamente válidos cuando la red o el
+    // permiso fallaban.
+    if (resultado.estado === 'fallo') {
+      actualizarPartida(partida.idLocal, { candidatos: [], noRegistrado: false });
+      return;
+    }
+
+    const { candidatos } = resultado;
+    actualizarPartida(partida.idLocal, {
+      candidatos,
+      noRegistrado: candidatos.length === 0,
+      // Con una sola descripción no hay nada que elegir; con varias, la
+      // elección previa solo vale si sigue siendo una de ellas.
+      insumoId:
+        candidatos.length === 1
+          ? (candidatos[0]?.id ?? null)
+          : candidatos.some((candidato) => candidato.id === partida.insumoId)
+            ? partida.insumoId
+            : null,
+    });
   }
 
   return (
@@ -164,19 +207,35 @@ export function BloqueDocumento({
         </div>
       )}
 
+      {/* Se anuncia el NOMBRE, no el identificador interno: nadie tiene por
+          qué leer «mgpharma_remision» para saber que se reconoció su remisión.
+          Y con su propio recuadro: en gris tenue pasaba desapercibido al lado
+          de la tarjeta ámbar del formato no reconocido. */}
       {documento.ocr_ok && documento.tipo_conocido && (
-        <p className="text-sm text-texto-tenue">
-          {bilingue(t('recepciones.formatoDetectado', { formato: documento.tipo_documento }))}
+        <p className="rounded-tarjeta border border-exito bg-exito-suave px-4 py-2 text-sm text-exito">
+          {bilingue(
+            t('recepciones.formatoDetectado', {
+              formato: documento.tipoNombre || documento.tipo_documento,
+            }),
+          )}
         </p>
       )}
 
       <div className="flex flex-col gap-3">
         <h4 className="text-sm font-medium text-texto">{bilingue(t('recepciones.partidas'))}</h4>
 
-        {documento.items.map((partida, indice) => (
+        {documento.items.map((partida, indice) => {
+          const elegido = partida.candidatos.find(
+            (candidato) => candidato.id === partida.insumoId,
+          );
+          // Varias descripciones y ninguna elegida: es lo que bloquea el
+          // guardado, y lo que se pinta en ámbar.
+          const sinElegir = partida.candidatos.length > 1 && partida.insumoId === null;
+
+          return (
           <div
             key={partida.idLocal}
-            className="grid gap-3 rounded-md border border-borde bg-fondo p-3 sm:grid-cols-[1fr_7rem_auto]"
+            className="grid gap-3 rounded-md border border-borde bg-fondo p-3 sm:grid-cols-[12rem_1fr_7rem_auto]"
           >
             <div>
               <Input
@@ -197,33 +256,100 @@ export function BloqueDocumento({
                   actualizarPartida(partida.idLocal, {
                     codigo: evento.target.value,
                     // Al teclear se olvida lo que se sabía: el código cambió.
-                    insumo: null,
+                    candidatos: [],
+                    insumoId: null,
                     noRegistrado: false,
                   })
                 }
                 onBlur={() => void resolverCodigo(partida)}
               />
-              {partida.insumo !== null && (
+              {elegido !== undefined && (
                 <p className="mt-1 text-xs text-texto-tenue">
-                  {partida.insumo.descripcion ?? '—'} · {partida.insumo.unidad_medida}
+                  {elegido.unidad_medida}
+                  {' · '}
+                  {t('recepciones.porCaja', { piezas: elegido.piezas_por_empaque })}
                 </p>
               )}
             </div>
 
-            <Input
-              name={`cantidad-${partida.idLocal}`}
-              etiqueta={t('recepciones.cantidad')}
-              inputMode="numeric"
-              value={partida.cantidad}
-              error={errores[`items[${indice}].cantidad`]}
-              className={cn(clasesAmbar(falta(`items[${indice}].cantidad`)))}
-              placeholder={
-                falta(`items[${indice}].cantidad`) ? '—' : undefined
-              }
-              onChange={(evento) =>
-                actualizarPartida(partida.idLocal, { cantidad: evento.target.value })
-              }
-            />
+            <div>
+              {/* Un código ampara varios productos y solo la descripción los
+                  distingue. Se teclea lo que dice la remisión y se elige de la
+                  lista; el servidor rechaza la partida sin elegir. */}
+              <Combobox
+                etiqueta={t('recepciones.descripcionItem')}
+                opciones={partida.candidatos.map((candidato) => ({
+                  valor: candidato.id,
+                  etiqueta: candidato.descripcion,
+                }))}
+                valor={partida.insumoId}
+                texto={partida.descripcion}
+                vacio={t('recepciones.noRegistradoAyuda')}
+                deshabilitado={partida.candidatos.length === 0}
+                placeholder={
+                  falta(`items[${indice}].descripcion`)
+                    ? unaLinea(t('recepciones.sinLeer'))
+                    : unaLinea(t('recepciones.elegirDescripcion'))
+                }
+                error={errores[`items[${indice}].insumo`]}
+                ayuda={
+                  sinElegir
+                    ? unaLinea(
+                        t('recepciones.variasDescripciones', {
+                          total: partida.candidatos.length,
+                        }),
+                      )
+                    : undefined
+                }
+                className={clasesAmbar(
+                  sinElegir || falta(`items[${indice}].descripcion`),
+                )}
+                onTexto={(texto) =>
+                  actualizarPartida(partida.idLocal, { descripcion: texto })
+                }
+                onElegir={(insumoId) => {
+                  const candidato = partida.candidatos.find(
+                    (otro) => otro.id === insumoId,
+                  );
+                  // Al elegir, el texto pasa a ser el del catálogo: es lo que
+                  // el operador acaba de confirmar que recibió.
+                  actualizarPartida(partida.idLocal, {
+                    insumoId,
+                    descripcion: candidato?.descripcion ?? partida.descripcion,
+                  });
+                }}
+              />
+            </div>
+
+            <div>
+              <Input
+                name={`cantidad-${partida.idLocal}`}
+                etiqueta={t('recepciones.cantidad')}
+                inputMode="numeric"
+                value={partida.cantidad}
+                error={errores[`items[${indice}].cantidad`]}
+                className={cn(clasesAmbar(falta(`items[${indice}].cantidad`)))}
+                placeholder={
+                  falta(`items[${indice}].cantidad`) ? '—' : undefined
+                }
+                onChange={(evento) =>
+                  actualizarPartida(partida.idLocal, { cantidad: evento.target.value })
+                }
+              />
+
+              {/* Lo que se teclea son cajas y lo que entra al inventario son
+                  piezas: la multiplicación se adelanta aquí para que el
+                  operador vea el número antes de guardar, no después. */}
+              {elegido !== undefined && /^\d+$/.test(partida.cantidad.trim()) && (
+                <p className="mt-1 text-xs text-texto-tenue">
+                  {t('recepciones.entranPiezas', {
+                    piezas: (
+                      Number(partida.cantidad) * elegido.piezas_por_empaque
+                    ).toLocaleString(locale),
+                  })}
+                </p>
+              )}
+            </div>
 
             <div className="flex items-end">
               <Button
@@ -242,7 +368,8 @@ export function BloqueDocumento({
               </Button>
             </div>
           </div>
-        ))}
+          );
+        })}
 
         {errores.items !== undefined && (
           <p role="alert" className="text-sm text-error">
@@ -264,7 +391,9 @@ export function BloqueDocumento({
                     idLocal: idUnico(),
                     codigo: '',
                     cantidad: '',
-                    insumo: null,
+                    descripcion: '',
+                    candidatos: [],
+                    insumoId: null,
                     noRegistrado: false,
                   },
                 ],

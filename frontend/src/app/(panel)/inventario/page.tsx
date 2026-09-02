@@ -1,33 +1,44 @@
 'use client';
 
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Suspense } from 'react';
+import { Suspense, type ReactNode } from 'react';
 
 import { GuardiaModulo } from '@/components/GuardiaModulo';
 import { PanelRecepciones } from '@/components/inventario/recepciones/PanelRecepciones';
 import { TablaRecepciones } from '@/components/inventario/recepciones/TablaRecepciones';
+import { PanelStock } from '@/components/inventario/stock/PanelStock';
 import { Pestanas } from '@/components/ui/Pestanas';
 import { bilingue, useTraduccion, type ClaveTraduccion } from '@/lib/i18n';
 
 /**
  * Inventario.
  *
- * De momento tiene una sola función: recibir mercancía fotografiando la
- * remisión del proveedor. Cada recepción confirmada suma la existencia de los
- * insumos del catálogo, así que es la entrada del inventario.
+ * Dos caras de lo mismo: recibir mercancía fotografiando la remisión del
+ * proveedor, y consultar lo que hay. Cada recepción confirmada suma la
+ * existencia de los insumos del catálogo —las cajas capturadas multiplicadas
+ * por las piezas que trae cada una—, así que es la entrada del inventario y
+ * Stock es su resultado.
  */
 const SECCIONES: ReadonlyArray<{ clave: Seccion; etiqueta: ClaveTraduccion }> = [
   { clave: 'recepciones', etiqueta: 'inventario.recepciones' },
+  { clave: 'stock', etiqueta: 'inventario.stock' },
   { clave: 'historial', etiqueta: 'inventario.historial' },
 ];
 
-type Seccion = 'recepciones' | 'historial';
+type Seccion = 'recepciones' | 'stock' | 'historial';
 
 const POR_DEFECTO: Seccion = 'recepciones';
 
 function esSeccion(valor: string | null): valor is Seccion {
-  return valor === 'recepciones' || valor === 'historial';
+  return SECCIONES.some((seccion) => seccion.clave === valor);
 }
+
+/** Qué pinta cada pestaña. Con tres, un ternario ya no se lee. */
+const VISTAS: Record<Seccion, () => ReactNode> = {
+  recepciones: () => <PanelRecepciones />,
+  stock: () => <PanelStock />,
+  historial: () => <TablaRecepciones />,
+};
 
 export default function PaginaInventario() {
   return (
@@ -74,7 +85,7 @@ function ContenidoInventario() {
         }))}
       />
 
-      {activa === 'recepciones' ? <PanelRecepciones /> : <TablaRecepciones />}
+      {VISTAS[activa]()}
     </div>
   );
 }

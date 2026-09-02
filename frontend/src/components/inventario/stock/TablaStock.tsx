@@ -3,17 +3,16 @@
 import {
   CLAVES_SEMAFORO,
   ESTADOS_INSUMO,
+  FILAS_SEMAFORO,
   PUNTOS_SEMAFORO,
 } from '@/components/catalogo/semaforo';
-import { BotonIcono, FilaAcciones } from '@/components/ui/BotonIcono';
 import { Button } from '@/components/ui/Button';
-import { IconoBote, IconoLapiz } from '@/components/ui/Iconos';
 import { Card } from '@/components/ui/Card';
 import { bilingue, unaLinea, useIdioma } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
-import type { FiltrosCatalogo, Insumo, InsumosPaginados } from '@/lib/types';
+import type { FiltrosCatalogo, InsumosPaginados } from '@/lib/types';
 
-interface TablaCatalogoProps {
+interface TablaStockProps {
   datos: InsumosPaginados | null;
   cargando: boolean;
   categorias: string[];
@@ -24,18 +23,23 @@ interface TablaCatalogoProps {
   onFiltros: (filtros: FiltrosCatalogo) => void;
   onLimpiar: () => void;
   onPagina: (pagina: number) => void;
-  puedeEditar: boolean;
-  onEditar: (insumo: Insumo) => void;
-  onEliminar: (insumo: Insumo) => void;
+  onActualizar: () => void;
 }
 
 const CLASES_CAMPO =
   'h-10 rounded-md border border-borde bg-fondo px-3 text-sm text-texto focus:border-primario';
 
 /** Número de columnas, para los renglones de estado vacío. */
-const COLUMNAS = 10;
+const COLUMNAS = 5;
 
-export function TablaCatalogo({
+/**
+ * Existencias de todo el catálogo.
+ *
+ * Presentacional: los filtros y la página los maneja `PanelStock`, igual que
+ * `TablaCatalogo` con `PanelCatalogo`. Es de solo lectura a propósito —
+ * corregir una existencia se hace en Catálogo, que tiene su propio permiso.
+ */
+export function TablaStock({
   datos,
   cargando,
   categorias,
@@ -45,17 +49,15 @@ export function TablaCatalogo({
   onFiltros,
   onLimpiar,
   onPagina,
-  puedeEditar,
-  onEditar,
-  onEliminar,
-}: TablaCatalogoProps) {
+  onActualizar,
+}: TablaStockProps) {
   const { t, locale } = useIdioma();
 
   const total = datos?.total ?? 0;
   const size = datos?.size ?? 50;
   const pagina = datos?.page ?? 1;
   const totalPaginas = Math.max(1, Math.ceil(total / size));
-  const hayFiltros = Object.values(filtros).some((valor) => valor !== undefined);
+  const hayFiltros = filtros.categoria !== undefined || filtros.estado !== undefined;
 
   const numero = (valor: number) => valor.toLocaleString(locale);
 
@@ -63,11 +65,11 @@ export function TablaCatalogo({
     <Card className="overflow-hidden p-0">
       <div className="flex flex-wrap items-end gap-3 border-b border-borde bg-fondo/40 px-5 py-4">
         <div className="flex min-w-[16rem] flex-1 flex-col gap-1.5">
-          <label htmlFor="catalogo-busqueda" className="text-xs font-medium text-texto-suave">
+          <label htmlFor="stock-busqueda" className="text-xs font-medium text-texto-suave">
             {bilingue(t('comun.buscar'))}
           </label>
           <input
-            id="catalogo-busqueda"
+            id="stock-busqueda"
             type="search"
             className={CLASES_CAMPO}
             placeholder={unaLinea(t('catalogo.buscarAyuda'))}
@@ -77,11 +79,11 @@ export function TablaCatalogo({
         </div>
 
         <div className="flex flex-col gap-1.5">
-          <label htmlFor="catalogo-categoria" className="text-xs font-medium text-texto-suave">
+          <label htmlFor="stock-categoria" className="text-xs font-medium text-texto-suave">
             {bilingue(t('catalogo.categoria'))}
           </label>
           <select
-            id="catalogo-categoria"
+            id="stock-categoria"
             className={CLASES_CAMPO}
             value={filtros.categoria ?? ''}
             onChange={(evento) =>
@@ -98,11 +100,11 @@ export function TablaCatalogo({
         </div>
 
         <div className="flex flex-col gap-1.5">
-          <label htmlFor="catalogo-estado" className="text-xs font-medium text-texto-suave">
+          <label htmlFor="stock-estado" className="text-xs font-medium text-texto-suave">
             {bilingue(t('catalogo.estado'))}
           </label>
           <select
-            id="catalogo-estado"
+            id="stock-estado"
             className={CLASES_CAMPO}
             value={filtros.estado ?? ''}
             onChange={(evento) =>
@@ -113,8 +115,6 @@ export function TablaCatalogo({
             }
           >
             <option value="">{unaLinea(t('catalogo.todosLosEstados'))}</option>
-            {/* Salen del mapa del semáforo y no escritos a mano: agregar un
-                estado nuevo no puede dejar el filtro a medias. */}
             {ESTADOS_INSUMO.map((estado) => (
               <option key={estado} value={estado}>
                 {unaLinea(t(CLAVES_SEMAFORO[estado]))}
@@ -129,97 +129,80 @@ export function TablaCatalogo({
           </Button>
         )}
 
+        {/* Un producto dado de alta en Catálogo aparece aquí al volver a
+            consultar; el botón evita tener que salir y entrar a la pestaña. */}
+        <Button variante="secundario" tamano="sm" onClick={onActualizar} cargando={cargando}>
+          {bilingue(t('stock.actualizar'))}
+        </Button>
+
         <span className="ml-auto text-sm text-texto-suave">
-          {bilingue(t('catalogo.registros', { total }))}
+          {bilingue(t('stock.registros', { total }))}
         </span>
       </div>
 
       {/* El scroll lateral vive dentro de la tabla: la página nunca se desplaza. */}
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[64rem] text-sm">
+        <table className="w-full min-w-[44rem] text-sm">
           <thead className="bg-fondo-sutil">
             <tr>
               <th scope="col" className="px-5 py-3 text-left font-medium text-texto-suave">
                 {bilingue(t('catalogo.codigo'))}
               </th>
               <th scope="col" className="px-5 py-3 text-left font-medium text-texto-suave">
-                {bilingue(t('catalogo.categoria'))}
-              </th>
-              <th scope="col" className="px-5 py-3 text-left font-medium text-texto-suave">
-                {bilingue(t('catalogo.unidadMedida'))}
-              </th>
-              <th scope="col" className="px-5 py-3 text-left font-medium text-texto-suave">
-                {bilingue(t('catalogo.proveedor'))}
-              </th>
-              <th scope="col" className="px-5 py-3 text-left font-medium text-texto-suave">
-                {bilingue(t('catalogo.ubicacion'))}
-              </th>
-              <th scope="col" className="px-5 py-3 text-right font-medium text-texto-suave">
-                {bilingue(t('catalogo.piezasPorCaja'))}
-              </th>
-              <th scope="col" className="px-5 py-3 text-right font-medium text-texto-suave">
-                {bilingue(t('catalogo.existencia'))}
-              </th>
-              <th scope="col" className="px-5 py-3 text-right font-medium text-texto-suave">
-                {bilingue(t('catalogo.rango'))}
+                {bilingue(t('catalogo.descripcionCampo'))}
               </th>
               <th scope="col" className="px-5 py-3 text-left font-medium text-texto-suave">
                 {bilingue(t('catalogo.estado'))}
               </th>
-              <th scope="col" className="px-5 py-3 text-right">
-                <span className="sr-only">{bilingue(t('comun.acciones'))}</span>
+              <th scope="col" className="px-5 py-3 text-right font-medium text-texto-suave">
+                {bilingue(t('stock.existencia'))}
+              </th>
+              <th scope="col" className="px-5 py-3 text-left font-medium text-texto-suave">
+                {bilingue(t('catalogo.unidadMedida'))}
               </th>
             </tr>
           </thead>
 
           <tbody>
-            {cargando ? (
+            {cargando && datos === null ? (
               <tr>
-                <td colSpan={COLUMNAS} className="px-5 py-8 text-center text-texto-suave">
+                <td colSpan={COLUMNAS} className="px-5 py-10 text-center text-texto-suave">
                   {bilingue(t('comun.cargando'))}
                 </td>
               </tr>
             ) : total === 0 ? (
               <tr>
                 <td colSpan={COLUMNAS} className="px-5 py-10 text-center">
-                  <p className="text-sm font-medium text-texto">
-                    {bilingue(hayFiltros || busqueda !== ''
-                      ? t('catalogo.sinCoincidencias')
-                      : t('catalogo.vacio'))}
+                  <p className="text-texto-suave">
+                    {bilingue(
+                      hayFiltros || busqueda !== ''
+                        ? t('stock.sinCoincidencias')
+                        : t('stock.vacio'),
+                    )}
                   </p>
                   {!hayFiltros && busqueda === '' && (
-                    <p className="mt-2 text-sm text-texto-suave">
-                      {bilingue(t('catalogo.vacioAyuda'))}
+                    <p className="mt-1 text-sm text-texto-tenue">
+                      {bilingue(t('stock.vacioAyuda'))}
                     </p>
                   )}
                 </td>
               </tr>
             ) : (
               datos?.items.map((insumo) => (
-                <tr key={insumo.id} className="border-b border-borde last:border-0">
-                  <td className="px-5 py-3">
-                    <span className="font-medium text-texto">{insumo.codigo}</span>
-                    {insumo.descripcion && (
-                      <span className="block text-xs text-texto-tenue">
-                        {insumo.descripcion}
-                      </span>
-                    )}
-                  </td>
-                  <td className="px-5 py-3 text-texto-suave">{insumo.categoria}</td>
-                  <td className="px-5 py-3 text-texto-suave">{insumo.unidad_medida}</td>
-                  <td className="px-5 py-3 text-texto-suave">{insumo.proveedor ?? '—'}</td>
-                  <td className="px-5 py-3 text-texto-suave">{insumo.ubicacion ?? '—'}</td>
-                  <td className="px-5 py-3 text-right text-texto-suave">
-                    {numero(insumo.piezas_por_empaque)}
-                  </td>
-                  <td className="px-5 py-3 text-right font-medium text-texto">
-                    {numero(insumo.existencia)}
-                  </td>
-                  <td className="px-5 py-3 text-right text-texto-tenue">
-                    {numero(insumo.minimo)} / {numero(insumo.maximo)}
+                <tr
+                  key={insumo.id}
+                  // El tinte es una ayuda para barrer la tabla; la señal que
+                  // se lee sigue siendo el punto con su etiqueta.
+                  className={cn(
+                    'border-b border-borde last:border-0',
+                    FILAS_SEMAFORO[insumo.estado],
+                  )}
+                >
+                  <td className="px-5 py-3 font-medium text-texto">{insumo.codigo}</td>
+                  <td className="px-5 py-3 text-texto-suave">
+                    {insumo.descripcion ?? '—'}
                   </td>
                   <td className="px-5 py-3">
-                    {/* El punto de color nunca es la única señal: va con texto. */}
                     <span className="inline-flex items-center gap-2 text-texto-suave">
                       <span
                         aria-hidden
@@ -231,23 +214,10 @@ export function TablaCatalogo({
                       {bilingue(t(CLAVES_SEMAFORO[insumo.estado]))}
                     </span>
                   </td>
-                  <td className="px-5 py-3">
-                    {puedeEditar && (
-                      <FilaAcciones>
-                        <BotonIcono
-                          etiqueta={t('comun.editar')}
-                          icono={<IconoLapiz />}
-                          onClick={() => onEditar(insumo)}
-                        />
-                        <BotonIcono
-                          etiqueta={t('comun.eliminar')}
-                          icono={<IconoBote />}
-                          tono="error"
-                          onClick={() => onEliminar(insumo)}
-                        />
-                      </FilaAcciones>
-                    )}
+                  <td className="px-5 py-3 text-right font-medium text-texto">
+                    {numero(insumo.existencia)}
                   </td>
+                  <td className="px-5 py-3 text-texto-suave">{insumo.unidad_medida}</td>
                 </tr>
               ))
             )}

@@ -9,8 +9,10 @@ la regla 7 del CLAUDE.md y la lista de pendientes de SEGURIDAD.md). Mientras
 eso no ocurra, lo único que lo defiende es la cookie de sesión más la
 comprobación de permisos.
 
-Es un catálogo, no un almacén: la existencia se captura a mano. El sistema de
-recepciones y salidas se construirá encima más adelante.
+Aquí se dan de alta los insumos y se corrige su existencia tras el conteo
+físico. El código **no** identifica al insumo: puede repetirse, y lo que
+distingue a dos productos con el mismo código es su descripción. Las entradas por recepción no pasan por este router: las suma
+``inventario``, que es donde se fotografía la remisión.
 """
 
 import uuid
@@ -38,7 +40,7 @@ from app.core.constants import (
 )
 from app.core.errors import ErrorDeNegocio
 from app.db.session import get_db
-from app.models.insumo import ESTADO_BAJO, ESTADO_EXCEDIDO
+from app.models.insumo import ESTADOS_FILTRABLES
 from app.schemas.catalogo import (
     CatalogoCategorias,
     CatalogoUnidades,
@@ -63,9 +65,6 @@ TIPO_EXCEL = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 # Nginx ya corta en 10 MB; este límite es la segunda barrera, por si el
 # backend se expone sin el proxy delante.
 MAX_TAMANO_ARCHIVO = 10 * 1024 * 1024
-
-ESTADOS_FILTRABLES = frozenset({ESTADO_BAJO, ESTADO_EXCEDIDO})
-
 
 # --- Rutas literales -------------------------------------------------------
 # IMPORTANTE: van declaradas ANTES de /catalogo/{insumo_id}. FastAPI resuelve
@@ -223,9 +222,14 @@ async def crear_insumo(
     request: Request,
     db: AsyncSession = Depends(get_db),
 ) -> InsumoOut:
-    """El código identifica al insumo y no puede repetirse."""
+    """Lo que no puede repetirse es la pareja código + descripción.
+
+    Un mismo código de proveedor ampara varios productos; la descripción es lo
+    que los distingue, y por eso es obligatoria.
+    """
     insumo = await insumo_service.crear(db, datos)
-    anotar(request, detalle=insumo.codigo)
+    # Con el código repetible, `codigo` a secas ya no dice cuál insumo fue.
+    anotar(request, detalle=insumo_service.etiquetar(insumo))
     return InsumoOut.model_validate(insumo)
 
 
@@ -243,7 +247,7 @@ async def actualizar_insumo(
 ) -> InsumoOut:
     """Incluye la existencia: es donde se corrige tras el conteo."""
     insumo = await insumo_service.actualizar(db, insumo_id, datos)
-    anotar(request, detalle=insumo.codigo)
+    anotar(request, detalle=insumo_service.etiquetar(insumo))
     return InsumoOut.model_validate(insumo)
 
 
@@ -258,7 +262,7 @@ async def eliminar_insumo(
     request: Request,
     db: AsyncSession = Depends(get_db),
 ) -> Response:
-    """Lo borra por completo; la bitácora conserva el código."""
-    codigo = await insumo_service.eliminar(db, insumo_id)
-    anotar(request, detalle=codigo)
+    """Lo borra por completo; la bitácora conserva código y descripción."""
+    etiqueta = await insumo_service.eliminar(db, insumo_id)
+    anotar(request, detalle=etiqueta)
     return Response(status_code=status.HTTP_204_NO_CONTENT)

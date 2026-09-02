@@ -492,16 +492,196 @@ JSON el texto que Tesseract ya leyó. Cinco reglas propias:
   `proxy_read_timeout` de Nginx (120 s).** Si el proxy corta primero, el
   navegador recibe un 500 opaco en vez del 200 con `ocr_ok:false` que habilita
   la captura manual.
+- **Aprender puede fallar, pero no en silencio.** El aprendizaje corre en **su
+  propia sesión** y devuelve el motivo cuando no pudo, que sale en el campo
+  `aviso` de la recepción y el panel enseña como toast. Antes se lo tragaba un
+  `except Exception` con el `commit` al final, así que un solo tropiezo tiraba
+  plantilla, ejemplo, imagen y JSON de golpe —el síntoma era «no se guarda
+  nada»— y los mensajes que el servicio ya prepara («ya existe un formato con
+  ese nombre», «ya tiene sus ejemplos») no llegaban a nadie. La sesión aparte
+  además es lo que evita un fallo peor: su `rollback` expiraba el objeto de la
+  recepción que la ruta estaba a punto de serializar, y eso reventaba como
+  `MissingGreenlet` —un 500 con la recepción ya guardada— que al reintentar
+  duplicaba la entrada de almacén.
+- **`registrar_formato()` es idempotente.** Una hoja con varias remisiones son
+  varios guardados con la MISMA foto: sin comparar el texto, el segundo
+  duplicaba el ejemplo y el tercero se estrellaba contra el tope de dos
+  curados. La decisión vive en `decidir_ejemplo_curado()`, que es pura y está
+  probada.
+- **El documento que estrena un formato queda sellado con él.** El formato se
+  bautiza después de crear la recepción, así que sin el `UPDATE` la recepción
+  se quedaba en «desconocido» y el historial no la encontraba bajo el formato
+  que ella misma definió.
+- **El corpus se copia a disco, y esa copia es la ÚNICA excepción a la regla
+  de que nada se escribe en el sistema de archivos.** `services/espejo_formatos.py`
+  deja en `backend/ocr_formatos/<slug>/<fecha>/` la foto, el `extraido.json` y
+  el `texto_ocr.txt` de cada ejemplo, con rotación a los 4 más recientes, para
+  poder revisar como archivos qué aprendió el sistema. Tres cosas que no son
+  negociables: **la base sigue mandando** —el clasificador lee de ella, así que
+  borrar carpetas no des-enseña nada—; **no cuelga de `static/`**, que se sirve
+  en `/api/static` sin sesión y con el túnel delante, así que ahí dentro las
+  remisiones quedarían públicas; y **nunca lanza**, porque es una copia y no
+  puede tumbar una recepción. La carpeta pertenece al **uid 10001**
+  —el usuario del contenedor en producción— con el **grupo del usuario del
+  servidor** y modo `775`, para que puedan escribir los dos: el backend y quien
+  entre por SSH a revisar o borrar ejemplos. Si se recrea a mano hay que
+  devolverle esa propiedad (`chown 10001:<tu-grupo>`, `chmod 775`) o el espejo
+  dejará de escribir con solo un `warning` en el log. Lo ya aprendido se vuelca con `python -m app.cli exportar-formatos`.
+- **El QR de captura sale de `window.location.origin`, NUNCA de
+  `NEXT_PUBLIC_BASE_URL`.** La sesión del handoff es efímera y vive **solo en
+  el despliegue que la creó**, así que el celular tiene que caer en ese mismo.
+  Con la variable de entorno —que se congela al construir la imagen y apunta al
+  dominio público— el QR mandaba el celular a producción mientras la sesión se
+  quedaba en la computadora del operador: producción no la conocía y contestaba
+  *«esta sesión de captura ya no está disponible»*, **siempre**, sin importar
+  cuán reciente fuera el código. Rompía igual por la IP de la LAN, que es la
+  vía de respaldo cuando el túnel se cae (regla 5). Los otros QR del sistema
+  —cuestionarios y puntos de rondín— son el caso contrario: llevan un token
+  duradero que sí existe en producción y se imprimen para pegarlos en la pared,
+  así que ahí el dominio público es lo correcto. El origen se lee en un
+  `useEffect`, no al renderizar: el servidor no sabe por dónde entró el
+  navegador.
+- **Entrando por `localhost` no se pinta ningún QR.** En el celular esa
+  dirección resuelve al celular mismo. Se dice qué hacer —abrir el panel por la
+  dirección de red— en vez de dibujar un código que no lleva a ningún lado.
+- **Solo un 409 significa que la sesión venció.** El sondeo de la PC trataba
+  cualquier tropiezo como vencimiento, así que un bache de WiFi o un reinicio
+  del backend borraban un código que seguía vivo y obligaban a repetir el
+  trámite. Ahora aguanta `MAX_FALLOS_SONDEO` fallos seguidos antes de rendirse.
+- **La pantalla anuncia el NOMBRE del formato, no el slug.** `tipo_documento`
+  es el identificador interno; `ResultadoOcr.tipo_nombre` trae el nombre que
+  tecleó quien lo enseñó. Lo aprendido se revisa en disco (ver arriba), no en
+  una pantalla.
+- **El prompt y el `json_esperado` del corpus cambian SIEMPRE juntos.** Los
+  ejemplos few-shot llevan la orden «sigue EXACTAMENTE la misma estructura JSON
+  de los ejemplos anteriores», y una demostración pesa más que el prompt de
+  sistema: si uno cambia sin el otro, cada recepción confirmada escribe un
+  ejemplo con el esquema viejo y el modelo deja de emitir el campo nuevo justo
+  en los formatos que mejor conoce, sin que nada falle. Los curados no se
+  borran solos y no hay pantalla para quitarlos, así que
+  `_con_esquema_vigente()` completa al vuelo las llaves que falten. Y la
+  descripción del ejemplo va **como la leyó de la hoja**, nunca la del
+  catálogo: eso sería enseñarle a inventar lo que su propio prompt le prohíbe.
+- **El modelo se atasca en BUCLE con el OCR ruidoso, y eso se perdía entero.**
+  Con una hoja de 16 renglones repetía las mismas partidas hasta agotar el
+  presupuesto de tokens y devolvía el JSON cortado a media palabra: la
+  extracción completa se perdía y el operador solo veía «la IA no respondió a
+  tiempo». Medido: 51 partidas en 35 s, y con 3000 tokens de margen 96 en 66 s
+  —**darle más espacio lo empeora**—. Tres piezas lo sostienen y las tres hacen
+  falta, porque el bucle es intermitente: `repeat_penalty` a **1.2** en
+  `OPCIONES_MODELO` (a 1.3 empieza a saltarse renglones legítimos, medido: una
+  hoja de 21 partidas devolvía 18), `_cerrar_json_truncado()` para rescatar lo
+  leído cuando aun así se corta, y `_sin_repetidos()` para quitar los renglones
+  repetidos. El precio de este último: una hoja con dos renglones idénticos
+  —mismo código Y misma cantidad— pierde uno y el operador lo vuelve a agregar
+  con un clic; a cambio no se le presentan cincuenta partidas fantasma.
 - **Tres límites separados** en `ocr_recepciones.py`: `MAX_EJEMPLOS_CURADOS`
   (2), `MAX_EJEMPLOS_AUTO` (4) y `MAX_EJEMPLOS_PROMPT` (2, y **solo curados**).
   El corpus de clasificación quiere muchos ejemplos; el prompt quiere pocos.
   Sin esa separación, cada documento aprendido haría la extracción más lenta.
-  El umbral del clasificador (0.20) y los n-gramas de **carácter** están
-  calibrados con documentos reales: no se tocan a ojo.
+  Los n-gramas de **carácter** y los umbrales se calibran midiendo, nunca a
+  ojo, y el `OCR_UMBRAL_SIMILITUD` vive en **tres** sitios: `config.py`, el
+  `environment:` de `docker-compose.yml` y `.env.example`; cambiar solo el
+  primero no hace nada.
+- **Lo que decide si un documento es de un formato conocido es el COCIENTE, no
+  el parecido absoluto.** Todas las facturas CFDI comparten la plantilla del
+  SAT —"VERSIÓN 4.0", el sello digital, la cadena de certificación— y con dos o
+  tres ejemplos el IDF no puede aprender que eso es relleno: el parecido sube
+  por igual para todos los formatos. Medido con facturas reales: una ajena daba
+  0.314 y una propia 0.312, indistinguibles por valor absoluto, pero la propia
+  le gana al segundo formato por 1.30–2.47 veces mientras que la ajena empata
+  con todos (~1.0). De ahí `FACTOR_DISTINCION` (1.20). El
+  `OCR_UMBRAL_SIMILITUD` (0.20) queda como piso, y `UMBRAL_SIN_COMPETENCIA`
+  (0.40) manda **solo cuando hay un único formato en el corpus**, porque ahí no
+  hay contra quién comparar. Pasó por las dos zanjas: con el piso en 0.20 y sin
+  cociente, las facturas de un proveedor se archivaban como las de otro; con el
+  piso subido a 0.40 para taparlo, las legítimas dejaban de reconocerse a
+  partir de la segunda.
+- **Y por encima de todo eso, el RFC del emisor.** Dos proveedores del mismo
+  giro comparten plantilla fiscal *y* vocabulario —dos farmacéuticas, por
+  ejemplo—, y ahí el cociente también se queda corto: medido, una factura de
+  Bio Health le ganaba a los demás formatos por 1.29 sobre el de MGPHARMA,
+  dentro del rango de los aciertos legítimos. Quién firma el papel, en cambio,
+  es inequívoco. `_firma_del_emisor()` compara los RFC del documento con los de
+  los ejemplos del formato ganador y **vale en los dos sentidos**: si coinciden
+  confirma **por encima del cociente** —dos facturas del mismo proveedor traen
+  conceptos distintos y pueden parecerse poco: medido, tres de Bio Health con
+  su RFC legible se rechazaban por cocientes de 1.10 a 1.18—; si no coinciden,
+  descarta.
 
+  Tres cuidados lo hacen funcionar sin configurar nada: **lo que aparece en más
+  de un formato se descarta** —el RFC del receptor es siempre esta planta, así
+  que no identifica a nadie—; **el del SAT va como constante**, porque sale en
+  todas las facturas del país pero si un único formato lo tiene legible la
+  regla anterior no llega a verlo como compartido; y la comparación tolera
+  **dos caracteres de error**, porque el OCR lee el mismo RFC de varias formas
+  (el de la planta salió de cinco maneras distintas).
+
+  Sin RFC legible en el documento, o con un formato que no tiene ninguno propio
+  —una remisión sin datos fiscales—, la firma no opina y decide el texto.
+
+**El código NO identifica al insumo.** Un mismo código de proveedor ampara
+varios productos —la misma clave con presentaciones distintas— y lo que los
+distingue es la **descripción**, que por eso es obligatoria. El índice único es
+la pareja `(lower(codigo), lower(descripcion))`, y de ahí salen tres cosas que
+no son opcionales:
+
+- **La descripción está acotada a 300 caracteres** (`LONGITUD_DESCRIPCION`) por
+  el índice, no por gusto: una entrada de btree no pasa de ~2704 bytes y con
+  los 2000 que admitía antes el alta fallaría con `index row size exceeds
+  maximum`, que **no es un `IntegrityError`** y saldría como 500 en vez del 409
+  en español.
+- **La recepción resuelve por `insumo_id`, no por código.** El id se busca
+  **entre los candidatos de ese código** (`_resolver_insumo()`): resolverlo a
+  secas dejaría que un cliente mandara un código y el id de otro insumo, y la
+  partida se guardaría con el snapshot del otro sin que nada avisara. Sin id y
+  con varios candidatos se **rechaza**, no se elige: eso cubre también la
+  carrera de que alguien dé de alta una segunda descripción entre que la IA
+  leyó la remisión y el operador guarda.
+- **La bitácora anota `codigo · descripcion`** (`insumo_service.etiquetar()`).
+  El código solo ya no dice qué fila se tocó.
+
+**El emparejado de descripciones se calibra midiendo, no a ojo.**
+`mejor_coincidencia()` reutiliza el TF-IDF de la clasificación de formatos
+—`_similitudes()` es la capa común— pero con **umbrales propios y una asimetría
+invertida**: allí un falso positivo lo corrige el operador; aquí le suma la
+existencia al producto equivocado y el campo deja de estar en ámbar, así que
+nadie vuelve a mirarlo. Medido sobre las 45 descripciones reales: productos
+distintos puntúan p99=0.273, pero «DICLOFENACO GEL 60GR» contra «DICLOFENACO
+100MG C/20 TAB» da **0.624** —y son justo los que compartirían código—. Por eso
+el que decide es **el margen contra la segunda** (0.20) y no el score (0.35);
+con un umbral de score alto se perdía la mitad de los aciertos, porque una
+lectura con ruido de OCR puntúa 0.58 de mediana.
+
+**Lo que se captura son cajas; lo que entra al inventario son piezas.** El
+catálogo guarda dos números distintos: `piezas_por_empaque` es el contenido de
+una caja —dato del producto— y `existencia` es el inventario real, en piezas.
 Confirmar una recepción **suma la existencia** de cada insumo con un
-`UPDATE ... cantidad + :n` en SQL, no leyendo y reescribiendo: con cuatro
-workers dos recepciones simultáneas del mismo insumo se pisarían.
+`UPDATE ... existencia + :n` en SQL, no leyendo y reescribiendo: con cuatro
+workers dos recepciones simultáneas del mismo insumo se pisarían. La partida
+guarda además su propio `piezas_por_empaque` como snapshot, igual que la
+descripción y la unidad: si mañana el proveedor cambia la presentación, el
+documento histórico no puede cambiar con él.
+
+**El semáforo del insumo se mide contra el máximo** y vive en un solo lugar,
+`models/insumo.py`: `estado_insumo()` clasifica la fila y `EXPRESIONES_ESTADO`
+repite la misma cascada en SQL para que el filtro se resuelva en la base
+(regla 4). Verde del 75 % del máximo hacia arriba, amarillo hasta ahí, rojo por
+debajo del 35 % o del mínimo, naranja si pasa del máximo, y **gris cuando no
+hay máximo capturado**: sin tope no hay contra qué medir, y sin ese caso un
+catálogo recién importado saldría entero en verde porque cualquier cantidad
+alcanza el 75 % de cero. Las comparaciones van con enteros multiplicando
+cruzado (`existencia * 100 <= maximo * 35`) y no con `0.35`: el flotante
+decide mal el color justo en la frontera y ahí la tabla y el filtro dejarían
+de coincidir. `tests/test_catalogo.py` compara las dos versiones rama por rama.
+
+**La pestaña Stock no cuelga de `/api/catalogo`.** Muestra existencias, que son
+datos del catálogo, pero es una pestaña de Inventario: quien tiene el permiso
+`inventario` y no `catalogo` recibiría 403 en cada carga y el select de
+categorías se quedaría vacío sin que nada falle de forma visible. Por eso
+`GET /api/inventario/stock` y `/stock/categorias` son gemelos que reutilizan
+`insumo_service.listar()`. Son de **solo lectura**: corregir una existencia
+sigue siendo del catálogo, con su propio permiso.
 
 **Rondines de seguridad** (`api/routes/rondines.py`,
 `services/rondin_service.py`)
@@ -547,8 +727,22 @@ selector de idioma.
 Estadísticas ya no es una ruta: es una sub-pestaña dentro de `/cuestionarios`,
 y la vista activa viaja en la query (`?vista=estadisticas`). Controles hace lo
 mismo con `?control=rayser`, Administración con `?seccion=logs`, Rondines con
-`?seccion=puntos` e Inventario con `?seccion=historial`. Estudios y Catálogo no
-llevan nada en la query: cada una es una sola tabla con su formulario.
+`?seccion=puntos` e Inventario con `?seccion=stock` y `?seccion=historial`.
+Estudios y Catálogo no llevan nada en la query: cada una es una sola tabla con
+su formulario.
+
+**La columna de Acciones de una tabla es siempre `ui/BotonIcono`**, envuelta en
+`FilaAcciones`: un cuadro de 32 px con solo el icono, `aria-label` y `title` con
+el texto ya traducido, y el bote de basura en `tono="error"`. Nació en los
+historiales de Controles y ahora lo usan las trece tablas del panel. No es
+cosmética: con botones de texto en unas pestañas y de icono en otras, la misma
+acción cambiaba de forma y de ancho según dónde estuvieras, y en Catálogo y
+Usuarios «Editar / Eliminar / Desactivar» se comía el espacio de los datos. Una
+tabla nueva **no estrena diseño de botón**; si le falta un icono, se agrega a
+`ui/Iconos.tsx`, que son SVG en línea y sin librería.
+
+`ui/Button` sigue siendo el de los formularios, los modales y la paginación:
+ahí el texto es lo que se lee, y un icono solo no diría qué hace.
 
 Los textos del panel salen de `src/lib/i18n` (ver regla 6).
 `/r/[token]` queda fuera: layout propio, sin sesión y en **tema claro de alto
@@ -647,9 +841,10 @@ el valor por omisión sin que nada lo diga. Ya pasó con las `SMTP_*`.
 `ix_respuestas_opcion_id`, borrar una opción recorría las 188 mil respuestas
 (56 ms por opción, y una edición borra decenas).
 
-**Las imágenes van a la base, no al disco.** El backend **no tiene ningún
-volumen escribible**: `docker-compose.yml` no le monta ninguno y `static/` solo
-trae el logo, así que cualquier archivo escrito muere con el contenedor. Las
+**Las imágenes van a la base, no al disco** —con una sola excepción, abajo. El
+backend tiene **un único volumen escribible**: `./backend/ocr_formatos`, y
+fuera de él cualquier archivo escrito muere con el contenedor (`static/` solo
+trae el logo). Las
 evidencias de los controles (`controles_fotos`), las fotos de recepción
 (`recepciones_fotos`) y los ejemplos del clasificador
 (`recepciones_plantilla_ejemplos`) son todos columnas `BYTEA`, servidas por un

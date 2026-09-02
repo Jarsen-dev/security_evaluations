@@ -13,13 +13,17 @@ interface ModalProps {
   children: ReactNode;
   /** Barra inferior de acciones. */
   pie?: ReactNode;
-  ancho?: 'sm' | 'md' | 'lg';
+  ancho?: 'sm' | 'md' | 'lg' | 'xl';
 }
 
 const ANCHOS = {
   sm: 'max-w-md',
   md: 'max-w-2xl',
   lg: 'max-w-4xl',
+  // Para lo que se ve en dos columnas: el detalle de una recepción pone la
+  // foto de la remisión junto a sus partidas, y con `lg` ninguna de las dos
+  // cabía sin barra de desplazamiento propia.
+  xl: 'max-w-6xl',
 } as const;
 
 export function Modal({

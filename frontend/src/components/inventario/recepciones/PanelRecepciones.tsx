@@ -6,6 +6,7 @@ import {
   BloqueDocumento,
   type Documento,
   type PartidaBorrador,
+  type ResultadoCodigo,
 } from '@/components/inventario/recepciones/BloqueDocumento';
 import { ModalQrCaptura } from '@/components/inventario/recepciones/ModalQrCaptura';
 import { Button } from '@/components/ui/Button';
@@ -15,7 +16,7 @@ import { VisorImagen } from '@/components/ui/VisorImagen';
 import {
   ErrorDeApi,
   guardarRecepcion,
-  listarInsumos,
+  insumosPorCodigo,
   procesarFotoDeSesion,
   procesarFotoRecepcion,
   urlFotoRecepcion,
@@ -24,7 +25,7 @@ import { bilingue, useTraduccion } from '@/lib/i18n';
 import { REDUCCION_DOCUMENTO, reducirImagen } from '@/lib/imagen';
 import { idUnico } from '@/lib/navegador';
 import { useSesion } from '@/lib/sesion';
-import type { Insumo, RecepcionPayload, ResultadoOcr } from '@/lib/types';
+import type { CandidatoInsumo, RecepcionPayload, ResultadoOcr } from '@/lib/types';
 
 /** Las tres fases por las que pasa una captura. */
 type Fase = 'captura' | 'procesando' | 'revision';
@@ -37,21 +38,38 @@ function partidaVacia(): PartidaBorrador {
     idLocal: idUnico(),
     codigo: '',
     cantidad: '',
-    insumo: null,
+    descripcion: '',
+    candidatos: [],
+    insumoId: null,
     noRegistrado: false,
   };
 }
 
 /** Convierte lo que devolvió la extracción en un documento editable. */
 function documentoDesdeOcr(resultado: ResultadoOcr): Documento {
-  const items = resultado.items.map((item) => ({
-    ...partidaVacia(),
-    codigo: item.codigo ?? '',
-    cantidad:
-      item.cantidad === null || item.cantidad === undefined
-        ? ''
-        : String(item.cantidad),
-  }));
+  const items = resultado.items.map((item) => {
+    const candidatos = item.candidatos ?? [];
+    const elegido = item.insumo_id ?? null;
+
+    return {
+      ...partidaVacia(),
+      codigo: item.codigo ?? '',
+      cantidad:
+        item.cantidad === null || item.cantidad === undefined
+          ? ''
+          : String(item.cantidad),
+      candidatos,
+      insumoId: elegido,
+      // Si el servidor ya resolvió cuál es, se muestra la descripción del
+      // catálogo; si no, la que leyó del papel, que es la pista con la que el
+      // operador va a elegir.
+      descripcion:
+        candidatos.find((candidato) => candidato.id === elegido)?.descripcion ??
+        item.descripcion ??
+        '',
+      noRegistrado: (item.codigo ?? '') !== '' && candidatos.length === 0,
+    };
+  });
 
   return {
     idLocal: idUnico(),
@@ -60,6 +78,7 @@ function documentoDesdeOcr(resultado: ResultadoOcr): Documento {
     fecha: resultado.fecha ?? '',
     tipo_documento: resultado.tipo_documento,
     tipo_conocido: resultado.tipo_conocido,
+    tipoNombre: resultado.tipo_nombre ?? '',
     ocr_ok: resultado.ocr_ok,
     ocr_raw: resultado.ocr_raw,
     advertencias: resultado.advertencias,
@@ -97,32 +116,44 @@ export function PanelRecepciones() {
   const formulario = useRef<HTMLDivElement>(null);
 
   // Caché de los códigos ya consultados: en una remisión de veinte partidas
-  // el mismo código se repite y no tiene caso volver a preguntar.
-  const catalogo = useRef(new Map<string, Insumo | null>());
+  // el mismo código se repite y no tiene caso volver a preguntar. Solo se
+  // cachean las respuestas buenas: un fallo no es un dato.
+  const catalogo = useRef(new Map<string, CandidatoInsumo[]>());
 
-  const buscarCodigo = useCallback(async (codigo: string): Promise<Insumo | null> => {
+  const buscarCodigo = useCallback(async (codigo: string): Promise<ResultadoCodigo> => {
     const clave = codigo.trim().toLowerCase();
     const enCache = catalogo.current.get(clave);
     if (enCache !== undefined) {
-      return enCache;
+      return { estado: 'ok', candidatos: enCache };
     }
 
     try {
-      const pagina = await listarInsumos({ busqueda: codigo.trim() }, 1);
-      // La búsqueda es parcial y cubre varias columnas; aquí interesa
-      // únicamente el que coincide EXACTO con el código.
-      const exacto =
-        pagina.items.find((insumo) => insumo.codigo.toLowerCase() === clave) ?? null;
-      catalogo.current.set(clave, exacto);
-      return exacto;
+      const insumos = await insumosPorCodigo(codigo.trim());
+      const candidatos: CandidatoInsumo[] = insumos.map((insumo) => ({
+        id: insumo.id,
+        descripcion: insumo.descripcion,
+        unidad_medida: insumo.unidad_medida,
+        piezas_por_empaque: insumo.piezas_por_empaque,
+      }));
+      catalogo.current.set(clave, candidatos);
+      return { estado: 'ok', candidatos };
     } catch {
-      // Sin catálogo no se puede afirmar que el código no existe: se deja
-      // pasar y que el backend decida al guardar.
-      return null;
+      // Sin catálogo no se puede afirmar que el código no existe: quien llama
+      // lo deja pasar y el backend decide al guardar. Devolver una lista
+      // vacía marcaría en rojo códigos perfectamente válidos.
+      return { estado: 'fallo' };
     }
   }, []);
 
   function recibirResultado(resultado: ResultadoOcr) {
+    // El servidor ya resolvió los códigos del documento: se siembra la caché
+    // con eso en vez de volver a preguntarlos uno por uno.
+    for (const item of resultado.items) {
+      if (typeof item.codigo === 'string' && item.codigo.trim() !== '') {
+        catalogo.current.set(item.codigo.trim().toLowerCase(), item.candidatos ?? []);
+      }
+    }
+
     setFotoId(resultado.foto_id);
     setDocumentos([documentoDesdeOcr(resultado)]);
     setErrores({});
@@ -201,6 +232,13 @@ export function PanelRecepciones() {
         if (!/^\d+$/.test(partida.cantidad.trim()) || Number(partida.cantidad) <= 0) {
           problemas[`items[${indice}].cantidad`] = t('recepciones.faltaCantidad');
         }
+        // Con varias descripciones para el mismo código, elegir es lo único
+        // que puede hacer el operador y el servidor no puede adivinar. Un
+        // código inexistente NO se bloquea aquí a propósito: eso se arregla en
+        // Catálogo, y el servidor responde con todos los que falten de una vez.
+        if (partida.candidatos.length > 1 && partida.insumoId === null) {
+          problemas[`items[${indice}].insumo`] = t('recepciones.faltaInsumo');
+        }
       });
 
       if (documento.items.length === 0) {
@@ -232,6 +270,10 @@ export function PanelRecepciones() {
       items: documento.items.map((partida) => ({
         codigo: partida.codigo.trim(),
         cantidad: Number(partida.cantidad),
+        insumo_id: partida.insumoId,
+        // La del papel, no la del catálogo: es lo que alimenta los ejemplos
+        // del OCR y lo que le enseña a leer, no a inventar.
+        descripcion: partida.descripcion.trim() || null,
       })),
     };
   }
@@ -248,12 +290,23 @@ export function PanelRecepciones() {
       // Se guardan de uno en uno. Si el tercero falla, los dos primeros YA
       // están en la base: hay que recortarlos del formulario o el reintento
       // los duplicaría.
+      const avisos: string[] = [];
+
       for (const documento of documentos) {
-        await guardarRecepcion(aPayload(documento));
+        const guardada = await guardarRecepcion(aPayload(documento));
         guardados += 1;
+        // El backend aprende del documento después de guardarlo, y si no
+        // pudo lo dice aquí. Callarlo dejaba al operador creyendo que su
+        // formato había quedado registrado.
+        if (guardada.aviso) {
+          avisos.push(guardada.aviso);
+        }
       }
 
       mostrarToast(t('recepciones.guardado'), 'exito');
+      for (const aviso of avisos) {
+        mostrarToast(aviso, 'info');
+      }
       reiniciar();
     } catch (error: unknown) {
       const mensaje =
@@ -419,6 +472,7 @@ export function PanelRecepciones() {
                   ocr_ok: true,
                   tipo_documento: previos[0]?.tipo_documento ?? 'desconocido',
                   tipo_conocido: previos[0]?.tipo_conocido ?? false,
+                  tipo_nombre: previos[0]?.tipoNombre || null,
                   proveedor: null,
                   folio: null,
                   fecha: null,

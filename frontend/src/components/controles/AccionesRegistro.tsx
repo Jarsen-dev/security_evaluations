@@ -1,7 +1,6 @@
 'use client';
 
-import type { ReactNode } from 'react';
-
+import { BotonIcono, FilaAcciones } from '@/components/ui/BotonIcono';
 import {
   IconoBote,
   IconoDescargar,
@@ -10,67 +9,6 @@ import {
   IconoPortapapeles,
 } from '@/components/ui/Iconos';
 import { useTraduccion } from '@/lib/i18n';
-import { cn } from '@/lib/utils';
-
-interface BotonIconoProps {
-  /** Va como `aria-label` y como `title`: el icono solo no dice nada. */
-  etiqueta: string;
-  icono: ReactNode;
-  onClick: () => void;
-  deshabilitado?: boolean;
-  /** Color del icono; por omisión el gris de la tabla. */
-  tono?: 'neutro' | 'exito' | 'error';
-  cargando?: boolean;
-}
-
-const TONOS = {
-  neutro: 'text-texto-suave hover:text-texto',
-  exito: 'text-exito hover:text-exito',
-  error: 'text-texto-suave hover:text-error',
-} as const;
-
-/**
- * Botón de solo icono para la columna de Acciones.
- *
- * No usa `ui/Button` porque ese componente reserva espacio horizontal para
- * texto y aquí caben cuatro acciones en una celda. Lo que sí conserva es el
- * objetivo táctil: 32 px de lado, que es lo mínimo cómodo con guantes.
- *
- * **Siempre lleva `aria-label` y `title`.** Sin texto visible, esa es la única
- * forma de saber qué hace el botón: el `title` para quien lo ve y duda, el
- * `aria-label` para quien no lo ve.
- */
-export function BotonIcono({
-  etiqueta,
-  icono,
-  onClick,
-  deshabilitado,
-  tono = 'neutro',
-  cargando,
-}: BotonIconoProps) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={deshabilitado || cargando}
-      aria-label={etiqueta}
-      title={etiqueta}
-      className={cn(
-        'inline-flex h-8 w-8 items-center justify-center rounded-md',
-        'border border-transparent transition-colors',
-        'hover:border-borde hover:bg-fondo-sutil',
-        'disabled:cursor-not-allowed disabled:opacity-50',
-        TONOS[tono],
-      )}
-    >
-      {cargando ? (
-        <span className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
-      ) : (
-        icono
-      )}
-    </button>
-  );
-}
 
 interface AccionesRegistroProps {
   /** Opcional: Pláticas no tiene detalle que mostrar, solo su renglón. */
@@ -107,7 +45,7 @@ export function AccionesRegistro({
   const t = useTraduccion();
 
   return (
-    <div className="flex items-center justify-end gap-1">
+    <FilaAcciones>
       {onDescargar && (
         <BotonIcono
           etiqueta={t('comun.descargarExcel')}
@@ -148,6 +86,6 @@ export function AccionesRegistro({
           deshabilitado={deshabilitado}
         />
       )}
-    </div>
+    </FilaAcciones>
   );
 }

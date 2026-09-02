@@ -245,16 +245,21 @@ export function VisorImagen({ src, alt, className }: VisorImagenProps) {
 
     function alPresionarTecla(evento: KeyboardEvent) {
       if (evento.key === 'Escape') {
+        // En captura y cortando la propagación porque el visor puede vivir
+        // DENTRO de un modal —así se ve la foto en el historial—, y ese
+        // escucha Escape en el `document` igual que aquí: sin esto, un solo
+        // Escape cerraría la pantalla completa y el modal de un golpe.
+        evento.stopPropagation();
         setCompleta(false);
       }
     }
 
-    document.addEventListener('keydown', alPresionarTecla);
+    document.addEventListener('keydown', alPresionarTecla, true);
     const overflowPrevio = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
 
     return () => {
-      document.removeEventListener('keydown', alPresionarTecla);
+      document.removeEventListener('keydown', alPresionarTecla, true);
       document.body.style.overflow = overflowPrevio;
     };
   }, [completa]);
@@ -429,7 +434,7 @@ export function VisorImagen({ src, alt, className }: VisorImagenProps) {
           mientras la foto está ampliada. */}
       <div className={className} />
       {createPortal(
-        <div className="fixed inset-0 z-50 bg-black/90 p-2 sm:p-6">{visor}</div>,
+        <div className="fixed inset-0 z-visor bg-black/90 p-2 sm:p-6">{visor}</div>,
         document.body,
       )}
     </>

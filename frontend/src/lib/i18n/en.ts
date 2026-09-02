@@ -551,11 +551,26 @@ export const en: Diccionario = {
     titulo: 'Inventory',
     descripcion: 'Inventory of medicine and other safety supplies.',
     recepciones: 'Receipts',
+    stock: 'Stock',
     historial: 'History',
     enConstruccion: 'Under construction',
     enConstruccionDetalle:
       'Inventory is still kept in the Excel file. It will be enabled here as ' +
       'soon as its capture rules are defined.',
+  },
+
+  stock: {
+    titulo: 'Stock on hand',
+    descripcion:
+      'What is in the warehouse today, in individual units. Each confirmed ' +
+      'entry adds the boxes captured, multiplied by the units each one holds.',
+    actualizar: 'Refresh',
+    existencia: 'Quantity',
+    registros: '{total} item(s)',
+    vacio: 'There are no items in the catalogue yet.',
+    vacioAyuda: 'Add the first one from the Catalogue tab.',
+    sinCoincidencias: 'No item matches the filters.',
+    falloCarga: 'Stock could not be loaded.',
   },
 
   recepciones: {
@@ -585,6 +600,18 @@ export const en: Diccionario = {
     unidad: 'Unit',
     agregarPartida: 'Add line item',
     quitarPartida: 'Remove line item',
+    porCaja: '{piezas} per box',
+    formatoAprendido: 'Format "{formato}" learned from this document.',
+    elegirDescripcion: 'Pick the description',
+    variasDescripciones:
+      'This code covers {total} products. Pick which one you received before saving.',
+    faltaInsumo: 'Pick which description you received.',
+    verDetalle: 'View detail',
+    detalle: 'Receipt detail',
+    cajas: 'Boxes',
+    piezasTotales: 'Units',
+    falloDetalle: 'The detail could not be loaded.',
+    entranPiezas: '{piezas} units will be added',
     noRegistrado: 'Not registered',
     noRegistradoAyuda: 'This code is not in the catalog. Add it before saving.',
     irAlCatalogo: 'Go to Catalog',
@@ -614,13 +641,21 @@ export const en: Diccionario = {
     qrRecibida: 'Photo received. Processing…',
     qrExpirada: 'The code expired. Generate a new one.',
     qrFallo: 'The code could not be generated.',
+    qrSinConexion:
+      'The connection to the server was lost while waiting for the photo. '
+      + 'Generate a new code.',
+    qrSoloLocal:
+      'You are on localhost, which on a phone points to the phone itself. '
+      + 'Open the panel through the network address or the domain to use '
+      + 'the code.',
     buscar: 'Search by supplier or document no.…',
     formato: 'Format',
     todosLosFormatos: 'All formats',
     capturadaPor: 'Captured by',
     capturadaEl: 'Capture date',
     totalPartidas: '{total} line item(s)',
-    verFoto: 'View photo',
+    fotoRemision: 'Delivery note photo',
+    sinFoto: 'This receipt was captured without a photo.',
     manual: 'Manual entry',
     vacio: 'No receipts have been registered yet.',
     vacioAyuda: 'Photograph the first delivery note to get started.',
@@ -863,13 +898,21 @@ export const en: Diccionario = {
       'extinguishers, with their stock and inventory limits.',
     nuevo: 'New supply',
     codigo: 'Code',
-    codigoAyuda: 'Identifies the supply. It cannot be repeated.',
+    codigoAyuda:
+      'The supplier code. It may repeat: what tells two supplies with the ' +
+      'same code apart is their description.',
+    descripcionAyuda: 'Required. It is what tells two supplies with the same code apart.',
     descripcionCampo: 'Description',
     categoria: 'Category',
     unidadMedida: 'Unit of measure',
     proveedor: 'Supplier',
     ubicacion: 'Location',
-    cantidad: 'Quantity',
+    piezasPorCaja: 'Units per box',
+    piezasPorCajaAyuda:
+      'How many units each box or pack holds. It is multiplied by whatever is ' +
+      'captured on an entry.',
+    existencia: 'Stock on hand',
+    existenciaAyuda: 'The real stock, in units. Correct it after the physical count.',
     minimo: 'Min. inventory',
     maximo: 'Max. inventory',
     rango: 'Min. / Max.',
@@ -895,21 +938,27 @@ export const en: Diccionario = {
     falloEliminar: 'The supply could not be deleted.',
     confirmarEliminar: 'Delete supply',
     confirmarEliminarDetalle:
-      '"{codigo}" will be removed from the catalog. This cannot be undone.',
+      '"{codigo} · {descripcion}" will be removed from the catalog. This ' +
+      'cannot be undone.',
     faltaCodigo: 'Enter the code of the supply.',
     faltaCategoria: 'Choose a category.',
     faltaUnidad: 'Choose a unit of measure.',
     numeroInvalido: 'Enter a whole number of 0 or more.',
+    faltaDescripcion: 'Enter the description.',
+    piezasInvalidas: 'Enter a whole number of 1 or more.',
     rangoInvertido: 'The maximum cannot be lower than the minimum.',
   },
 
   semaforoInsumo: {
-    bajo: 'Below minimum',
+    bajo: 'Low',
+    medio: 'Half full',
     normal: 'Normal',
     excedido: 'Over maximum',
+    sinTopes: 'No limits set',
     ayuda:
-      'Below minimum when the stock does not reach the minimum; over maximum ' +
-      'when it goes past the maximum.',
+      'Green from 75% of the maximum upwards, yellow up to that point, and ' +
+      'red below 35% or below the minimum. Grey while the item has no ' +
+      'maximum: with no limit there is nothing to measure it against.',
   },
 
   importarCatalogo: {
