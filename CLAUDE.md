@@ -208,6 +208,14 @@ Dos consecuencias al escribir código:
   aplicaciones de Access todavía están pendientes de crear**; queda anotado en
   `SEGURIDAD.md`.
 
+  La excepción razonada va al revés: el webhook por donde AppSheet empuja los
+  rondines (`/api/publico/rondin/escaneos`) **debe quedar fuera de Access**,
+  porque lo llama un Bot desde la nube de Google que no puede resolver el SSO.
+  Por eso cuelga de `/api/publico`, que ya está declarado público a propósito,
+  y no de un prefijo nuevo: ahí quedar fuera de Access sería el accidente que
+  esta regla previene, y bajo `/api/publico` es una decisión escrita. Su
+  credencial es el secreto de la cabecera (`RONDINES_WEBHOOK_SECRETO`).
+
 El límite de tasa distingue dos cuotas (`core/ratelimit.py`): la amplia de
 `/api/publico` y una estricta de 5 fallos por 5 minutos en `/api/auth/login`.
 En el login **solo cuentan los 401**, para que un admin no se autobloquee.
@@ -437,6 +445,80 @@ sin subir el de Nginx haría que el proxy respondiera 413 —HTML crudo— antes
 llegar al backend, y el operador vería un error opaco en vez del mensaje en
 español.
 
+**Control de Extintores** (`api/routes/controles.py`,
+`services/extintor_service.py`, `models/extintor.py`,
+`services/extintores_etiquetas.py`, `services/extintores_excel.py`)
+
+Los 160 extintores de la planta: una ficha por aparato, su etiqueta QR pegada
+encima y una revisión de doce puntos al día. Ocho reglas propias:
+
+- **No es una `DefinicionChecklist`, y no por comodidad.** Los controles de
+  lista comparten `registros_checklist` porque son *una hoja de N puntos al día
+  para toda la planta*; aquí son *N aparatos identificados por doce puntos cada
+  uno*, y además hace falta una ficha con modelo, capacidad, tipo, ubicación y
+  vencimiento que aquella tabla no tiene dónde guardar. Forzar el
+  `discriminador` habría dejado la ficha fuera igual.
+- **Los cierres de hallazgo ganaron su CUARTA llave.** `CierreHallazgo` tenía
+  tres FK anulables con `num_nonnulls(...) = 1` y `_columna_dueno()` mandaba
+  todo lo desconocido a `checklist_id`. Sumar un control con tabla propia son
+  cinco puntos y **los cinco hacen falta**: la columna, la rama de
+  `_columna_dueno()`, la del `CierreHallazgo(...)` que se **construye** al dar
+  de alta, `hallazgos_de()` y la consulta de `listar_incidencias()`. Olvidar la
+  tercera fue un bug real: el cierre se guardaba en `checklist_id` y reventaba
+  contra su FK. Escríbelas como "ninguno de los que tienen columna propia", no
+  enumerando.
+- **Igual en `controles_fotos`, que pasó a siete llaves.** La evidencia cuelga
+  del PUNTO inconforme, no de la revisión: doce puntos con hasta cuatro fotos, y
+  el Excel tiene que decir cuál ilustra cada imagen. Los dos `CHECK` se tiran y
+  se rehacen **siempre** en la migración, no solo si faltan: la guarda habitual
+  daría por bueno el CHECK viejo, que existe con el mismo nombre y sin la llave
+  nueva.
+- **El semáforo del vencimiento tiene su gemelo en SQL, y es una FUNCIÓN.**
+  `estado_vencimiento()` y `expresiones_estado(hoy)` viven juntos en
+  `models/extintor.py` y las pruebas los contrastan rama por rama. A diferencia
+  de `EXPRESIONES_ESTADO` del catálogo, aquí es una función y no un dict de
+  módulo: los cortes dependen del día, y un dict calculado al importar se
+  quedaría congelado con la fecha en que arrancó el contenedor —un proceso que
+  lleva semanas vivo iría clasificando cada vez peor, sin que nada fallara—.
+- **Los meses se cuentan con `core/fechas.sumar_meses(dia, n)`, nunca
+  encadenando.** Encadenar deriva: 31 de enero → 28 de febrero → 28 de marzo,
+  cuando dos meses después del 31 de enero es el 31 de marzo. Son tres días de
+  diferencia en la frontera del aviso. `estudios_catalogo.sumar_un_mes` quedó
+  como alias delgado de ahí.
+- **El QR lleva `NEXT_PUBLIC_BASE_URL`.** Es el caso contrario al del QR de
+  captura de recepciones: aquella sesión dura diez minutos y tiene que caer en
+  el despliegue que la creó; esta etiqueta se pega al aparato y tiene que seguir
+  funcionando dentro de un año, así que apunta al dominio público, igual que el
+  QR impreso de los cuestionarios.
+- **No hay escáner dentro del panel, y no es una funcionalidad pendiente.**
+  `getUserMedia` no existe entrando por la IP de la LAN (regla 5) y por el
+  dominio Nginx la bloquea con `Permissions-Policy: camera=()`
+  (`nginx/default.conf`), así que un botón-escáner funcionaría en una sola de
+  las dos vías de acceso y fallaría en silencio en la otra. Lo que se usa es la
+  cámara **nativa** del teléfono, que no pasa por Permissions-Policy porque no
+  es el navegador: escanea el QR y el navegador abre
+  `/controles?control=extintores&extintor=<id>`, que el panel lee para saltar
+  directo a esa revisión. **Si algún día se abre `camera=(self)`, hay que
+  escribir aquí que la vía de respaldo por IP deja de tener escáner.**
+- **Las etiquetas se generan en el backend, con reportlab y `qrcode`.** Miden
+  **3 × 3 cm exactos** y eso es una medida física: lo que sale de un
+  `window.print()` depende de la impresora y de los márgenes del navegador. El
+  endpoint es un **POST** aunque no cambie nada, porque la cola puede llevar los
+  160 identificadores y la URL se pasaría del búfer de cabeceras de Nginx; por
+  eso lleva su propia entrada en el catálogo de la bitácora.
+
+Dos decisiones más que conviene no revertir sin pensarlo:
+
+- **Eliminar una ficha CONSERVA sus revisiones.** El FK queda en NULL y cada
+  revisión lleva copiados el folio, el modelo, el tipo y la ubicación, así que
+  el Excel de los meses en que se revisó sigue diciendo de qué aparato hablaba.
+  Borrar en cascada dejaría el reporte que ya se mandó por correo sin manera de
+  cuadrar.
+- **El Excel acota las hojas 2 y 3 a un mes; la 1 no.** La ficha de los 160 es
+  el estado de hoy y cabe entera; las revisiones son ~1 900 renglones al día y
+  sus evidencias van incrustadas como imágenes, así que un año no cabría en un
+  archivo que se manda por correo.
+
 **Estudios y capacitaciones** (`api/routes/estudios.py`,
 `services/estudio_service.py`)
 
@@ -535,10 +617,11 @@ JSON el texto que Tesseract ya leyó. Cinco reglas propias:
   quedaba en la computadora del operador: producción no la conocía y contestaba
   *«esta sesión de captura ya no está disponible»*, **siempre**, sin importar
   cuán reciente fuera el código. Rompía igual por la IP de la LAN, que es la
-  vía de respaldo cuando el túnel se cae (regla 5). Los otros QR del sistema
-  —cuestionarios y puntos de rondín— son el caso contrario: llevan un token
-  duradero que sí existe en producción y se imprimen para pegarlos en la pared,
-  así que ahí el dominio público es lo correcto. El origen se lee en un
+  vía de respaldo cuando el túnel se cae (regla 5). El otro QR del sistema —el de
+  los cuestionarios— es el caso contrario: lleva un token duradero que sí existe
+  en producción y se imprime para pegarlo en la pared, así que ahí el dominio
+  público es lo correcto. (Los QR de los puntos de rondín ya no son de este
+  sistema: los pone AppSheet.) El origen se lee en un
   `useEffect`, no al renderizar: el servidor no sabe por dónde entró el
   navegador.
 - **Entrando por `localhost` no se pinta ningún QR.** En el celular esa
@@ -641,6 +724,34 @@ no son opcionales:
 - **La bitácora anota `codigo · descripcion`** (`insumo_service.etiquetar()`).
   El código solo ya no dice qué fila se tocó.
 
+**Reimportar el Excel del catálogo corrige lo que ya existe, pero NUNCA la
+existencia.** Antes se omitía la pareja repetida por miedo a pisar lo
+capturado, y eso dejaba el archivo inservible para lo que de verdad se usa:
+corregir en bloque un campo del catálogo —añadir la unidad de medida a treinta
+productos, por ejemplo— obligaba a abrirlos uno por uno en el panel. Ahora
+`importar()` copia lo que la fila trae **distinto**, y la lista de lo que puede
+tocar es explícita (`CAMPOS_ACTUALIZABLES` en `services/insumo_service.py`).
+Tres cosas quedan fuera y las tres tienen motivo:
+
+- **`existencia`**, porque es el único número que mueve el propio sistema:
+  confirmar una recepción le suma piezas con un `UPDATE ... existencia + :n`.
+  Un Excel exportado la semana pasada borraría las entradas de almacén de esta
+  semana, y nadie lo notaría hasta el inventario físico. Corregirla sigue
+  siendo del formulario del panel, con su permiso.
+- **`codigo` y `descripcion`**, porque *son* la identidad: la pareja es el
+  índice único, así que cambiarlas no corrige esta fila, apunta a otra.
+- **Las columnas que el archivo no traía.** El lector entrega siempre todas las
+  claves —la columna ausente toma su valor por omisión: proveedor en `None`,
+  mínimo y máximo en 0—, así que sin distinguirlas una hoja recortada a las
+  cuatro obligatorias vaciaría el proveedor y la ubicación del catálogo entero
+  sin que nada fallara. Por eso `ResultadoLectura.columnas` reporta lo que
+  había en el **encabezado** y `importar()` interseca contra esa lista.
+
+Y por lo mismo el resumen se cuenta **por insumo y no por renglón**
+(`ResumenImportacion`: creados, actualizados, sin cambios): un archivo que
+repite la misma pareja dos veces habla de un solo insumo, y contarlo dos veces
+haría que los números no cuadraran con lo que la tabla enseña después.
+
 **El emparejado de descripciones se calibra midiendo, no a ojo.**
 `mejor_coincidencia()` reutiliza el TF-IDF de la clasificación de formatos
 —`_similitudes()` es la capa común— pero con **umbrales propios y una asimetría
@@ -681,13 +792,76 @@ datos del catálogo, pero es una pestaña de Inventario: quien tiene el permiso
 categorías se quedaría vacío sin que nada falle de forma visible. Por eso
 `GET /api/inventario/stock` y `/stock/categorias` son gemelos que reutilizan
 `insumo_service.listar()`. Son de **solo lectura**: corregir una existencia
-sigue siendo del catálogo, con su propio permiso.
+sigue siendo del catálogo, con su propio permiso. La única forma de mover la
+existencia desde fuera del catálogo es registrar una salida en el Control de
+Insumos, y es una excepción escrita y acotada (ver abajo), no una edición.
+
+**Control de Insumos** (`api/routes/controles.py`,
+`services/control_insumos_service.py`, `services/control_insumos_excel.py`)
+
+La pestaña de Controles que registra las salidas del almacén: quién se llevó
+qué insumo y para qué área. Es el **primer control que mueve datos de otro
+módulo** —baja `insumos.existencia`—, y de ahí salen casi todas sus reglas:
+
+- **La resta va con guarda dentro del propio `UPDATE`**:
+  `.where(Insumo.id == id, Insumo.existencia >= n)` y después `rowcount == 0`.
+  Dos motivos, y los dos son bugs reales si falta: `ck_insumos_rango` obliga a
+  `existencia >= 0`, así que pasarse **no da cero, lanza `IntegrityError`** y
+  sale como 500 crudo en vez del 422 en español; y comprobar con un `SELECT`
+  previo sería una carrera —con cuatro workers, dos entregas simultáneas del
+  último frasco pasarían las dos la prueba—. La comprobación y la escritura
+  tienen que ser la misma sentencia.
+- **El mensaje del rechazo se arma ANTES del `rollback`.** Deshacer expira el
+  objeto de SQLAlchemy, y leerle un atributo después dispara una recarga
+  perezosa que en sesión asíncrona revienta como `MissingGreenlet`: el operador
+  vería un 500 en vez del aviso de que no alcanza. Es la misma trampa que tumbó
+  el aprendizaje de formatos en Recepciones.
+- **`consumo` y `descontado` son dos columnas y ninguna se deriva de la otra.**
+  Lo que se usó y lo que bajó del inventario no coinciden en lo que se mide a
+  granel: usar 20 GR de un tubo de 60 no agota ningún envase, y el inventario
+  cuenta envases. Recalcular uno desde el otro más tarde exigiría saber qué
+  regla estaba vigente el día de la captura.
+- **`UNIDADES_PARCIALES` (GR, ML, MTS) vive en `core/constants.py` y se sirve
+  por la API.** Son las que obligan a preguntar «¿se terminó?» antes de tocar la
+  existencia. Con la lista escrita a mano en el panel, agregar una unidad nueva
+  dejaría de preguntar sin que nada fallara. La regla *unidad ↔ termino* se
+  queda en el servicio y **no** en un CHECK: meterla en la base ataría esa lista
+  a una migración. Lo que la base sí sostiene es
+  `descontado = CASE WHEN termino IS FALSE THEN 0 ELSE consumo END`, escrito
+  como función total y no como `descontado IN (0, consumo)`: aquella versión
+  dejaría pasar un cero en una entrega que sí debía descontar.
+- **La unidad se lee de la fila dentro de la transacción, nunca del payload.**
+  Si entre la búsqueda y el guardado alguien edita el insumo de GR a PZA, el
+  `termino` que mandó el panel ya no significa nada; se **rechaza** («el insumo
+  cambió de unidad») en vez de corregirlo en silencio, que descontaría lo que el
+  operador creía que no se descontaba.
+- **El buscador cuelga de `/api/controles/insumos/buscar`.** Mismo motivo que
+  Stock: `/api/catalogo` exige el módulo `catalogo` y `/api/inventario/stock`
+  exige `inventario`, y quien solo tiene `controles` recibiría **403 en cada
+  tecla** —que en pantalla se lee como «ese insumo no existe»—. Devuelve
+  `InsumoParaControl` y no `InsumoOut`: es un puente entre módulos y no debe
+  entregar de propina el proveedor, la ubicación ni los topes de inventario.
+- **El POST se queda con el acceso simple, sin `editar=True`.** Crea una fila,
+  no pisa la de nadie; y `editar` daría de propina el borrado de todos los demás
+  controles a quien solo tiene que entregar guantes.
+- **Los registros son inmutables**: se consultan y se exportan, no se editan ni
+  se borran. Un error se corrige ajustando la existencia desde Catálogo, que
+  deja su propio rastro. La pantalla lo dice, o se descubre en la semana dos.
 
 **Rondines de seguridad** (`api/routes/rondines.py`,
-`services/rondin_service.py`)
+`services/rondin_service.py`, `services/appsheet_rondines.py`,
+`api/routes/ingesta_rondines.py`)
 
-El guardia escanea un QR pegado en cada punto y el tablero arma la matriz de
-puntos × seis rondines de dos horas. Cuatro reglas propias:
+**La captura NO es de este sistema.** Los guardias escanean con una app de
+**AppSheet** que tiene los 44 puntos de la planta, y esa app es la fuente de
+verdad. Aquí se consume: un Bot suyo empuja cada escaneo a
+`POST /api/publico/rondin/escaneos`, y `python -m app.cli importar-puntos` /
+`importar-escaneos` cargan el catálogo y el histórico desde sus CSV. Lo que
+este sistema aporta es lo que AppSheet no hace: la matriz de puntos × seis
+rondines de dos horas, el cumplimiento y el Excel.
+
+El catálogo de puntos es de **solo lectura** en la API y en el panel: no hay
+alta, edición, borrado ni generación de QR. Seis reglas propias:
 
 - **Los recorridos se cortan por punto repetido, no por reloj.** `asignar_rondines()`
   agrupa los escaneos y corta cuando pasan más de 30 minutos de silencio **o**
@@ -711,6 +885,31 @@ puntos × seis rondines de dos horas. Cuatro reglas propias:
   Si la matriz fuera solo los puntos activos de hoy, desactivar uno reescribiría
   el cumplimiento de todos los turnos ya cerrados y el Excel reenviado dejaría
   de coincidir con el que se mandó por correo.
+- **`escaneado_at` la manda AppSheet; `recibido_at` es el reloj del servidor.**
+  La app captura sin señal y sincroniza horas después, así que sellar al recibir
+  mandaría media ronda al rondín equivocado. Y **una marca sin zona se lee en la
+  hora de la planta, jamás en UTC**: es la misma trampa de `sin_zona()` con otro
+  disfraz, y leerla mal corre cada escaneo seis horas. El formato del CSV es
+  `%d/%m/%Y %H:%M:%S` (locale `es-ES`) y **nunca se agrega `%m/%d/%Y` a la lista
+  de respaldo**: `05/04/2026` parsea sin error bajo las dos interpretaciones, así
+  que un formato de más no protege — adivina, y adivina en silencio.
+- **`origen_id` UNIQUE es lo único que hace inocuos los reintentos.** El Bot
+  reintenta de verdad, y el mismo escaneo puede llegar varias veces. La ingesta
+  hace `ON CONFLICT DO NOTHING` con `RETURNING`, del que sale el conteo de
+  insertados sin leer antes. Todo endpoint de ingesta empujada necesita una
+  llave de idempotencia, o los números se inflan en cada reintento.
+  Un renglón inválido —el 2.6 % del histórico viene sucio— se descarta **solo a
+  él** y la respuesta sigue siendo **202**: un 4xx haría que AppSheet reintentara
+  el lote entero para siempre. Un escaneo de un punto desconocido se descarta y
+  se reporta, no se guarda huérfano: `construir_tablero()` ignora los que tienen
+  `punto_id` en NULL, así que sería invisible y solo escondería que el catálogo
+  quedó viejo.
+- **El GPS es evidencia, no verificación.** Viene en el 100 % de los escaneos
+  pero es `=HERE()`: medido contra las coordenadas de referencia, la mediana del
+  error son 94 m y los puntos de la planta están más juntos que eso. Nada de
+  semáforos de «no estuvo ahí». Por lo mismo, `Email_Guardia` se guarda pero no
+  identifica a nadie: es una cuenta compartida de turno (49,441 de 49,488
+  escaneos con el mismo correo).
 
 El reporte automático consulta `contar_escaneos()` **antes** de tomar el
 candado del turno: un turno sin un solo escaneo no manda correo, y no gastar el
@@ -729,7 +928,11 @@ y la vista activa viaja en la query (`?vista=estadisticas`). Controles hace lo
 mismo con `?control=rayser`, Administración con `?seccion=logs`, Rondines con
 `?seccion=puntos` e Inventario con `?seccion=stock` y `?seccion=historial`.
 Estudios y Catálogo no llevan nada en la query: cada una es una sola tabla con
-su formulario.
+su formulario. Extintores usa la query para algo más: el QR pegado a cada
+aparato abre `?control=extintores&extintor=<id>` y el panel salta directo a su
+revisión del día. Ya no queda ninguna pestaña «en construcción»: la última era el
+control de medicamento, que se convirtió en el Control de Insumos, así que el
+componente y sus claves se retiraron.
 
 **La columna de Acciones de una tabla es siempre `ui/BotonIcono`**, envuelta en
 `FilaAcciones`: un cuadro de 32 px con solo el icono, `aria-label` y `title` con
@@ -815,10 +1018,14 @@ tiempo, pero si lo que el reporte muestra ES la hora (como el tablero de
 rondines, donde cada celda dice a qué hora pasó el guardia), sale corrido seis
 horas. Ver el helper `_local()` de `services/rondines_excel.py`.
 
-**El escaneo de un rondín no pasa por la bitácora.** Cae bajo `/api/publico`,
-que está excluido a propósito, y ya deja su rastro en `escaneos_rondin`. La
-página que lo recibe (`/p/[token]`) también debe estar excluida del matcher de
-`middleware.ts`: sin eso rebota al login y ningún QR funciona.
+**La ingesta de rondines no pasa por la bitácora.** El webhook cae bajo
+`/api/publico`, que está excluido a propósito, y cada escaneo ya deja su rastro
+en `escaneos_rondin` con su `origen_id` y su `recibido_at`. Que cuelgue de ese
+prefijo es deliberado y es la excepción razonada a la regla 7: AppSheet llama
+desde la nube de Google y no puede resolver el SSO de Cloudflare Access, así que
+`/api/publico/rondin/escaneos` **no debe** recibir aplicación de Access —igual
+que `/r/` y `/re/`—. Estrenar prefijo propio lo habría dejado fuera de Access
+*sin que nada falle de forma visible*, que es justo lo que la regla prohíbe.
 
 **Una tarea del `lifespan` corre en CADA worker de uvicorn.** Con
 `UVICORN_WORKERS: "4"`, un envío programado sale cuatro veces. El reporte

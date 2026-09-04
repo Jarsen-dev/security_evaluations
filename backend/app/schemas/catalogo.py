@@ -163,14 +163,16 @@ class ErrorImportacionInsumo(BaseModel):
 
 
 class ResultadoImportacionInsumos(BaseModel):
-    """Resumen de una carga masiva.
+    """Resumen de una carga masiva, contado por insumo.
 
-    Los repetidos se omiten en vez de actualizarse: así un archivo viejo no
-    puede pisar existencias que ya se corrigieron en el panel.
+    Reimportar corrige lo que ya existe, pero **nunca la existencia**: es el
+    número que mueven las recepciones, y un archivo exportado hace una semana
+    borraría las entradas de almacén de esa semana.
     """
 
     creados: int
-    omitidos: int
+    actualizados: int
+    sin_cambios: int
     errores: list[ErrorImportacionInsumo]
 
 

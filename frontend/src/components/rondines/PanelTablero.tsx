@@ -13,6 +13,7 @@ import {
   obtenerTablero,
 } from '@/lib/api';
 import { bilingue, unaLinea, useIdioma } from '@/lib/i18n';
+import { useSesion } from '@/lib/sesion';
 import { turnoEnCurso } from '@/lib/turno';
 import type { Tablero, TurnoRondin } from '@/lib/types';
 
@@ -25,6 +26,10 @@ const CLASES_CAMPO =
 export function PanelTablero() {
   const { t, locale } = useIdioma();
   const { mostrarToast } = useToast();
+  const { puede } = useSesion();
+
+  // Cosmética, no autorización: la API vuelve a comprobarlo (regla 8).
+  const puedeEditar = puede('rondines', 'editar');
 
   // Arranca en null y se resuelve en un efecto: el contenedor del frontend
   // corre en UTC y la planta en UTC-6, así que calcular la fecha durante el
@@ -321,34 +326,38 @@ export function PanelTablero() {
         <MatrizRondines tablero={tablero} />
       )}
 
-      <Card>
-        <div className="flex flex-wrap items-end gap-3">
-          <div className="flex min-w-[16rem] flex-1 flex-col gap-1.5">
-            <label
-              htmlFor="rondines-correo"
-              className="text-xs font-medium text-texto-suave"
-            >
-              {bilingue(t('rondines.correoDestino'))}
-            </label>
-            <input
-              id="rondines-correo"
-              type="email"
-              className={CLASES_CAMPO}
-              value={correo}
-              onChange={(evento) => setCorreo(evento.target.value)}
-            />
-          </div>
+      {/* La API exige `editar` para enviar el reporte; sin esta guarda, un
+          usuario de solo lectura llenaba el campo y se comía un 403. */}
+      {puedeEditar && (
+        <Card>
+          <div className="flex flex-wrap items-end gap-3">
+            <div className="flex min-w-[16rem] flex-1 flex-col gap-1.5">
+              <label
+                htmlFor="rondines-correo"
+                className="text-xs font-medium text-texto-suave"
+              >
+                {bilingue(t('rondines.correoDestino'))}
+              </label>
+              <input
+                id="rondines-correo"
+                type="email"
+                className={CLASES_CAMPO}
+                value={correo}
+                onChange={(evento) => setCorreo(evento.target.value)}
+              />
+            </div>
 
-          <Button
-            variante="secundario"
-            cargando={enviando}
-            disabled={correo.trim() === ''}
-            onClick={() => void enviar()}
-          >
-            {bilingue(t('rondines.enviarCorreo'))}
-          </Button>
-        </div>
-      </Card>
+            <Button
+              variante="secundario"
+              cargando={enviando}
+              disabled={correo.trim() === ''}
+              onClick={() => void enviar()}
+            >
+              {bilingue(t('rondines.enviarCorreo'))}
+            </Button>
+          </div>
+        </Card>
+      )}
     </div>
   );
 }

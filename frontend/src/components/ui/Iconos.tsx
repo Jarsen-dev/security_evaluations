@@ -129,6 +129,28 @@ export function IconoQr(props: IconoProps) {
   );
 }
 
+/** Escanear con la cámara del celular. */
+export function IconoCamara(props: IconoProps) {
+  return (
+    <Svg {...props}>
+      <path d="M4 8h3l1.5-2h7L17 8h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1Z" />
+      <circle cx="12" cy="13" r="3.5" />
+    </Svg>
+  );
+}
+
+/** Llenar la revisión diaria: una lista con sus marcas. */
+export function IconoChecklist(props: IconoProps) {
+  return (
+    <Svg {...props}>
+      <path d="m3 6 1.5 1.5L7 5" />
+      <path d="m3 12 1.5 1.5L7 11" />
+      <path d="m3 18 1.5 1.5L7 17" />
+      <path d="M11 6h10M11 12h10M11 18h10" />
+    </Svg>
+  );
+}
+
 /** Girar 90° en contra de las manecillas. */
 export function IconoGirarIzquierda(props: IconoProps) {
   return (

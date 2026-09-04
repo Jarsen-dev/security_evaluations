@@ -773,8 +773,163 @@ export interface FiltrosCatalogo {
 /** Resumen de una carga masiva desde Excel. */
 export interface ResultadoImportacionInsumos {
   creados: number;
-  omitidos: number;
+  actualizados: number;
+  sin_cambios: number;
   errores: ErrorImportacion[];
+}
+
+// --- Extintores ------------------------------------------------------------
+
+/** Estado del vencimiento. Lo calcula el servidor; el panel solo lo pinta. */
+export type EstadoExtintor = 'vencido' | 'critico' | 'por_vencer' | 'vigente';
+
+export interface Extintor {
+  id: string;
+  /** Lo que identifica al aparato en la nave y va impreso en su etiqueta. */
+  folio: string;
+  modelo: string;
+  capacidad: string;
+  tipo: string;
+  ubicacion: string;
+  vencimiento: string;
+}
+
+export interface ExtintorPayload {
+  folio: string;
+  modelo: string;
+  capacidad: string;
+  tipo: string;
+  ubicacion: string;
+  vencimiento: string;
+}
+
+/** Un renglón de la tabla, con lo que decide qué botones se pintan. */
+export interface FilaExtintor {
+  extintor: Extintor;
+  estado: EstadoExtintor;
+  revisado_hoy: boolean;
+  anomalias_hoy: number | null;
+  revision_id: string | null;
+  cierre_hecho: boolean;
+}
+
+export interface ExtintoresPaginados {
+  total: number;
+  page: number;
+  size: number;
+  items: FilaExtintor[];
+  /** «Revisados hoy: N de M», contado sobre todo el inventario. */
+  revisados_hoy: number;
+  registrados: number;
+}
+
+export interface FiltrosExtintores {
+  busqueda?: string;
+  tipo?: string;
+  estado?: EstadoExtintor;
+  revisado?: boolean;
+}
+
+export interface CatalogoExtintores {
+  puntos: PuntoControl[];
+  tipos: string[];
+  max_fotos: number;
+  maximo: number;
+}
+
+export interface PuntoRevisionPayload {
+  orden: number;
+  valor: 'ok' | 'no_ok';
+  observaciones: string;
+}
+
+export interface PuntoRevisionExtintor {
+  orden: number;
+  clave: string;
+  etiqueta: string;
+  valor: 'ok' | 'no_ok';
+  observaciones: string | null;
+  fotos: string[];
+}
+
+export interface RevisionExtintor {
+  id: string;
+  extintor_id: string | null;
+  folio: string;
+  modelo: string;
+  tipo: string;
+  ubicacion: string;
+  fecha: string;
+  anomalias: number;
+  responsable: string;
+  creado_at: string;
+  puntos: PuntoRevisionExtintor[];
+}
+
+export interface AvisoExtintor {
+  id: string;
+  folio: string;
+  ubicacion: string;
+  fecha_vencimiento: string;
+  /** Días que faltan; negativo si la fecha ya pasó. */
+  dias: number;
+  vencido: boolean;
+}
+
+export interface AvisosExtintores {
+  total: number;
+  vencidos: number;
+  avisos: AvisoExtintor[];
+}
+
+// --- Control de insumos ----------------------------------------------------
+
+/** Un insumo tal como lo ofrece el desplegable de captura del control. */
+export interface InsumoParaControl {
+  id: string;
+  codigo: string;
+  descripcion: string;
+  unidad_medida: string;
+  /** Piezas disponibles. Se muestra para poder elegir con criterio. */
+  existencia: number;
+}
+
+export interface CatalogoControlInsumos {
+  areas: Area[];
+  /**
+   * Unidades que obligan a preguntar si el producto se terminó. Vienen del
+   * servidor: con la lista escrita aquí, agregar una unidad nueva dejaría de
+   * preguntar sin que nada fallara.
+   */
+  unidades_parciales: string[];
+}
+
+export interface ControlInsumoPayload {
+  insumo_id: string;
+  entregado_a: string;
+  area: string;
+  consumo: number;
+  /** `null` cuando la unidad no lo pregunta. Nunca por omisión. */
+  termino: boolean | null;
+}
+
+export interface RegistroControlInsumo {
+  id: string;
+  fecha: string;
+  codigo: string;
+  descripcion: string;
+  unidad_medida: string;
+  entregado_a: string;
+  area: string;
+  /** El área con acentos; la resuelve el servidor. */
+  area_etiqueta: string;
+  /** Lo que se usó. */
+  consumo: number;
+  /** Lo que bajó del inventario: `0` o `consumo`, nunca algo intermedio. */
+  descontado: number;
+  termino: boolean | null;
+  responsable: string;
+  creado_at: string;
 }
 
 // --- Rondines de seguridad -------------------------------------------------
@@ -786,9 +941,11 @@ export interface PuntoRondin {
   id: string;
   numero: number;
   nombre: string;
+  /**
+   * AppSheet no tiene una ubicación legible: sus coordenadas de referencia van
+   * aparte y el nombre YA es el lugar («CASETA», «SILOS»).
+   */
   ubicacion: string | null;
-  /** Lo que va en el QR. Solo llega con sesión: es la credencial del punto. */
-  token_publico: string;
   activo: boolean;
   creado_at: string;
   actualizado_at: string | null;
@@ -810,14 +967,6 @@ export interface Avisos {
   total: number;
   vencidos: number;
   avisos: AvisoVencimiento[];
-}
-
-/** Alta y edición de un punto. */
-export interface PuntoRondinPayload {
-  numero: number;
-  nombre: string;
-  ubicacion: string | null;
-  activo?: boolean;
 }
 
 /** Un punto con sus seis celdas del turno. */
@@ -855,14 +1004,6 @@ export interface Tablero {
   /** Índice del rondín en curso, o `null` si el turno no está vivo. */
   rondin_actual: number | null;
   avance_actual: number | null;
-}
-
-/** Confirmación de un escaneo (`POST /api/publico/rondin/{token}`). */
-export interface EscaneoRegistrado {
-  numero: number;
-  nombre: string;
-  ubicacion: string | null;
-  escaneado_at: string;
 }
 
 // --- Recepciones de mercancía ----------------------------------------------

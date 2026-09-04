@@ -84,14 +84,11 @@ export const es = {
     platicas: 'Pláticas ESH',
     recorridos: 'Recorridos perimetrales',
     muro: 'Revisión de muro',
-    medicamento: 'Control de medicamento',
+    insumos: 'Control de Insumos',
     silos: 'Silos EPS',
     tableros: 'Tableros eléctricos',
+    extintores: 'Extintores',
     pciMtto: 'PCI MTTO',
-    enConstruccion: 'En construcción',
-    enConstruccionDetalle:
-      'Este control todavía se lleva en papel. Se habilitará aquí en cuanto se ' +
-      'definan sus reglas de captura.',
   },
 
   rayser: {
@@ -553,10 +550,6 @@ export const es = {
     recepciones: 'Recepciones',
     stock: 'Stock',
     historial: 'Historial',
-    enConstruccion: 'En construcción',
-    enConstruccionDetalle:
-      'El inventario todavía se lleva en el archivo de Excel. Se habilitará aquí ' +
-      'en cuanto se definan sus reglas de captura.',
   },
 
   stock: {
@@ -970,13 +963,158 @@ export const es = {
     importando: 'Importando…',
     plantilla: 'Descargar plantilla',
     nota:
-      'Los insumos nuevos se dan de alta y los que ya existen se omiten, así que ' +
-      'volver a subir un archivo no pisa lo capturado.',
-    resultado: '{creados} insumo(s) nuevo(s); {omitidos} ya existían.',
+      'Los insumos nuevos se dan de alta y los que ya existían se corrigen con lo ' +
+      'que traiga distinto el archivo. La existencia no se toca: la mueven las ' +
+      'recepciones y se corrige desde el panel.',
+    resultado:
+      '{creados} insumo(s) nuevo(s); {actualizados} actualizado(s); ' +
+      '{sinCambios} sin cambios.',
     fallo: 'No se pudo importar el archivo.',
     filasConProblemas:
       '{total} fila(s) con problemas — corrígelas en tu Excel y vuelve a importar:',
     fila: 'Fila {numero}:',
+  },
+
+  controlInsumos: {
+    titulo: 'Control de Insumos',
+    descripcion:
+      'Salidas del almacén: quién se llevó qué insumo y para qué área. Lo que ' +
+      'se registra aquí se descuenta del stock del catálogo.',
+    insumo: 'Insumo',
+    insumoPlaceholder: 'Busca por código o descripción',
+    insumoAyuda: 'Un mismo código puede amparar varios productos: elige el de la lista.',
+    tecleaMas: 'Escribe al menos dos letras.',
+    buscando: 'Buscando…',
+    sinResultados: 'Ningún insumo coincide con lo que escribiste.',
+    falloBusqueda: 'No se pudo buscar en el catálogo.',
+    entregadoA: 'A quién se entrega',
+    entregadoAPlaceholder: 'Nombre de quien lo usa',
+    area: 'Área',
+    areaPlaceholder: 'Elige un área',
+    consumo: 'Consumo',
+    consumoAyuda: 'Piezas que salen del inventario.',
+    existencia: 'Existencia',
+    registrar: 'Registrar salida',
+    guardado: 'Salida registrada.',
+    faltaInsumo: 'Elige un insumo de la lista.',
+    faltaEntregadoA: 'Escribe a quién se le entrega.',
+    faltaArea: 'Elige el área.',
+    faltaConsumo: 'Captura cuánto se usó, en números enteros.',
+    terminoTitulo: '¿Se terminó el producto?',
+    terminoDetalle:
+      'Este insumo se mide en {unidad} y el inventario cuenta piezas. Si el ' +
+      'envase se terminó, se descuentan {consumo} del stock; si no, no se ' +
+      'descuenta nada y queda registrado como uso.',
+    terminoSi: 'Sí, se terminó',
+    terminoNo: 'No se terminó',
+    historial: 'Salidas registradas',
+    historialVacio: 'Todavía no hay salidas registradas en este periodo.',
+    inmutable:
+      'Los registros no se editan ni se borran. Si algo quedó mal, corrige la ' +
+      'existencia desde la pestaña de Catálogo.',
+    colInsumo: 'Insumo',
+    colEntregadoA: 'Entregado a',
+    colConsumo: 'Consumo',
+    colDescontado: 'Descontado',
+    colTermino: '¿Se terminó?',
+    noAplica: '—',
+  },
+
+  extintores: {
+    titulo: 'Control de Extintores',
+    descripcion:
+      'Ficha de cada extintor de la planta, su vencimiento y su revisión ' +
+      'diaria. El QR pegado al aparato abre su revisión desde el celular.',
+    registrar: 'Registrar extintor',
+    editar: 'Editar extintor',
+    eliminar: 'Eliminar extintor',
+    revisadosHoy: 'Revisados hoy: {revisados} de {total}',
+    tope: 'Ya hay {maximo} extintores registrados, que es la dotación de la planta.',
+
+    folio: 'Folio',
+    folioAyuda: 'El número que va impreso en la etiqueta. No se puede repetir.',
+    modelo: 'Modelo',
+    capacidad: 'Capacidad',
+    capacidadAyuda: 'Como venga en el aparato: 4.5 kg, 9 kg, 6 lb…',
+    tipo: 'Tipo',
+    tipoPlaceholder: 'Elige el agente',
+    tipoTodos: 'Todos los tipos',
+    ubicacion: 'Ubicación',
+    vencimiento: 'Vencimiento',
+    vencimientoAyuda: 'Se avisa dos meses antes, y en rojo el último mes.',
+
+    estado: 'Estado',
+    estadoTodos: 'Todos los estados',
+    estadoVencido: 'Vencido',
+    estadoCritico: 'Vence este mes',
+    estadoPorVencer: 'Vence en dos meses',
+    estadoVigente: 'Vigente',
+
+    revisadoHoy: 'Revisión de hoy',
+    revisadoTodos: 'Revisados y pendientes',
+    revisadoSi: 'Revisados hoy',
+    revisadoNo: 'Pendientes de hoy',
+
+    buscarPlaceholder: 'Folio, modelo o ubicación',
+    limpiarFiltros: 'Limpiar filtros',
+    pagina: 'Página {pagina} de {total}',
+    vacio: 'Todavía no hay extintores registrados.',
+    sinResultados: 'Ningún extintor coincide con los filtros.',
+
+    verQr: 'Ver código QR',
+    qrTitulo: 'Etiqueta del extintor',
+    qrDetalle:
+      'Al escanearlo con la cámara del celular se abre la revisión de este ' +
+      'extintor. Se imprime a 3 × 3 cm.',
+    qrLocal:
+      'La dirección configurada es local: este código no funcionará desde un ' +
+      'celular. Pide que se configure la dirección pública antes de imprimir.',
+    imprimirIndividual: 'Impresión individual',
+    anadirACola: 'Añadir a la cola',
+    yaEnCola: 'Ya está en la cola',
+    anadidaACola: 'Etiqueta añadida a la cola de impresión.',
+    imprimirCola: 'Imprimir cola ({total})',
+    vaciarCola: 'Vaciar cola',
+
+    escanear: 'Revisar con el celular',
+    escanearTitulo: 'Revisar con el celular',
+    escanearDetalle:
+      'Apunta la cámara de tu teléfono al QR pegado en el extintor: se abrirá ' +
+      'su revisión diaria. No hace falta buscarlo en la tabla.',
+    escanearAbrirAqui: 'O escanea este código para abrir esta pestaña en el celular:',
+
+    revisionTitulo: 'Revisión diaria',
+    revisadoTitulo: 'Revisado hoy — ver o corregir',
+    corregirRevision: 'Corregir la revisión de hoy',
+    revisionAviso:
+      'Revisa cada punto con cuidado: que nada esté dañado, flojo, faltante ' +
+      'ni obstruido. Si algo no está en perfectas condiciones, márcalo como ' +
+      'inconforme y adjunta la evidencia.',
+    resumenRevision: '{contestados} de {total} puntos · {anomalias} inconformidad(es)',
+    faltaFoto: 'Un punto inconforme necesita al menos una foto de evidencia.',
+    revisionGuardada: 'Revisión registrada.',
+
+    guardado: 'Extintor registrado.',
+    actualizado: 'Extintor actualizado.',
+    eliminado: 'Extintor eliminado.',
+    confirmarEliminar: '¿Eliminar este extintor?',
+    confirmarEliminarDetalle:
+      'Se elimina la ficha de {folio}. Sus revisiones ya registradas se ' +
+      'conservan y seguirán saliendo en el Excel de los meses en que se revisó.',
+
+    faltaFolio: 'Captura el folio.',
+    faltaModelo: 'Captura el modelo.',
+    faltaCapacidad: 'Captura la capacidad.',
+    faltaTipo: 'Elige el tipo.',
+    faltaUbicacion: 'Captura la ubicación.',
+    faltaVencimiento: 'Captura la fecha de vencimiento.',
+
+    falloCarga: 'No se pudieron cargar los extintores.',
+    falloGuardar: 'No se pudo guardar.',
+    falloEliminar: 'No se pudo eliminar el extintor.',
+    falloEtiquetas: 'No se pudieron generar las etiquetas.',
+
+    avisoTitulo: 'Extintor {folio} — {ubicacion}',
   },
 
   rondines: {
@@ -1020,50 +1158,15 @@ export const es = {
 
   puntosRondin: {
     titulo: 'Puntos de control',
-    descripcion:
-      'Cada punto tiene su código QR. Imprímelos, recórtalos y pégalos en su ' +
-      'lugar de la planta.',
-    nuevo: 'Nuevo punto',
-    imprimir: 'Imprimir códigos QR',
+    descripcion: 'Los puntos de control de la planta y su estado actual.',
     numero: 'Número',
-    numeroAyuda: 'Es lo que se imprime en la etiqueta. No puede repetirse.',
     nombre: 'Nombre',
-    ubicacion: 'Ubicación',
     estado: 'Estado',
     activo: 'Activo',
     inactivo: 'Retirado',
-    codigo: 'Código QR',
-    tituloCodigo: 'Código QR — Punto {numero}',
-    baseNoConfigurada:
-      'NEXT_PUBLIC_BASE_URL está vacía, así que la liga del código queda ' +
-      'relativa y el QR no abrirá nada. Captúrala en el archivo .env y ' +
-      'reconstruye el frontend antes de imprimir las etiquetas.',
-    verCodigo: 'Ver código',
-    crear: 'Nuevo punto de control',
-    editar: 'Editar punto de control',
     vacio: 'Todavía no hay puntos de control.',
-    vacioAyuda: 'Da de alta el primero para empezar a registrar recorridos.',
+    vacioAyuda: 'Habla con el administrador del sistema.',
     falloCarga: 'No se pudieron cargar los puntos.',
-    creado: 'Punto dado de alta.',
-    actualizadoOk: 'Punto actualizado.',
-    eliminado: 'Punto eliminado.',
-    falloGuardar: 'No se pudo guardar el punto.',
-    falloEliminar: 'No se pudo eliminar el punto.',
-    falloImprimir: 'No se pudo generar la hoja de códigos QR.',
-    confirmarEliminar: 'Eliminar punto de control',
-    confirmarEliminarDetalle:
-      'El punto {nombre} se borrará y su código QR dejará de servir. Los ' +
-      'recorridos anteriores conservan el número, pero dejarán de contarse. ' +
-      'Casi siempre conviene retirarlo en vez de borrarlo.',
-    faltaNumero: 'Escribe el número del punto.',
-    faltaNombre: 'Escribe el nombre del punto.',
-    textoLargo: 'Son 150 caracteres como máximo.',
-    qrRetirado:
-      'este punto está retirado. El código sigue aquí para consultarlo, pero '  +
-      'al escanearlo no registrará ninguna visita hasta que se reactive.',
-    descargarQr: 'Descargar PNG',
-    ligaCopiada: 'Liga copiada.',
-    falloCopiar: 'No se pudo copiar. Cópiala a mano: {liga}',
   },
 };
 

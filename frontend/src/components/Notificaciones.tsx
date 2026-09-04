@@ -3,11 +3,20 @@
 import Link from 'next/link';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-import { obtenerAvisos, obtenerAvisosPciMtto } from '@/lib/api';
+import {
+  obtenerAvisos,
+  obtenerAvisosExtintores,
+  obtenerAvisosPciMtto,
+} from '@/lib/api';
 import { alCambiarAvisos } from '@/lib/avisos';
 import { bilingue, useIdioma } from '@/lib/i18n';
 import { useSesion } from '@/lib/sesion';
-import type { AvisoPciMtto, AvisoVencimiento, Modulo } from '@/lib/types';
+import type {
+  AvisoExtintor,
+  AvisoPciMtto,
+  AvisoVencimiento,
+  Modulo,
+} from '@/lib/types';
 import { formatearFechaIso } from '@/lib/utils';
 import { cn } from '@/lib/utils';
 
@@ -85,8 +94,10 @@ export function Notificaciones() {
   const tieneAlguna = verEstudios || verControles;
 
   /** "Vence en 12 días", "Venció hace 3 días"… */
+  // Se tipa por lo único que mira —los días— y no por un schema concreto:
+  // lo comparten los vencimientos de Estudios y los de Extintores.
   const cuandoVence = useCallback(
-    (aviso: AvisoVencimiento): string => {
+    (aviso: { dias: number }): string => {
       if (aviso.dias === 0) return t('avisos.venceHoy');
       if (aviso.dias === 1) return t('avisos.venceManana');
       if (aviso.dias === -1) return t('avisos.vencioAyer');
@@ -130,12 +141,30 @@ export function Notificaciones() {
     [locale, t],
   );
 
+  const deExtintor = useCallback(
+    (aviso: AvisoExtintor): AvisoCampana => ({
+      // Prefijado por origen: los ids de dos módulos no deben confundirse.
+      id: `extintor:${aviso.id}`,
+      modulo: 'controles',
+      // El folio y la ubicación son dato capturado: no se traducen.
+      titulo: t('extintores.avisoTitulo', {
+        folio: aviso.folio,
+        ubicacion: aviso.ubicacion,
+      }),
+      cuando: `${cuandoVence(aviso)} · ${formatearFechaIso(aviso.fecha_vencimiento, locale)}`,
+      urgente: aviso.vencido,
+      href: '/controles?control=extintores',
+    }),
+    [cuandoVence, locale, t],
+  );
+
   const cargar = useCallback(async () => {
     // `allSettled` y no `all`: si una fuente falla o devuelve 403, la campana
     // sigue mostrando la otra en lugar de quedarse vacía.
-    const [estudios, pci] = await Promise.allSettled([
+    const [estudios, pci, extintores] = await Promise.allSettled([
       verEstudios ? obtenerAvisos() : Promise.resolve(null),
       verControles ? obtenerAvisosPciMtto() : Promise.resolve(null),
+      verControles ? obtenerAvisosExtintores() : Promise.resolve(null),
     ]);
 
     const reunidos: AvisoCampana[] = [];
@@ -148,12 +177,16 @@ export function Notificaciones() {
       reunidos.push(...pci.value.avisos.map(dePciMtto));
     }
 
+    if (extintores.status === 'fulfilled' && extintores.value !== null) {
+      reunidos.push(...extintores.value.avisos.map(deExtintor));
+    }
+
     // Lo urgente primero; dentro de cada grupo se conserva el orden que dio
     // el servidor, que ya viene por fecha.
     reunidos.sort((a, b) => Number(b.urgente) - Number(a.urgente));
 
     setAvisos(reunidos);
-  }, [verEstudios, verControles, deEstudios, dePciMtto]);
+  }, [verEstudios, verControles, deEstudios, dePciMtto, deExtintor]);
 
   useEffect(() => {
     if (!tieneAlguna) {

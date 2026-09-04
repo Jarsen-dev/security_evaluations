@@ -11,6 +11,7 @@ from datetime import date, datetime
 from decimal import Decimal
 
 from sqlalchemy import (
+    Boolean,
     CheckConstraint,
     Date,
     DateTime,
@@ -373,7 +374,7 @@ class AreaPlatica(Base):
 class FotoControl(Base):
     """Evidencia fotográfica de cualquier control.
 
-    Una sola tabla para las seis procedencias posibles, con un ``CHECK`` que
+    Una sola tabla para las siete procedencias posibles, con un ``CHECK`` que
     obliga a que exactamente una llave foránea venga llena. Así hay un único
     endpoint que sirve las imágenes y una sola forma de guardarlas.
 
@@ -388,7 +389,7 @@ class FotoControl(Base):
     __table_args__ = (
         CheckConstraint(
             "num_nonnulls(punto_id, platica_id, rayser_id, cierre_id, "
-            "respuesta_id, pci_id) = 1",
+            "respuesta_id, pci_id, punto_extintor_id) = 1",
             name="ck_foto_un_solo_dueno",
         ),
         Index("ix_controles_fotos_punto", "punto_id"),
@@ -397,6 +398,7 @@ class FotoControl(Base):
         Index("ix_controles_fotos_cierre", "cierre_id"),
         Index("ix_controles_fotos_respuesta", "respuesta_id"),
         Index("ix_controles_fotos_pci", "pci_id"),
+        Index("ix_controles_fotos_punto_extintor", "punto_extintor_id"),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(
@@ -435,6 +437,14 @@ class FotoControl(Base):
         ForeignKey("registros_pci_mtto.id", ondelete="CASCADE"),
         nullable=True,
     )
+    # La evidencia de un extintor cuelga del PUNTO que salió NO OK, no de la
+    # revisión: doce puntos con hasta cuatro fotos cada uno, y el Excel tiene
+    # que poder decir cuál de ellos ilustra cada imagen.
+    punto_extintor_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("extintores_revisiones_puntos.id", ondelete="CASCADE"),
+        nullable=True,
+    )
 
     imagen: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
     tipo: Mapped[str] = mapped_column(String(60), nullable=False)
@@ -449,6 +459,9 @@ class FotoControl(Base):
     cierre: Mapped["CierreHallazgo | None"] = relationship(back_populates="fotos")
     respuesta: Mapped["RespuestaSqp | None"] = relationship(back_populates="fotos")
     pci: Mapped["RegistroPciMtto | None"] = relationship(back_populates="fotos")
+    punto_extintor: Mapped["PuntoRevisionExtintor | None"] = relationship(  # type: ignore[name-defined] # noqa: F821
+        back_populates="fotos"
+    )
 
     def __repr__(self) -> str:
         return f"<FotoControl {self.id}>"
@@ -460,7 +473,7 @@ class CierreHallazgo(Base):
     Uno por hoja, no uno por problema: reproduce el bloque "Acción en caso de
     anomalía" del formato en papel, que cubre la inspección entera.
 
-    Tres llaves foráneas anulables con un ``CHECK`` de que solo una viene
+    Cuatro llaves foráneas anulables con un ``CHECK`` de que solo una viene
     llena, igual que ``FotoControl``. Un par ``(control, registro_id)``
     polimórfico no podría tener FK de verdad y dejaría cierres huérfanos al
     borrar la hoja; así el ``ON DELETE CASCADE`` lo resuelve la base.
@@ -473,7 +486,8 @@ class CierreHallazgo(Base):
     __tablename__ = "cierres_hallazgo"
     __table_args__ = (
         CheckConstraint(
-            "num_nonnulls(checklist_id, rayser_id, sqp_id) = 1",
+            "num_nonnulls(checklist_id, rayser_id, sqp_id, "
+            "revision_extintor_id) = 1",
             name="ck_cierre_un_solo_dueno",
         ),
         # Los índices de unicidad son PARCIALES y se crean en la migración:
@@ -482,6 +496,7 @@ class CierreHallazgo(Base):
         Index("ix_cierres_hallazgo_checklist", "checklist_id"),
         Index("ix_cierres_hallazgo_rayser", "rayser_id"),
         Index("ix_cierres_hallazgo_sqp", "sqp_id"),
+        Index("ix_cierres_hallazgo_extintor", "revision_extintor_id"),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(
@@ -503,6 +518,11 @@ class CierreHallazgo(Base):
     sqp_id: Mapped[uuid.UUID | None] = mapped_column(
         PG_UUID(as_uuid=True),
         ForeignKey("inspecciones_sqp.id", ondelete="CASCADE"),
+        nullable=True,
+    )
+    revision_extintor_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("extintores_revisiones.id", ondelete="CASCADE"),
         nullable=True,
     )
 
@@ -643,3 +663,94 @@ class RegistroPciMtto(Base):
 
     def __repr__(self) -> str:
         return f"<RegistroPciMtto {self.anio}-{self.mes:02d}>"
+
+
+class RegistroControlInsumos(Base):
+    """Una salida del almacén: quién se llevó qué insumo, para qué área.
+
+    Es el primer control que **mueve datos de otro módulo**: confirmar el
+    registro baja la existencia del catálogo. Hasta ahora ese número solo lo
+    subían las recepciones y lo corregía a mano el catálogo.
+
+    **``consumo`` y ``descontado`` son dos números distintos y los dos se
+    guardan.** Un tubo de gel del que se usaron 20 GR sin terminarlo es
+    ``consumo=20, descontado=0``: se usó, pero el inventario cuenta envases y
+    no bajó ninguno. Derivar uno del otro más tarde obligaría a saber qué regla
+    estaba vigente el día de la captura, y la regla puede cambiar; el documento
+    histórico no.
+
+    ``codigo``, ``descripcion`` y ``unidad_medida`` son **snapshot** del insumo
+    resuelto en el servidor, igual que en las partidas de recepción: si mañana
+    cambia el catálogo, el registro sigue diciendo qué se entregó. Por eso
+    ``insumo_id`` puede quedar en NULL sin que el renglón pierda sentido.
+
+    Lo que la base **no** sostiene, a propósito, es que ``termino`` solo tenga
+    valor cuando la unidad es de las que se consumen a granel. Se podría
+    escribir —``unidad_medida`` está en esta misma fila—, pero eso metería la
+    lista de `UNIDADES_PARCIALES` en un CHECK, y entonces agregar una unidad
+    exigiría una migración. Esa regla vive en el servicio, como la de "si sí,
+    al menos una foto" de PCI MTTO.
+    """
+
+    __tablename__ = "registros_control_insumos"
+    __table_args__ = (
+        CheckConstraint("consumo > 0", name="ck_control_insumos_consumo"),
+        # La regla entera, como una función total. La versión ingenua
+        # —`descontado IN (0, consumo)`— dejaría pasar un `descontado = 0` en un
+        # insumo que sí debía descontarse, que es la forma de que el registro y
+        # el stock dejen de cuadrar sin que nada falle.
+        CheckConstraint(
+            "descontado = CASE WHEN termino IS FALSE THEN 0 ELSE consumo END",
+            name="ck_control_insumos_descontado",
+        ),
+        CheckConstraint(
+            "length(btrim(entregado_a)) > 0", name="ck_control_insumos_entregado"
+        ),
+        Index("ix_control_insumos_fecha", "fecha"),
+        # PostgreSQL no indexa las llaves foráneas solo: sin esto, borrar un
+        # insumo del catálogo recorre esta tabla entera para poner el NULL.
+        Index("ix_control_insumos_insumo", "insumo_id"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        primary_key=True,
+        server_default=text("gen_random_uuid()"),
+    )
+    #: Día de planta, puesto por el servidor. No viene del formulario —son
+    #: cuatro campos y ninguno es la fecha— ni de `date.today()`, que en este
+    #: contenedor es UTC: a las 19:00 de la nave ya sería el día siguiente y el
+    #: Excel de fin de mes no cuadraría.
+    fecha: Mapped[date] = mapped_column(Date, nullable=False)
+
+    insumo_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("insumos.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    codigo: Mapped[str] = mapped_column(String(150), nullable=False)
+    descripcion: Mapped[str] = mapped_column(String(300), nullable=False)
+    unidad_medida: Mapped[str] = mapped_column(String(10), nullable=False)
+
+    entregado_a: Mapped[str] = mapped_column(String(150), nullable=False)
+    area: Mapped[str] = mapped_column(String(50), nullable=False)
+
+    consumo: Mapped[int] = mapped_column(Integer, nullable=False)
+    descontado: Mapped[int] = mapped_column(Integer, nullable=False)
+    #: NULL cuando la unidad no pregunta (PZA, TAB). Nunca por omisión: que un
+    #: "no se terminó" implícito descontara 0 en silencio es el peor error
+    #: posible aquí, porque no se nota hasta el conteo físico.
+    termino: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+
+    responsable: Mapped[str] = mapped_column(String(150), nullable=False)
+    admin_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("admin_users.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    creado_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+    def __repr__(self) -> str:
+        return f"<RegistroControlInsumos {self.fecha} {self.codigo}>"

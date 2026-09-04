@@ -181,6 +181,21 @@ class Settings(BaseSettings):
             if correo.strip()
         ]
 
+    # --- Ingesta de rondines desde AppSheet --------------------------------
+    # La captura de rondines la hace una app de AppSheet; un Bot suyo empuja
+    # cada escaneo a /api/publico/rondin/escaneos. El secreto que viaja en la
+    # cabecera es la ÚNICA credencial de ese endpoint, así que va sin prefijo
+    # NEXT_PUBLIC_ (Next lo incrustaría en el bundle) y sin valor por omisión:
+    # vacío significa "apagado", nunca "abierto". Ver SEGURIDAD.md.
+    RONDINES_WEBHOOK_SECRETO: str = ""
+    #: El peor día medido del histórico son 476 escaneos; 500 cubre uno entero.
+    RONDINES_WEBHOOK_MAX_LOTE: int = Field(default=500, ge=1)
+
+    @property
+    def ingesta_rondines_activa(self) -> bool:
+        """Sin secreto capturado el webhook responde 503, no acepta a ciegas."""
+        return bool(self.RONDINES_WEBHOOK_SECRETO.strip())
+
     # --- Cierre automático de PCI MTTO -------------------------------------
     #: Encendido por omisión, al revés que el reporte de rondines: aquel
     #: necesita un servidor de correo configurado y este no depende de nada

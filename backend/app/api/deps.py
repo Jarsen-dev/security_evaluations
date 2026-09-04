@@ -1,5 +1,6 @@
 """Dependencias compartidas de la capa HTTP."""
 
+import ipaddress
 import uuid
 from collections.abc import Awaitable, Callable
 
@@ -7,9 +8,23 @@ from fastapi import Depends, HTTPException, Request, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.ratelimit import obtener_ip_cliente
 from app.core.security import COOKIE_SESION, TokenInvalidoError, decodificar_token
 from app.db.session import get_db
 from app.models.admin_user import AdminUser
+
+
+def ip_valida(request: Request) -> str | None:
+    """Devuelve la IP del cliente solo si es una dirección válida.
+
+    Las columnas `ip` e `ip_origen` son de tipo INET: un valor con formato
+    inválido —por una cabecera manipulada— abortaría el insert completo.
+    """
+    crudo = obtener_ip_cliente(request)
+    try:
+        return str(ipaddress.ip_address(crudo))
+    except ValueError:
+        return None
 
 NO_AUTENTICADO = HTTPException(
     status_code=status.HTTP_401_UNAUTHORIZED,

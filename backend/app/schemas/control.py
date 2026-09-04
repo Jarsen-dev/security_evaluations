@@ -11,12 +11,16 @@ from decimal import Decimal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from app.core.constants import AREAS_VALIDAS
+from app.core.constants import AREAS_VALIDAS, TOPE_EXISTENCIA
 from app.core.controles_catalogo import (
     CLAVES_AREAS_PLATICAS,
+    MAX_EXTINTORES,
+    TIPOS_EXTINTOR,
+    TIPOS_EXTINTOR_VALIDOS,
     VALORES_CHECKLIST,
     VALORES_SQP,
 )
+from app.schemas.sistema import AreaOut
 
 
 def _sin_espacios(valor: str) -> str:
@@ -534,3 +538,292 @@ class MotivoPciMtto(BaseModel):
         if not limpio:
             raise ValueError("Captura el motivo por el que no se realizó.")
         return limpio
+
+
+# --- Control de insumos ----------------------------------------------------
+
+
+class InsumoParaControl(BaseModel):
+    """Un insumo tal como lo ve el desplegable de captura.
+
+    **Deliberadamente más pobre que `InsumoOut`.** Este endpoint es un puente
+    entre módulos: le sirve datos del catálogo a quien solo tiene el permiso
+    `controles` y que por su vía normal recibiría 403. Devolver el schema del
+    catálogo le entregaría de propina proveedor, ubicación, mínimo, máximo y el
+    semáforo, que no le tocan. Aquí van los cinco campos que la captura
+    necesita, y la existencia es uno de ellos: quien entrega tiene que ver
+    cuánto hay antes de teclear.
+    """
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    codigo: str
+    descripcion: str
+    unidad_medida: str
+    existencia: int
+
+
+class CatalogoControlInsumos(BaseModel):
+    """Lo que la pestaña necesita para dibujar sus selectores.
+
+    Las unidades parciales viajan desde el servidor porque son las que deciden
+    si aparece la pregunta de "¿se terminó?": con la lista escrita a mano en el
+    panel, agregar una unidad nueva dejaría de preguntar sin que nada fallara.
+    """
+
+    areas: list[AreaOut]
+    unidades_parciales: list[str]
+
+
+class ControlInsumoCrear(BaseModel):
+    """Una salida de almacén tal como la captura el panel.
+
+    Solo viaja el `insumo_id`, nunca el código: el desplegable obliga a elegir
+    una fila concreta, así que aquí no existe la ambigüedad código↔descripción
+    que la captura de recepciones tiene que desactivar a mano.
+    """
+
+    insumo_id: uuid.UUID
+    entregado_a: str = Field(min_length=1, max_length=150)
+    area: str = Field(max_length=50)
+    #: El tope no es una regla de negocio: es la defensa contra el
+    #: desbordamiento del INTEGER de PostgreSQL, igual que en el catálogo.
+    consumo: int = Field(ge=1, le=TOPE_EXISTENCIA)
+    #: `None` cuando la unidad no lo pregunta. Nunca por omisión: un "no se
+    #: terminó" implícito descontaría 0 en silencio, y eso no se nota hasta el
+    #: conteo físico.
+    termino: bool | None = None
+
+    @field_validator("entregado_a")
+    @classmethod
+    def _con_nombre(cls, valor: str) -> str:
+        limpio = valor.strip()
+        if not limpio:
+            raise ValueError("Escribe a quién se le entrega el insumo.")
+        return limpio
+
+    @field_validator("area")
+    @classmethod
+    def _validar_area(cls, valor: str) -> str:
+        limpio = valor.strip()
+        if limpio not in AREAS_VALIDAS:
+            raise ValueError("El área no es válida.")
+        return limpio
+
+
+class RegistroControlInsumoOut(BaseModel):
+    """Un renglón del historial.
+
+    `area_etiqueta` la resuelve el servidor: en la base el área va sin acentos
+    y el panel pinta, no deduce.
+    """
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    fecha: date
+    codigo: str
+    descripcion: str
+    unidad_medida: str
+    entregado_a: str
+    area: str
+    area_etiqueta: str
+    consumo: int
+    descontado: int
+    termino: bool | None
+    responsable: str
+    creado_at: datetime
+
+
+# --- Extintores ------------------------------------------------------------
+
+
+class ExtintorBase(BaseModel):
+    """Los cinco campos de la ficha, más el folio que la identifica."""
+
+    folio: str = Field(min_length=1, max_length=20)
+    modelo: str = Field(min_length=1, max_length=100)
+    capacidad: str = Field(min_length=1, max_length=50)
+    tipo: str = Field(max_length=10)
+    ubicacion: str = Field(min_length=1, max_length=150)
+    vencimiento: date
+
+    _limpiar = field_validator(
+        "folio", "modelo", "capacidad", "ubicacion", mode="after"
+    )(_sin_espacios)
+
+    @field_validator("folio")
+    @classmethod
+    def _con_folio(cls, valor: str) -> str:
+        limpio = valor.strip()
+        if not limpio:
+            raise ValueError(
+                "El folio es obligatorio: es lo que distingue a dos extintores "
+                "del mismo modelo en la misma área."
+            )
+        return limpio
+
+    @field_validator("tipo")
+    @classmethod
+    def _validar_tipo(cls, valor: str) -> str:
+        limpio = valor.strip()
+        if limpio not in TIPOS_EXTINTOR_VALIDOS:
+            raise ValueError(
+                "El tipo de extintor no es válido. Usa uno de: "
+                + ", ".join(TIPOS_EXTINTOR)
+                + "."
+            )
+        return limpio
+
+
+class ExtintorCrear(ExtintorBase):
+    """Alta de una ficha."""
+
+
+class ExtintorActualizar(ExtintorBase):
+    """Edición de una ficha existente."""
+
+
+class ExtintorOut(BaseModel):
+    """Un extintor tal como sale de la API."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    folio: str
+    modelo: str
+    capacidad: str
+    tipo: str
+    ubicacion: str
+    vencimiento: date
+
+
+class FilaExtintor(BaseModel):
+    """Un renglón de la tabla, con lo que decide qué botones se pintan.
+
+    `estado`, `revisado_hoy`, `anomalias_hoy` y `cierre_hecho` los calcula el
+    servidor en la misma consulta del listado: el panel pinta, no deduce, y
+    pedirlos por renglón serían cincuenta peticiones por página.
+    """
+
+    extintor: ExtintorOut
+    estado: str
+    revisado_hoy: bool
+    anomalias_hoy: int | None = None
+    revision_id: uuid.UUID | None = None
+    cierre_hecho: bool = False
+
+
+class ExtintoresPaginados(BaseModel):
+    """Página del registro, con lo que necesita el paginador y la cabecera."""
+
+    total: int
+    page: int
+    size: int
+    items: list[FilaExtintor]
+    #: «Revisados hoy: N de M». Sale de un conteo en SQL sobre TODO el
+    #: inventario, no sobre la página que se está viendo.
+    revisados_hoy: int
+    registrados: int
+
+
+class PuntoRevisionIn(BaseModel):
+    """Un punto contestado de la revisión diaria."""
+
+    orden: int = Field(ge=0)
+    valor: str
+    observaciones: str | None = None
+
+    _limpiar_observaciones = field_validator("observaciones")(_texto_opcional)
+
+    @field_validator("valor")
+    @classmethod
+    def _validar_valor(cls, valor: str) -> str:
+        normalizado = valor.strip().lower()
+        if normalizado not in VALORES_CHECKLIST:
+            raise ValueError("La respuesta debe ser CONFORME o INCONFORME.")
+        return normalizado
+
+    @model_validator(mode="after")
+    def _exigir_observaciones(self) -> "PuntoRevisionIn":
+        if self.valor == "no_ok" and not self.observaciones:
+            raise ValueError(
+                "Cada punto marcado como INCONFORME necesita observaciones."
+            )
+        return self
+
+
+class PuntoRevisionOut(BaseModel):
+    """Un punto ya guardado, con su etiqueta resuelta y sus fotos."""
+
+    orden: int
+    clave: str
+    etiqueta: str
+    valor: str
+    observaciones: str | None = None
+    fotos: list[uuid.UUID] = Field(default_factory=list)
+
+
+class RevisionExtintorOut(BaseModel):
+    """La revisión de un día."""
+
+    id: uuid.UUID
+    extintor_id: uuid.UUID | None
+    folio: str
+    modelo: str
+    tipo: str
+    ubicacion: str
+    fecha: date
+    anomalias: int
+    responsable: str
+    creado_at: datetime
+    puntos: list[PuntoRevisionOut]
+
+
+class CatalogoExtintores(BaseModel):
+    """Lo que la pestaña necesita para dibujar el formulario de revisión.
+
+    Los doce puntos y los tipos salen del backend: el panel nunca los tiene
+    escritos a mano, así que agregar uno no puede dejar la pantalla a medias.
+    """
+
+    puntos: list[PuntoControlOut]
+    tipos: list[str]
+    max_fotos: int
+    #: Cuántas fichas admite el registro, para que la pantalla lo diga antes de
+    #: que el alta falle.
+    maximo: int
+
+
+class AvisoExtintor(BaseModel):
+    """Un extintor por vencer, para la campana del encabezado."""
+
+    id: uuid.UUID
+    folio: str
+    ubicacion: str
+    fecha_vencimiento: date
+    dias: int = Field(description="Días que faltan; negativo si la fecha ya pasó.")
+    vencido: bool
+
+
+class AvisosExtintores(BaseModel):
+    """Resumen para la campana.
+
+    Sin textos: el backend no traduce interfaz (regla 6). El panel arma la
+    frase con `t()` y la fecha con `Intl`.
+    """
+
+    total: int
+    vencidos: int
+    avisos: list[AvisoExtintor]
+
+
+class EtiquetasExtintores(BaseModel):
+    """Los extintores cuya etiqueta QR se va a imprimir.
+
+    Viaja en el cuerpo y no en la query porque la cola puede llevar los 160
+    identificadores y la URL se pasaría del búfer de cabeceras de Nginx.
+    """
+
+    ids: list[uuid.UUID] = Field(min_length=1, max_length=MAX_EXTINTORES)

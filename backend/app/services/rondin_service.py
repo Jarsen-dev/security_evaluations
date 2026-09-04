@@ -4,9 +4,11 @@ La asignación de escaneos a rondines es una traducción directa del panel de
 Streamlit que este módulo sustituye (`asignar_rondines_por_puntos` en su
 `main.py`), con los mismos números: turnos de 12 h desde las 07:30, seis
 bloques de 2 h, y recorridos separados por 30 minutos de silencio.
+
+La CAPTURA no vive aquí: la hacen los guardias en una app de AppSheet y entra
+por `services/appsheet_rondines.py`. Este módulo solo lee y analiza.
 """
 
-import secrets
 import uuid
 from collections import Counter
 from dataclasses import dataclass
@@ -15,7 +17,6 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 from sqlalchemy import func, select
-from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
@@ -26,7 +27,6 @@ from app.core.constants import (
     MINUTO_INICIO_TURNO,
     RONDINES_POR_TURNO,
 )
-from app.core.errors import ConflictoDeNegocio, RecursoNoEncontrado
 from app.models.rondin import EscaneoRondin, PuntoRondin
 
 TURNO_DIA = "dia"
@@ -35,20 +35,6 @@ TURNOS_VALIDOS = frozenset({TURNO_DIA, TURNO_NOCHE})
 
 #: Duración de cada rondín, en horas.
 HORAS_POR_RONDIN = HORAS_TURNO // RONDINES_POR_TURNO
-
-# Mensaje único para token inexistente, punto inactivo o borrado. Distinguirlos
-# permitiría sondear tokens desde fuera (misma decisión que
-# `intento_service.CUESTIONARIO_NO_DISPONIBLE`).
-PUNTO_NO_DISPONIBLE = "Este punto no está registrado. Avisa a tu supervisor."
-
-NUMERO_DUPLICADO = "Ya existe un punto de control con ese número."
-TOKEN_DUPLICADO = "No se pudo generar un código único. Intenta de nuevo."
-CONFLICTO_GENERICO = "No se pudo guardar el punto de control."
-NO_EXISTE = "El punto de control no existe."
-
-#: Reintentos ante colisión de token. Con 24 bytes aleatorios es improbable,
-#: pero una colisión silenciosa dejaría dos puntos con el mismo QR.
-MAX_INTENTOS_TOKEN = 5
 
 
 def zona() -> ZoneInfo:
@@ -184,38 +170,8 @@ def asignar_rondines(
 
 
 # --- Puntos de control -----------------------------------------------------
-
-
-async def _token_libre(db: AsyncSession) -> str:
-    """Genera un token opaco que no choque con otro punto."""
-    for _ in range(MAX_INTENTOS_TOKEN):
-        token = secrets.token_urlsafe(24)
-        existe = await db.scalar(
-            select(PuntoRondin.id).where(PuntoRondin.token_publico == token)
-        )
-        if existe is None:
-            return token
-
-    raise ConflictoDeNegocio(
-        "No se pudo generar un código único para el punto. Intenta de nuevo."
-    )
-
-
-def _motivo_conflicto(exc: IntegrityError) -> str:
-    """Traduce el constraint que reventó a un mensaje accionable.
-
-    Hay dos únicos en `puntos_rondin`. Mandar siempre "número duplicado" hacía
-    que una colisión de token —o cualquier constraint que se agregue después—
-    se le reportara al usuario como un problema que no tiene.
-    """
-    detalle = str(getattr(exc, "orig", exc))
-
-    if "uq_puntos_rondin_token" in detalle:
-        return TOKEN_DUPLICADO
-    if "uq_puntos_rondin_numero" in detalle:
-        return NUMERO_DUPLICADO
-
-    return CONFLICTO_GENERICO
+# Solo lectura: el catálogo lo manda AppSheet. El alta y la actualización
+# viven en `appsheet_rondines.sincronizar_puntos()`, que llama la CLI.
 
 
 async def listar_puntos(
@@ -227,108 +183,6 @@ async def listar_puntos(
         consulta = consulta.where(PuntoRondin.activo.is_(True))
 
     return list((await db.scalars(consulta)).all())
-
-
-async def obtener_punto(db: AsyncSession, punto_id: uuid.UUID) -> PuntoRondin:
-    """Busca un punto o lanza 404."""
-    punto = await db.scalar(select(PuntoRondin).where(PuntoRondin.id == punto_id))
-    if punto is None:
-        raise RecursoNoEncontrado(NO_EXISTE)
-    return punto
-
-
-async def crear_punto(
-    db: AsyncSession, *, numero: int, nombre: str, ubicacion: str | None
-) -> PuntoRondin:
-    """Da de alta un punto y le genera su código QR."""
-    punto = PuntoRondin(
-        numero=numero,
-        nombre=nombre,
-        ubicacion=ubicacion,
-        token_publico=await _token_libre(db),
-    )
-    db.add(punto)
-
-    try:
-        await db.commit()
-    except IntegrityError as exc:
-        await db.rollback()
-        raise ConflictoDeNegocio(_motivo_conflicto(exc)) from exc
-
-    await db.refresh(punto)
-    return punto
-
-
-async def actualizar_punto(
-    db: AsyncSession,
-    punto_id: uuid.UUID,
-    *,
-    numero: int,
-    nombre: str,
-    ubicacion: str | None,
-    activo: bool,
-) -> PuntoRondin:
-    """Actualiza un punto sin tocar su token: el QR impreso sigue sirviendo."""
-    punto = await obtener_punto(db, punto_id)
-
-    punto.numero = numero
-    punto.nombre = nombre
-    punto.ubicacion = ubicacion
-    punto.activo = activo
-    punto.actualizado_at = datetime.now(tz=zona())
-
-    try:
-        await db.commit()
-    except IntegrityError as exc:
-        await db.rollback()
-        raise ConflictoDeNegocio(_motivo_conflicto(exc)) from exc
-
-    await db.refresh(punto)
-    return punto
-
-
-async def eliminar_punto(db: AsyncSession, punto_id: uuid.UUID) -> str:
-    """Borra un punto y devuelve su nombre para la bitácora.
-
-    Los escaneos históricos se conservan: el FK queda en NULL y cada uno
-    guarda su `punto_numero`. Aun así, desactivar suele ser mejor que borrar.
-    """
-    punto = await obtener_punto(db, punto_id)
-    etiqueta = f"{punto.numero} — {punto.nombre}"
-    await db.delete(punto)
-    await db.commit()
-    return etiqueta
-
-
-# --- Escaneo público -------------------------------------------------------
-
-
-async def registrar_escaneo(
-    db: AsyncSession, token: str, *, ip: str | None
-) -> tuple[PuntoRondin, datetime]:
-    """Registra la visita y devuelve el punto y la hora que quedó guardada.
-
-    La hora la pone el servidor, no el celular: el reloj de un teléfono
-    cualquiera decidiría a qué rondín pertenece la visita.
-
-    Se devuelve el `escaneado_at` que selló Postgres, no uno recalculado en
-    Python: si no, la hora que el guardia ve en la pantalla y la que el
-    supervisor ve en el tablero salen de dos relojes distintos.
-    """
-    punto = await db.scalar(
-        select(PuntoRondin).where(
-            PuntoRondin.token_publico == token, PuntoRondin.activo.is_(True)
-        )
-    )
-    if punto is None:
-        raise RecursoNoEncontrado(PUNTO_NO_DISPONIBLE)
-
-    escaneo = EscaneoRondin(punto_id=punto.id, punto_numero=punto.numero, ip=ip)
-    db.add(escaneo)
-    await db.commit()
-    await db.refresh(escaneo)
-
-    return punto, escaneo.escaneado_at
 
 
 # --- Tablero ---------------------------------------------------------------

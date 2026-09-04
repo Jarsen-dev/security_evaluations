@@ -13,7 +13,7 @@ import { REDUCCION_DOCUMENTO, reducirImagen } from '@/lib/imagen';
  * sesión que abre la PC — identificador no adivinable, diez minutos de vida y
  * un solo uso.
  *
- * En español y sin diccionario, como `/r/[token]` y `/p/[token]`: la usa el
+ * En español y sin diccionario, como `/r/[token]`: la usa el
  * personal de piso.
  *
  * La cámara se abre con `<input type="file" capture>` y **nunca** con

@@ -11,10 +11,16 @@ Por eso la comparación no se hace a ojo: los mismos casos pasan por la función
 y por una consulta de verdad contra SQLite en memoria.
 """
 
+from io import BytesIO
+
 import pytest
+from openpyxl import Workbook
 from sqlalchemy import create_engine, select, text
 from sqlalchemy.orm import Session
 
+from app.schemas.catalogo import InsumoCrear
+from app.services import catalogo_excel
+from app.services.insumo_service import CAMPOS_ACTUALIZABLES, _aplicar_cambios
 from app.models.insumo import (
     ESTADO_BAJO,
     ESTADO_EXCEDIDO,
@@ -134,3 +140,130 @@ def test_el_filtro_sql_coincide_con_la_funcion(sesion: Session, estado: str) -> 
     }
 
     assert traidos == esperados
+
+
+# --- Reimportar el Excel ----------------------------------------------------
+#
+# La importación corrige lo que ya existe, y ahí hay dos formas de perder datos
+# sin que nada falle: pisar la existencia —que la mueven las recepciones, no el
+# archivo— y borrar una columna que el Excel simplemente no traía. Las dos se
+# deciden en `_aplicar_cambios()` y en el `columnas` del lector, que no
+# necesitan base de datos para probarse.
+
+
+def _insumo(**cambios: object) -> Insumo:
+    """Un insumo ya capturado, sin sesión de por medio."""
+    datos: dict[str, object] = {
+        "codigo": "GN-100-M",
+        "descripcion": "Guantes de nitrilo talla M",
+        "categoria": "EPP",
+        "unidad_medida": "PZA",
+        "proveedor": "Suministros del Norte",
+        "ubicacion": "Anaquel A3",
+        "piezas_por_empaque": 100,
+        "existencia": 1200,
+        "minimo": 500,
+        "maximo": 2000,
+    }
+    datos.update(cambios)
+    return Insumo(**datos)
+
+
+def _fila(**cambios: object) -> InsumoCrear:
+    """El mismo insumo tal como llega del Excel."""
+    datos: dict[str, object] = {
+        "codigo": "GN-100-M",
+        "descripcion": "Guantes de nitrilo talla M",
+        "categoria": "EPP",
+        "unidad_medida": "PZA",
+        "proveedor": "Suministros del Norte",
+        "ubicacion": "Anaquel A3",
+        "piezas_por_empaque": 100,
+        "existencia": 1200,
+        "minimo": 500,
+        "maximo": 2000,
+    }
+    datos.update(cambios)
+    return InsumoCrear.model_validate(datos)
+
+
+def test_la_existencia_nunca_es_actualizable() -> None:
+    """La regla que sostiene todo lo demás.
+
+    Es el único número que mueve el propio sistema: confirmar una recepción le
+    suma piezas. Si algún día entra a la lista, un Excel exportado la semana
+    pasada borra las entradas de almacén de esta.
+    """
+    assert "existencia" not in CAMPOS_ACTUALIZABLES
+    assert "codigo" not in CAMPOS_ACTUALIZABLES
+    assert "descripcion" not in CAMPOS_ACTUALIZABLES
+
+
+def test_una_fila_identica_no_cambia_nada() -> None:
+    """Reimportar el mismo archivo dos veces es inocuo la segunda."""
+    insumo = _insumo()
+
+    assert _aplicar_cambios(insumo, _fila(), CAMPOS_ACTUALIZABLES) is False
+    assert insumo.actualizado_at is None
+
+
+def test_solo_se_toca_lo_distinto() -> None:
+    """El caso real: se añadió la unidad de medida a un producto ya capturado."""
+    insumo = _insumo(unidad_medida="PZA")
+
+    assert _aplicar_cambios(insumo, _fila(unidad_medida="GR"), CAMPOS_ACTUALIZABLES)
+
+    assert insumo.unidad_medida == "GR"
+    assert insumo.actualizado_at is not None
+    # Lo demás se queda como estaba.
+    assert insumo.proveedor == "Suministros del Norte"
+    assert insumo.minimo == 500
+
+
+def test_la_existencia_del_archivo_se_ignora() -> None:
+    """El Excel trae 0 piezas y la base 1200: manda la base."""
+    insumo = _insumo(existencia=1200)
+
+    _aplicar_cambios(insumo, _fila(existencia=0, minimo=600), CAMPOS_ACTUALIZABLES)
+
+    assert insumo.existencia == 1200
+    assert insumo.minimo == 600
+
+
+def test_una_columna_ausente_no_borra_lo_capturado() -> None:
+    """Un Excel recortado a las obligatorias no debe vaciar el proveedor.
+
+    El lector entrega todas las claves siempre —la columna que falta toma su
+    valor por omisión—, así que sin el filtro de `columnas` la fila diría
+    "proveedor: None" y la reimportación lo borraría del catálogo entero.
+    """
+    insumo = _insumo(proveedor="Suministros del Norte")
+    campos = tuple(
+        campo for campo in CAMPOS_ACTUALIZABLES if campo in {"categoria", "unidad_medida"}
+    )
+
+    _aplicar_cambios(insumo, _fila(proveedor=None, unidad_medida="MTS"), campos)
+
+    assert insumo.proveedor == "Suministros del Norte"
+    assert insumo.unidad_medida == "MTS"
+
+
+def test_el_lector_reporta_las_columnas_que_traia_el_archivo() -> None:
+    """`columnas` son las del encabezado, no las de la fila resultante."""
+    completa = catalogo_excel.parsear_excel(catalogo_excel.generar_plantilla().read())
+    assert {"proveedor", "ubicacion", "minimo", "maximo"} <= completa.columnas
+
+    libro = Workbook()
+    hoja = libro.active
+    hoja.title = catalogo_excel.NOMBRE_HOJA
+    hoja.append(["Código", "Descripción", "Categoría", "Unidad de medida"])
+    hoja.append(["GN-100-M", "Guantes de nitrilo talla M", "EPP", "GR"])
+    flujo = BytesIO()
+    libro.save(flujo)
+
+    recortada = catalogo_excel.parsear_excel(flujo.getvalue())
+
+    assert recortada.columnas == {"codigo", "descripcion", "categoria", "unidad_medida"}
+    # La fila sí trae la clave, con su valor por omisión: por eso hace falta
+    # `columnas` para no confundirla con un dato capturado.
+    assert recortada.filas[0]["proveedor"] is None

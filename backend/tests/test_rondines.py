@@ -8,13 +8,15 @@ ningún caso.
 """
 
 from datetime import datetime, time, timedelta
+from decimal import Decimal
 from types import SimpleNamespace
 
 import pytest
 
 from app.core.constants import RONDINES_POR_TURNO
-from app.services import rondin_service as rs
+from app.services import appsheet_rondines as ar
 from app.services import reporte_automatico as ra
+from app.services import rondin_service as rs
 
 ZONA = rs.zona()
 
@@ -272,3 +274,211 @@ def test_a_las_1930_cierra_el_dia_de_hoy():
 )
 def test_fuera_de_la_ventana_no_hay_turno_que_cerrar(hora: int, minuto: int):
     assert ra._turno_que_termina(_momento(25, hora, minuto)) is None
+
+
+# --- Ingesta desde AppSheet ------------------------------------------------
+#
+# La captura la hace una app de AppSheet y llega por `appsheet_rondines`. Todo
+# lo de aquí abajo es lógica pura: el parseo de lo que manda, la ventana
+# temporal y la deduplicación. Lo que toca la base se verifica corriendo los
+# importadores contra el CSV real.
+
+
+def _fila(**extra) -> dict:
+    """Un renglón de `Hoja 1` tal como lo exporta AppSheet."""
+    return {
+        "ID_Registro": "846c55b7",
+        "Fecha_Hora": "06/04/2026 10:15:00",
+        "Email_Guardia": "eshcwm@gmail.com",
+        "Punto_QR": "34",
+        "Ubicación_GPS": "25.752827, -100.166298",
+        "Estado_Punto": "",
+        "Evidencia_Foto": "",
+        "Comentarios": "",
+        "Checklist_Completado": "",
+        **extra,
+    }
+
+
+class TestParsearMomento:
+    """El parseo de la fecha es lo más delicado del módulo.
+
+    Dos formas distintas de equivocarse producen un tablero mal y **ninguna de
+    las dos falla**: leer un naive como UTC corre todo seis horas, y aceptar
+    `%m/%d/%Y` mueve escaneos meses de lugar.
+    """
+
+    def test_naive_se_lee_en_hora_de_planta_y_no_en_utc(self):
+        # Si algún día alguien lo lee como UTC, esto sale a las 22:39 del día
+        # anterior y cada escaneo cae en el bloque equivocado del tablero. Es
+        # la misma trampa de `sin_zona()`, con otro disfraz.
+        momento = ar.parsear_momento("03/09/2026 4:39:49")
+
+        assert momento == datetime(2026, 9, 3, 4, 39, 49, tzinfo=ZONA)
+        assert momento.utcoffset() == ZONA.utcoffset(momento.replace(tzinfo=None))
+
+    def test_el_formato_es_dia_mes_y_no_mes_dia(self):
+        # `05/04/2026` parsea SIN ERROR bajo las dos interpretaciones. La app
+        # declara locale es-ES, y en el histórico el primer campo llega a 31
+        # mientras el segundo no pasa de 12: es el día.
+        assert ar.parsear_momento("05/04/2026 10:17:00").month == 4
+        assert ar.parsear_momento("05/04/2026 10:17:00").day == 5
+
+    def test_dia_mayor_que_doce_confirma_el_orden(self):
+        momento = ar.parsear_momento("30/03/2026 13:31:00")
+        assert (momento.day, momento.month) == (30, 3)
+
+    def test_iso_con_zona_se_respeta(self):
+        # Lo que mandará el Bot si se le pone una plantilla ISO.
+        assert ar.parsear_momento("2026-09-03T10:15:00+00:00").hour == 4
+
+    def test_iso_con_z(self):
+        assert ar.parsear_momento("2026-09-03T10:15:00Z").hour == 4
+
+    @pytest.mark.parametrize("valor", ["", "   ", None, "jueves", "13/13/2026 1:00:00"])
+    def test_lo_ilegible_devuelve_none(self, valor):
+        assert ar.parsear_momento(valor) is None
+
+
+class TestMomentoRazonable:
+    def test_acepta_el_presente_y_el_pasado_reciente(self):
+        ahora = _momento(25, 12)
+        assert ar.momento_razonable(ahora, ahora, antiguedad_maxima_dias=30)
+        assert ar.momento_razonable(
+            ahora - timedelta(days=3), ahora, antiguedad_maxima_dias=30
+        )
+
+    def test_tolera_un_desvio_corto_de_reloj(self):
+        ahora = _momento(25, 12)
+        assert ar.momento_razonable(
+            ahora + timedelta(minutes=10), ahora, antiguedad_maxima_dias=30
+        )
+
+    def test_rechaza_el_futuro_lejano(self):
+        # No se recorta al presente: un reloj podrido fabricaría cumplimiento
+        # justo en el rondín que el tablero está midiendo.
+        ahora = _momento(25, 12)
+        assert not ar.momento_razonable(
+            ahora + timedelta(hours=2), ahora, antiguedad_maxima_dias=30
+        )
+
+    def test_rechaza_lo_demasiado_viejo_por_la_via_del_webhook(self):
+        ahora = _momento(25, 12)
+        assert not ar.momento_razonable(
+            ahora - timedelta(days=60), ahora, antiguedad_maxima_dias=30
+        )
+
+    def test_sin_tope_acepta_el_historico(self):
+        # La vía del importador: el histórico arranca en febrero y con
+        # cualquier tope se descartaría entero.
+        ahora = _momento(25, 12)
+        assert ar.momento_razonable(
+            ahora - timedelta(days=365), ahora, antiguedad_maxima_dias=None
+        )
+
+
+class TestParsearGps:
+    def test_par_de_coordenadas(self):
+        assert ar.parsear_gps("25.752827, -100.166298") == (
+            Decimal("25.752827"),
+            Decimal("-100.166298"),
+        )
+
+    @pytest.mark.parametrize(
+        "valor", ["", None, "25.75", "sin coordenadas", "999, -100.1", "25.7, -900"]
+    )
+    def test_lo_que_no_es_una_coordenada_se_descarta(self, valor):
+        assert ar.parsear_gps(valor) is None
+
+
+class TestNormalizarFila:
+    """Los tres casos sucios son reales: 1,279 de 49,488 filas del histórico."""
+
+    def test_fila_completa(self):
+        fila = ar.normalizar_fila(_fila())
+
+        assert isinstance(fila, ar.FilaEscaneo)
+        assert fila.origen_id == "846c55b7"
+        assert fila.numero == 34
+        assert fila.email == "eshcwm@gmail.com"
+
+    def test_sin_id_registro(self):
+        assert ar.normalizar_fila(_fila(ID_Registro="")) == "sin ID_Registro"
+
+    def test_sin_punto(self):
+        motivo = ar.normalizar_fila(_fila(Punto_QR=""))
+        assert isinstance(motivo, str) and "sin Punto_QR" in motivo
+
+    def test_sin_fecha(self):
+        motivo = ar.normalizar_fila(_fila(Fecha_Hora=""))
+        assert isinstance(motivo, str) and "fecha ilegible" in motivo
+
+    def test_columna_desconocida_no_estorba(self):
+        # AppSheet manda las columnas que se le antojen, y mañana puede sumar
+        # otra: ninguna debe tumbar el renglón.
+        assert isinstance(
+            ar.normalizar_fila(_fila(Columna_Nueva="lo que sea")), ar.FilaEscaneo
+        )
+
+    def test_las_cabeceras_se_comparan_sin_acentos(self):
+        fila = ar.normalizar_fila(_fila())
+        assert fila.gps == (Decimal("25.752827"), Decimal("-100.166298"))
+
+    def test_el_comentario_se_recorta_al_ancho_de_la_columna(self):
+        fila = ar.normalizar_fila(_fila(Comentarios="x" * 400))
+        assert isinstance(fila, ar.FilaEscaneo)
+        assert len(fila.comentario) == ar.MAX_COMENTARIO
+
+
+class TestDeduplicar:
+    def test_el_repetido_del_lote_se_colapsa(self):
+        # AppSheet reintenta, y un reintento puede traer la misma fila dos
+        # veces dentro del mismo cuerpo.
+        filas = [ar.normalizar_fila(_fila()), ar.normalizar_fila(_fila())]
+        unicas, repetidas = ar.deduplicar(filas)
+
+        assert len(unicas) == 1
+        assert repetidas == 1
+
+    def test_gana_el_primero(self):
+        primera = ar.normalizar_fila(_fila(Punto_QR="7"))
+        segunda = ar.normalizar_fila(_fila(Punto_QR="9"))
+        unicas, _ = ar.deduplicar([primera, segunda])
+
+        assert unicas[0].numero == 7
+
+
+class TestNormalizarPunto:
+    def test_punto_completo(self):
+        resultado = ar.normalizar_punto(
+            {
+                "ID_QR": "1",
+                "Nombre del Lugar": "CASETA",
+                "Ubicación_Referencia": "25.751645,-100.166958",
+            }
+        )
+        assert resultado == (1, "CASETA", (Decimal("25.751645"), Decimal("-100.166958")))
+
+    def test_la_fila_basura_del_export_se_descarta(self):
+        # El export de `Puntos_Referencia` trae al final una fila con ID_QR = 0
+        # y todo lo demás vacío.
+        motivo = ar.normalizar_punto(
+            {"ID_QR": "0", "Nombre del Lugar": "", "Ubicación_Referencia": ""}
+        )
+        assert isinstance(motivo, str) and "fuera de rango" in motivo
+
+
+def test_asignar_rondines_no_depende_del_orden_de_llegada():
+    """Con AppSheet el orden de inserción es arbitrario.
+
+    La app captura sin señal y sincroniza después, así que los escaneos pueden
+    entrar barajados. `asignar_rondines` ya ordena al entrar, pero nadie lo
+    estaba fijando y ahora sí importa.
+    """
+    inicio = _momento(25, 7, 30)
+    escaneos = _ronda(_momento(25, 8, 0)) + _ronda(_momento(25, 12, 0), primer_id=100)
+
+    esperado = rs.asignar_rondines(escaneos, inicio)
+    barajado = rs.asignar_rondines(list(reversed(escaneos)), inicio)
+
+    assert barajado == esperado

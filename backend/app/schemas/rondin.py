@@ -2,51 +2,15 @@
 
 import uuid
 from datetime import date, datetime
+from typing import Any
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
-
-
-def _texto(valor: str) -> str:
-    """Recorta espacios y colapsa los interiores."""
-    return " ".join(valor.split())
-
-
-class PuntoRondinBase(BaseModel):
-    """Campos comunes al alta y a la edición de un punto."""
-
-    numero: int = Field(ge=1, le=999, description="El que se imprime en la etiqueta.")
-    nombre: str = Field(min_length=1, max_length=150)
-    ubicacion: str | None = Field(default=None, max_length=150)
-
-    @field_validator("nombre")
-    @classmethod
-    def _limpiar_nombre(cls, valor: str) -> str:
-        limpio = _texto(valor)
-        if not limpio:
-            raise ValueError("El nombre del punto es obligatorio.")
-        return limpio
-
-    @field_validator("ubicacion")
-    @classmethod
-    def _limpiar_ubicacion(cls, valor: str | None) -> str | None:
-        if valor is None:
-            return None
-        return _texto(valor) or None
-
-
-class PuntoRondinCrear(PuntoRondinBase):
-    """Alta de un punto. El token del QR lo genera el servidor."""
-
-
-class PuntoRondinActualizar(PuntoRondinBase):
-    """Edición de un punto. El token no se toca: el QR impreso sigue vivo.
-
-    ``activo`` es obligatorio y no trae default: el PUT reemplaza el recurso
-    entero, y con un default en ``True`` una petición que omitiera el campo
-    reactivaba un punto retirado sin que nadie lo hubiera pedido.
-    """
-
-    activo: bool
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    EmailStr,
+    Field,
+    model_validator,
+)
 
 
 class PuntoRondinOut(BaseModel):
@@ -57,9 +21,10 @@ class PuntoRondinOut(BaseModel):
     id: uuid.UUID
     numero: int
     nombre: str
+    #: AppSheet no tiene una ubicación legible: `Ubicación_Referencia` son
+    #: coordenadas y el nombre YA es el lugar ("CASETA", "SILOS"). Se queda por
+    #: si algún día se captura a mano.
     ubicacion: str | None = None
-    #: Lo que va en el QR. Solo se sirve con sesión: es la credencial del punto.
-    token_publico: str
     activo: bool
     creado_at: datetime
     actualizado_at: datetime | None = None
@@ -121,3 +86,59 @@ class MensajeRondin(BaseModel):
     """Respuesta simple con un mensaje en español."""
 
     mensaje: str
+
+
+# --- Ingesta desde AppSheet ------------------------------------------------
+
+
+class EscaneoAppSheetIn(BaseModel):
+    """Un escaneo tal como lo manda el Bot de AppSheet.
+
+    ``extra="ignore"`` porque AppSheet manda las columnas que se le antojen
+    —GPS, foto, comentario, y las que agregue mañana— y ninguna debe tumbar
+    el lote.
+
+    ``escaneado_at`` es ``str`` y NO ``datetime`` a propósito: con un
+    ``datetime``, Pydantic rechazaría el lote entero con un 422 por una sola
+    fecha ilegible, y el 2.6 % del histórico viene sucio. Se parsea en el
+    servicio para que una fila mala descarte una fila.
+    """
+
+    model_config = ConfigDict(populate_by_name=True, extra="allow")
+
+    origen_id: str | None = Field(default=None, alias="id", max_length=64)
+    numero: int | None = None
+    escaneado_at: str | None = None
+
+    def a_dict(self) -> dict[str, Any]:
+        """Aplana el modelo con sus extras, que es lo que el servicio espera."""
+        return {**(self.model_extra or {}), **self.model_dump(exclude_none=True)}
+
+
+class LoteEscaneosIn(BaseModel):
+    """Lo que llega al webhook.
+
+    Acepta las tres formas que puede tomar el cuerpo de un Bot según cómo se
+    configure: un objeto suelto (una fila por petición, el modo normal), una
+    lista, o ``{"escaneos": [...]}``.
+    """
+
+    escaneos: list[EscaneoAppSheetIn] = Field(default_factory=list)
+
+    @model_validator(mode="before")
+    @classmethod
+    def _aceptar_fila_suelta(cls, datos: Any) -> Any:
+        if isinstance(datos, list):
+            return {"escaneos": datos}
+        if isinstance(datos, dict) and "escaneos" not in datos:
+            return {"escaneos": [datos]}
+        return datos
+
+
+class IngestaOut(BaseModel):
+    """Resumen de lo que pasó con el lote."""
+
+    recibidos: int
+    insertados: int
+    duplicados: int
+    descartados: int

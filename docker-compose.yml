@@ -97,6 +97,10 @@ services:
       SMTP_SSL: ${SMTP_SSL:-true}
       RONDINES_REPORTE_AUTOMATICO: ${RONDINES_REPORTE_AUTOMATICO:-false}
       RONDINES_DESTINATARIOS: ${RONDINES_DESTINATARIOS:-}
+      # Ingesta de rondines desde AppSheet. El secreto es la única credencial
+      # del webhook: vacío deja el endpoint respondiendo 503, nunca abierto.
+      RONDINES_WEBHOOK_SECRETO: ${RONDINES_WEBHOOK_SECRETO:-}
+      RONDINES_WEBHOOK_MAX_LOTE: "${RONDINES_WEBHOOK_MAX_LOTE:-500}"
       # Cierre automático de los meses sin respuesta del control PCI MTTO.
       # Encendido por omisión: no depende de nada externo.
       PCI_CIERRE_AUTOMATICO: ${PCI_CIERRE_AUTOMATICO:-true}

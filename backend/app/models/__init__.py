@@ -15,12 +15,18 @@ from app.models.control import (
     PlaticaEsh,
     PuntoChecklist,
     RegistroChecklist,
+    RegistroControlInsumos,
     RegistroPciMtto,
     RegistroRayser,
     RespuestaSqp,
 )
 from app.models.cuestionario import Cuestionario, Opcion, Pregunta
 from app.models.estudio import Estudio
+from app.models.extintor import (
+    Extintor,
+    PuntoRevisionExtintor,
+    RevisionExtintor,
+)
 from app.models.insumo import Insumo
 from app.models.intento import Intento, Respuesta
 from app.models.meta_area import MetaArea
@@ -43,6 +49,7 @@ __all__ = [
     "Cuestionario",
     "EjemploPlantillaRecepcion",
     "Estudio",
+    "Extintor",
     "EnvioReporteRondin",
     "EscaneoRondin",
     "FotoControl",
@@ -57,11 +64,14 @@ __all__ = [
     "PlaticaEsh",
     "Pregunta",
     "PuntoChecklist",
+    "PuntoRevisionExtintor",
     "PuntoRondin",
     "Recepcion",
     "RegistroChecklist",
+    "RegistroControlInsumos",
     "RegistroPciMtto",
     "RegistroRayser",
+    "RevisionExtintor",
     "Respuesta",
     "RespuestaSqp",
     "SesionQrRecepcion",

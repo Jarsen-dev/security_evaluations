@@ -2,6 +2,7 @@
 
 import uuid
 from datetime import datetime
+from decimal import Decimal
 
 from sqlalchemy import (
     BigInteger,
@@ -9,6 +10,7 @@ from sqlalchemy import (
     DateTime,
     ForeignKey,
     Integer,
+    Numeric,
     String,
     func,
     text,
@@ -21,11 +23,15 @@ from app.db.base import Base
 
 
 class PuntoRondin(Base):
-    """Un punto de control de la planta, con su código QR.
+    """Un punto de control de la planta.
 
-    El ``token_publico`` es lo que viaja en el QR pegado en el punto, y es la
-    única credencial del escaneo: quien lo tenga puede registrar una visita.
-    Mismo trato que la liga de un cuestionario (ver SEGURIDAD.md).
+    El catálogo lo manda AppSheet, que es donde los guardias capturan: esta
+    tabla es una copia que se refresca con ``python -m app.cli importar-puntos``.
+    El ``numero`` es el ``ID_QR`` de allá, así que es la llave con la que se
+    emparejan los escaneos que llegan por el webhook.
+
+    Ya no hay ``token_publico``: el QR pegado en la pared es de AppSheet y la
+    credencial de la ingesta es el secreto del webhook (ver SEGURIDAD.md).
 
     Retirar un punto se hace con ``activo = False``, no borrándolo: los
     escaneos históricos siguen apuntando aquí y el porcentaje de cumplimiento
@@ -44,10 +50,13 @@ class PuntoRondin(Base):
     nombre: Mapped[str] = mapped_column(String(150), nullable=False)
     ubicacion: Mapped[str | None] = mapped_column(String(150), nullable=True)
 
-    # 64 y no 32: `token_urlsafe(24)` da exactamente 32 caracteres, así que la
-    # columna cabía justo y subir la entropía del token habría reventado el
-    # INSERT. Ver la migración 0014.
-    token_publico: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
+    #: Coordenadas del punto según AppSheet (`Ubicación_Referencia`). Se
+    #: guardan por completitud del catálogo; NO sirven para verificar que el
+    #: guardia estuviera ahí: el GPS del celular trae 94 m de error mediano y
+    #: los puntos de la planta están más juntos que eso (ver CLAUDE.md).
+    ref_lat: Mapped[Decimal | None] = mapped_column(Numeric(9, 6), nullable=True)
+    ref_lon: Mapped[Decimal | None] = mapped_column(Numeric(9, 6), nullable=True)
+
     activo: Mapped[bool] = mapped_column(
         Boolean, nullable=False, server_default=text("true")
     )
@@ -66,12 +75,16 @@ class PuntoRondin(Base):
 class EscaneoRondin(Base):
     """Una visita registrada a un punto de control.
 
-    No identifica al guardia, igual que el panel de Streamlit que sustituye:
-    un escaneo dice "el punto 12 fue visitado a las 14:32". Si algún día hace
-    falta saber quién, se agrega la columna sin migrar lo capturado.
+    No identifica al guardia: ``email_guardia`` llega de AppSheet, pero en la
+    práctica es una cuenta compartida de turno (medido: 49,441 de 49,488
+    escaneos con el mismo correo). Se guarda por si algún día cada guardia
+    tiene la suya, no para responsabilizar a nadie.
 
-    La hora la pone el servidor y no el celular: el reloj de un teléfono
-    cualquiera decidiría a qué rondín pertenece la visita.
+    ``escaneado_at`` **la trae AppSheet, no el servidor**, al revés que antes:
+    la app captura sin señal y sincroniza horas después, así que sellar al
+    recibir mandaría media ronda al rondín equivocado. ``recibido_at`` es el
+    reloj del servidor, y la diferencia entre las dos es lo único que
+    distingue "llegó tarde por sincronización" de una hora fabricada.
     """
 
     __tablename__ = "escaneos_rondin"
@@ -93,6 +106,30 @@ class EscaneoRondin(Base):
         DateTime(timezone=True), nullable=False, server_default=func.now(), index=True
     )
     ip: Mapped[str | None] = mapped_column(INET, nullable=True)
+
+    #: Procedencia de la fila: el webhook o el importador del histórico.
+    origen: Mapped[str] = mapped_column(
+        String(20), nullable=False, server_default=text("'appsheet'")
+    )
+    #: `ID_Registro` de AppSheet (`UNIQUEID()`, 8 hex). Es la llave de
+    #: idempotencia: el UNIQUE es lo único que hace inocuos los reintentos del
+    #: Bot, que reintenta de verdad. NULL en una corrección hecha a mano.
+    origen_id: Mapped[str | None] = mapped_column(
+        String(64), nullable=True, unique=True
+    )
+    #: Reloj del servidor. Ver el docstring de la clase.
+    recibido_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+    #: `Ubicación_GPS` de AppSheet (`=HERE()`). Evidencia, no verificación.
+    gps_lat: Mapped[Decimal | None] = mapped_column(Numeric(9, 6), nullable=True)
+    gps_lon: Mapped[Decimal | None] = mapped_column(Numeric(9, 6), nullable=True)
+    comentario: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    email_guardia: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    #: Ruta del archivo DENTRO del almacenamiento de AppSheet. Es una
+    #: referencia, no una copia: traerlo exigiría su API y aquí no se usa.
+    foto_ruta: Mapped[str | None] = mapped_column(String(200), nullable=True)
 
     def __repr__(self) -> str:
         return f"<EscaneoRondin punto={self.punto_numero} {self.escaneado_at}>"

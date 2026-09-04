@@ -20,6 +20,7 @@ const NOMBRE_CONTROL: Record<string, ClaveTraduccion> = {
   muro: 'controles.muro',
   silos: 'controles.silos',
   tableros: 'controles.tableros',
+  extintores: 'controles.extintores',
 };
 
 interface TablaIncidenciasProps {

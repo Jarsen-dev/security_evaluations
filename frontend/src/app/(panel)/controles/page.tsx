@@ -4,9 +4,10 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense } from 'react';
 
 import { GuardiaModulo } from '@/components/GuardiaModulo';
-import { EnConstruccion } from '@/components/controles/EnConstruccion';
 import { PanelChecklist } from '@/components/controles/checklist/PanelChecklist';
+import { PanelExtintores } from '@/components/controles/extintores/PanelExtintores';
 import { PanelIncidencias } from '@/components/controles/incidencias/PanelIncidencias';
+import { PanelInsumos } from '@/components/controles/insumos/PanelInsumos';
 import { PanelPciMtto } from '@/components/controles/pci/PanelPciMtto';
 import { PanelPlaticas } from '@/components/controles/platicas/PanelPlaticas';
 import { PanelRayser } from '@/components/controles/rayser/PanelRayser';
@@ -17,9 +18,9 @@ import { bilingue, useTraduccion, type ClaveTraduccion } from '@/lib/i18n';
 /**
  * Controles del departamento de seguridad.
  *
- * Cada pestaña es una hoja del formato en papel. Las que ya capturan traen su
- * `control` del backend; las demás se muestran para que se vea la forma final
- * del módulo y se irán habilitando conforme se definan sus reglas.
+ * Cada pestaña es una hoja del formato en papel. Ya no queda ninguna en
+ * construcción: la última era el control de medicamento, que se convirtió en
+ * el Control de Insumos.
  *
  * `checklist` es la clave del control en la API: los tres que la traen usan el
  * mismo panel y solo cambian sus puntos.
@@ -35,9 +36,10 @@ const CONTROLES: ReadonlyArray<{
   { clave: 'platicas', etiqueta: 'controles.platicas' },
   { clave: 'recorridos', etiqueta: 'controles.recorridos', checklist: 'recorridos' },
   { clave: 'muro', etiqueta: 'controles.muro', checklist: 'muro' },
-  { clave: 'medicamento', etiqueta: 'controles.medicamento' },
+  { clave: 'insumos', etiqueta: 'controles.insumos' },
   { clave: 'silos', etiqueta: 'controles.silos', checklist: 'silos' },
   { clave: 'tableros', etiqueta: 'controles.tableros', checklist: 'tableros' },
+  { clave: 'extintores', etiqueta: 'controles.extintores' },
   { clave: 'pci-mtto', etiqueta: 'controles.pciMtto' },
   // Va al final porque no es un formato del recorrido, sino la vista que junta
   // lo que salió mal en todos los demás.
@@ -96,18 +98,13 @@ function ContenidoControles() {
       {activa === 'rayser' && <PanelRayser />}
       {activa === 'platicas' && <PanelPlaticas />}
       {activa === 'pci-mtto' && <PanelPciMtto />}
+      {activa === 'insumos' && <PanelInsumos />}
+      {activa === 'extintores' && <PanelExtintores />}
       {actual?.checklist !== undefined && (
         // La clave va como `key` para que el panel se reinicie al cambiar de
         // control en vez de arrastrar el estado del anterior.
         <PanelChecklist key={actual.checklist} control={actual.checklist} />
       )}
-      {actual !== undefined &&
-        actual.checklist === undefined &&
-        !['sqp', 'rayser', 'platicas', 'incidencias', 'pci-mtto'].includes(
-          activa,
-        ) && (
-          <EnConstruccion nombre={t(actual.etiqueta)} />
-        )}
     </div>
   );
 }

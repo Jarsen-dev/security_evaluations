@@ -10,8 +10,9 @@ import type { ErrorImportacion } from '@/lib/types';
 /**
  * Carga masiva del catálogo desde un Excel.
  *
- * Los insumos nuevos se dan de alta y los que ya existen se omiten, así que
- * volver a subir un archivo no pisa lo capturado. Una fila con problemas no
+ * Los insumos nuevos se dan de alta y los que ya existían se corrigen con lo
+ * que el archivo traiga distinto, salvo la existencia: la mueven las
+ * recepciones y un archivo viejo la borraría. Una fila con problemas no
  * invalida el resto: se reporta su número para corregirla en el origen.
  */
 export function ImportarCatalogo({ onImportado }: { onImportado: () => void }) {
@@ -34,12 +35,15 @@ export function ImportarCatalogo({ onImportado }: { onImportado: () => void }) {
       setResumen(
         t('importarCatalogo.resultado', {
           creados: resultado.creados,
-          omitidos: resultado.omitidos,
+          actualizados: resultado.actualizados,
+          sinCambios: resultado.sin_cambios,
         }),
       );
       setErrores(resultado.errores);
 
-      if (resultado.creados > 0) {
+      // También al corregir: la tabla que se está viendo ya no coincide con lo
+      // que quedó guardado, y antes solo se recargaba si había altas.
+      if (resultado.creados > 0 || resultado.actualizados > 0) {
         onImportado();
       }
     } catch (error: unknown) {

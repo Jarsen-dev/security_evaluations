@@ -1,20 +1,23 @@
 """Rondines de seguridad: tablero del turno y puntos de control.
 
-Todo el router exige acceso al módulo ``rondines``; editar y eliminar puntos
-piden además el permiso de edición.
+Todo el router exige acceso al módulo ``rondines``; enviar el reporte pide
+además el permiso de edición.
+
+El catálogo de puntos es de **solo lectura**: la captura la hace una app de
+AppSheet y los puntos se cargan con ``python -m app.cli importar-puntos``.
+Por eso aquí no hay alta, edición ni borrado.
 
 El prefijo ``/api/rondines`` es nuevo, así que hay que darlo de alta como
 aplicación de Cloudflare Access, igual que la ruta ``rondines`` del panel (ver
 la regla 7 del CLAUDE.md y la lista de pendientes de SEGURIDAD.md).
 
-Ojo con lo contrario: ``/p/*`` y ``/api/publico/rondin/*`` **no** deben
-protegerse con Access, o los códigos QR dejan de funcionar.
+Ojo con lo contrario: ``/api/publico/rondin/escaneos`` —el webhook por donde
+entra AppSheet— **no** debe protegerse con Access, o la ingesta se corta.
 """
 
-import uuid
 from datetime import date
 
-from fastapi import APIRouter, Depends, Query, Request, Response, status
+from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -26,17 +29,10 @@ from app.schemas.rondin import (
     EnvioReporteIn,
     FilaTableroOut,
     MensajeRondin,
-    PuntoRondinActualizar,
-    PuntoRondinCrear,
     PuntoRondinOut,
     TableroOut,
 )
-from app.services import (
-    correo_service,
-    rondin_service,
-    rondines_excel,
-    rondines_pdf,
-)
+from app.services import correo_service, rondin_service, rondines_excel
 from app.services.exportacion_comun import cabecera_descarga
 
 router = APIRouter(
@@ -137,26 +133,8 @@ async def enviar_reporte(
 
 
 # --- Puntos de control -----------------------------------------------------
-# IMPORTANTE: /puntos/imprimir va declarada ANTES de /puntos/{punto_id}, o
-# FastAPI intentaría leer "imprimir" como un UUID y devolvería 422.
-
-
-@router.get(
-    "/puntos/imprimir",
-    summary="Hoja imprimible con los códigos QR de los puntos activos",
-)
-async def imprimir_qr(db: AsyncSession = Depends(get_db)) -> StreamingResponse:
-    """PDF con una etiqueta por punto, para recortar y pegar en la planta."""
-    puntos = await rondin_service.listar_puntos(db, solo_activos=True)
-    if not puntos:
-        raise ErrorDeNegocio("No hay puntos de control activos que imprimir.")
-
-    flujo = rondines_pdf.generar_hoja_qr(puntos)
-    return StreamingResponse(
-        flujo,
-        media_type="application/pdf",
-        headers=cabecera_descarga("qr_puntos_rondin.pdf"),
-    )
+# Solo lectura: el catálogo lo manda AppSheet y se refresca con
+# `python -m app.cli importar-puntos`.
 
 
 @router.get(
@@ -168,71 +146,3 @@ async def listar_puntos(db: AsyncSession = Depends(get_db)) -> list[PuntoRondinO
     """Todos los puntos, activos y retirados, ordenados por número."""
     puntos = await rondin_service.listar_puntos(db)
     return [PuntoRondinOut.model_validate(punto) for punto in puntos]
-
-
-@router.post(
-    "/puntos",
-    response_model=PuntoRondinOut,
-    status_code=status.HTTP_201_CREATED,
-    summary="Da de alta un punto de control",
-)
-async def crear_punto(
-    datos: PuntoRondinCrear,
-    request: Request,
-    db: AsyncSession = Depends(get_db),
-) -> PuntoRondinOut:
-    """El código QR se genera aquí y ya no cambia."""
-    punto = await rondin_service.crear_punto(
-        db, numero=datos.numero, nombre=datos.nombre, ubicacion=datos.ubicacion
-    )
-    anotar(request, detalle=f"{punto.numero} — {punto.nombre}")
-    return PuntoRondinOut.model_validate(punto)
-
-
-@router.put(
-    "/puntos/{punto_id}",
-    dependencies=[Depends(requiere("rondines", editar=True))],
-    response_model=PuntoRondinOut,
-    summary="Actualiza un punto de control",
-)
-async def actualizar_punto(
-    punto_id: uuid.UUID,
-    datos: PuntoRondinActualizar,
-    request: Request,
-    db: AsyncSession = Depends(get_db),
-) -> PuntoRondinOut:
-    """Desactivar un punto lo retira del tablero sin borrar su historia."""
-    punto = await rondin_service.actualizar_punto(
-        db,
-        punto_id,
-        numero=datos.numero,
-        nombre=datos.nombre,
-        ubicacion=datos.ubicacion,
-        activo=datos.activo,
-    )
-    anotar(request, detalle=f"{punto.numero} — {punto.nombre}")
-    return PuntoRondinOut.model_validate(punto)
-
-
-@router.delete(
-    "/puntos/{punto_id}",
-    dependencies=[Depends(requiere("rondines", editar=True))],
-    status_code=status.HTTP_204_NO_CONTENT,
-    summary="Elimina un punto de control",
-)
-async def eliminar_punto(
-    punto_id: uuid.UUID,
-    request: Request,
-    db: AsyncSession = Depends(get_db),
-) -> Response:
-    """Casi siempre conviene desactivarlo en vez de borrarlo.
-
-    Al borrar, los escaneos históricos quedan sin punto asociado: conservan su
-    número en `punto_numero`, pero el tablero ya no los puede pintar en
-    ninguna fila, así que el cumplimiento de los turnos pasados baja.
-    Desactivar sí conserva la historia — el tablero incluye los puntos
-    retirados que tengan escaneos en el turno consultado.
-    """
-    etiqueta = await rondin_service.eliminar_punto(db, punto_id)
-    anotar(request, detalle=etiqueta)
-    return Response(status_code=status.HTTP_204_NO_CONTENT)

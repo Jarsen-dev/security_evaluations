@@ -20,6 +20,7 @@ const CONTROLES = [
   'muro',
   'silos',
   'tableros',
+  'extintores',
 ] as const;
 
 const CLASES_CAMPO =
@@ -234,4 +235,5 @@ const NOMBRES = {
   muro: 'controles.muro',
   silos: 'controles.silos',
   tableros: 'controles.tableros',
+  extintores: 'controles.extintores',
 } as const;

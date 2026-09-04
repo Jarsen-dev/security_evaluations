@@ -25,11 +25,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.controles_catalogo import (
+    CONTROL_EXTINTORES,
     CONTROLES_CHECKLIST,
     PUNTOS_SQP,
     RAYSER_MAXIMO,
     RAYSER_MINIMO,
     definicion_checklist,
+    etiqueta_punto_extintor,
     semaforo,
 )
 from app.core.errors import ConflictoDeNegocio, ErrorDeNegocio, RecursoNoEncontrado
@@ -44,6 +46,7 @@ from app.models.control import (
     RegistroRayser,
     RespuestaSqp,
 )
+from app.models.extintor import RevisionExtintor
 
 #: Claves de control que admiten cierre. Pláticas no: una plática impartida no
 #: es una inspección y no puede tener hallazgos.
@@ -99,16 +102,18 @@ def es_control_valido(control: str) -> bool:
     """``True`` si el control admite cierre de hallazgo."""
     return (
         control in CONTROLES_CHECKLIST
-        or control in (CONTROL_RAYSER, CONTROL_SQP)
+        or control in (CONTROL_RAYSER, CONTROL_SQP, CONTROL_EXTINTORES)
     )
 
 
 def _columna_dueno(control: str):
-    """Cuál de las tres llaves foráneas del cierre le toca a este control."""
+    """Cuál de las cuatro llaves foráneas del cierre le toca a este control."""
     if control == CONTROL_RAYSER:
         return CierreHallazgo.rayser_id
     if control == CONTROL_SQP:
         return CierreHallazgo.sqp_id
+    if control == CONTROL_EXTINTORES:
+        return CierreHallazgo.revision_extintor_id
     return CierreHallazgo.checklist_id
 
 
@@ -240,6 +245,29 @@ async def _ids_de_fotos(
     return agrupadas
 
 
+async def _hallazgos_extintor(
+    db: AsyncSession, revision: RevisionExtintor
+) -> list[Hallazgo]:
+    """Los puntos INCONFORMES de la revisión de un extintor."""
+    inconformes = [punto for punto in revision.puntos if punto.valor == "no_ok"]
+
+    fotos = await _ids_de_fotos(
+        db, FotoControl.punto_extintor_id, [punto.id for punto in inconformes]
+    )
+
+    return [
+        Hallazgo(
+            orden=punto.orden,
+            # Del catálogo y no de la base, igual que en los checklist: cambiar
+            # la redacción de un punto no debe reescribir un cierre viejo.
+            etiqueta=etiqueta_punto_extintor(punto.orden),
+            observaciones=punto.observaciones,
+            fotos=fotos.get(punto.id, []),
+        )
+        for punto in inconformes
+    ]
+
+
 async def _registro_de(db: AsyncSession, control: str, registro_id: uuid.UUID):
     """La hoja, con lo necesario para sacarle los hallazgos, o 404."""
     if control == CONTROL_RAYSER:
@@ -251,6 +279,12 @@ async def _registro_de(db: AsyncSession, control: str, registro_id: uuid.UUID):
             select(InspeccionSqp)
             .where(InspeccionSqp.id == registro_id)
             .options(selectinload(InspeccionSqp.respuestas))
+        )
+    elif control == CONTROL_EXTINTORES:
+        registro = await db.scalar(
+            select(RevisionExtintor)
+            .where(RevisionExtintor.id == registro_id)
+            .options(selectinload(RevisionExtintor.puntos))
         )
     else:
         registro = await db.scalar(
@@ -275,6 +309,8 @@ async def hallazgos_de(db: AsyncSession, control: str, registro) -> list[Hallazg
         return await _hallazgos_rayser(db, registro)
     if control == CONTROL_SQP:
         return await _hallazgos_sqp(db, registro)
+    if control == CONTROL_EXTINTORES:
+        return await _hallazgos_extintor(db, registro)
     return await _hallazgos_checklist(db, registro)
 
 
@@ -359,10 +395,19 @@ async def guardar_cierre(
         if actualizando:
             raise RecursoNoEncontrado(NO_HAY_CIERRE)
 
+        # La llave se elige con el MISMO criterio que `_columna_dueno()`, que
+        # es quien luego lo busca: si las dos listas se separan, el cierre se
+        # guarda en una columna y se lee en otra —y la hoja parece no tenerlo—.
+        # Por eso la condición del checklist se escribe como "ninguno de los
+        # anteriores" y no enumerando controles.
+        propios = (CONTROL_RAYSER, CONTROL_SQP, CONTROL_EXTINTORES)
         cierre = CierreHallazgo(
-            checklist_id=registro_id if control not in (CONTROL_RAYSER, CONTROL_SQP) else None,
+            checklist_id=registro_id if control not in propios else None,
             rayser_id=registro_id if control == CONTROL_RAYSER else None,
             sqp_id=registro_id if control == CONTROL_SQP else None,
+            revision_extintor_id=(
+                registro_id if control == CONTROL_EXTINTORES else None
+            ),
             responsable=admin.username,
             admin_id=admin.id,
         )
@@ -456,12 +501,12 @@ async def listar_incidencias(
     control: str | None = None,
     estado: Estado | None = None,
 ) -> list[Incidencia]:
-    """Todo lo que salió mal en el periodo, de los tres controles juntos.
+    """Todo lo que salió mal en el periodo, de los cuatro controles juntos.
 
-    Son tres consultas y no una: las hojas viven en tablas distintas y un
+    Son cuatro consultas y no una: las hojas viven en tablas distintas y un
     ``UNION`` entre ellas obligaría a aplanar columnas que no se parecen. El
     filtrado pesado —qué hojas tienen hallazgos y cuántos— sí va en SQL; lo
-    único que se hace en Python es intercalar tres listas ya cortas y
+    único que se hace en Python es intercalar cuatro listas ya cortas y
     ordenarlas por fecha.
     """
     incidencias: list[Incidencia] = []
@@ -538,6 +583,31 @@ async def listar_incidencias(
                 )
             )
 
+    # --- Extintores ---
+    if quiere(CONTROL_EXTINTORES):
+        filas = await db.execute(
+            select(RevisionExtintor)
+            .where(RevisionExtintor.fecha.between(desde, hasta))
+            # `anomalias` es columna: no hace falta el GROUP BY sobre los
+            # puntos que sí necesitan los checklist y SQP.
+            .where(RevisionExtintor.anomalias > 0)
+        )
+        for revision in filas.scalars().all():
+            incidencias.append(
+                Incidencia(
+                    control=CONTROL_EXTINTORES,
+                    registro_id=revision.id,
+                    fecha=revision.fecha,
+                    # Qué aparato, que es lo que distingue a dos revisiones del
+                    # mismo día.
+                    identificacion=f"{revision.folio} — {revision.ubicacion}",
+                    total_hallazgos=revision.anomalias,
+                    responsable=revision.responsable,
+                    creado_at=revision.creado_at,
+                    cierre=None,
+                )
+            )
+
     await _adjuntar_cierres(db, incidencias)
 
     if estado is not None:
@@ -566,13 +636,19 @@ async def _adjuntar_cierres(
             CierreHallazgo.checklist_id.in_(ids)
             | CierreHallazgo.rayser_id.in_(ids)
             | CierreHallazgo.sqp_id.in_(ids)
+            | CierreHallazgo.revision_extintor_id.in_(ids)
         )
         .options(selectinload(CierreHallazgo.fotos))
     )
 
     por_registro: dict[uuid.UUID, CierreHallazgo] = {}
     for cierre in filas.scalars().unique().all():
-        dueno = cierre.checklist_id or cierre.rayser_id or cierre.sqp_id
+        dueno = (
+            cierre.checklist_id
+            or cierre.rayser_id
+            or cierre.sqp_id
+            or cierre.revision_extintor_id
+        )
         if dueno is not None:
             por_registro[dueno] = cierre
 

@@ -127,19 +127,3 @@ class ResultadoIntento(BaseModel):
     umbral_aprobacion: int
     finalizado_at: datetime
 
-
-# --- Rondines de seguridad -------------------------------------------------
-
-
-class EscaneoRegistrado(BaseModel):
-    """Confirmación de la visita a un punto de control.
-
-    Es lo único que ve el guardia tras escanear, así que trae el nombre del
-    punto y no solo su número: sirve para notar de inmediato que se escaneó la
-    etiqueta equivocada.
-    """
-
-    numero: int
-    nombre: str
-    ubicacion: str | None = None
-    escaneado_at: datetime

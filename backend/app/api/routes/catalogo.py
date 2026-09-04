@@ -120,11 +120,14 @@ async def importar_excel(
     archivo: UploadFile = File(description="Archivo .xlsx con la hoja 'Insumos'."),
     db: AsyncSession = Depends(get_db),
 ) -> ResultadoImportacionInsumos:
-    """Da de alta los insumos nuevos y omite los que ya existen.
+    """Da de alta los insumos nuevos y corrige los que ya existen.
 
-    Los repetidos se omiten en vez de actualizarse a propósito: así volver a
-    subir un archivo viejo no pisa existencias que ya se corrigieron en el
-    panel. Una fila con problemas no invalida el resto; se reporta su número.
+    De un insumo que ya estaba solo se toca lo que el archivo trae **distinto**,
+    y solo en las columnas que el archivo realmente traía. La **existencia
+    queda fuera** a propósito: la mueven las recepciones, así que volver a
+    subir un archivo viejo la borraría junto con las entradas de almacén
+    posteriores. Una fila con problemas no invalida el resto; se reporta su
+    número.
     """
     nombre = (archivo.filename or "").lower()
     if not nombre.endswith(".xlsx"):
@@ -165,11 +168,20 @@ async def importar_excel(
                 )
             )
 
-    creados, omitidos = await insumo_service.importar(db, validas)
-    anotar(request, detalle=f"{creados} nuevos, {omitidos} omitidos")
+    resumen = await insumo_service.importar(db, validas, columnas=lectura.columnas)
+    anotar(
+        request,
+        detalle=(
+            f"{resumen.creados} nuevos, {resumen.actualizados} actualizados, "
+            f"{resumen.sin_cambios} sin cambios"
+        ),
+    )
 
     return ResultadoImportacionInsumos(
-        creados=creados, omitidos=omitidos, errores=errores
+        creados=resumen.creados,
+        actualizados=resumen.actualizados,
+        sin_cambios=resumen.sin_cambios,
+        errores=errores,
     )
 
 

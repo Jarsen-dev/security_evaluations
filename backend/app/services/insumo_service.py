@@ -8,10 +8,11 @@ conteo físico; las piezas por empaque solo cambian si cambia la presentación.
 
 import uuid
 from collections import defaultdict
+from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, Final
 
-from sqlalchemy import func, or_, select
+from sqlalchemy import case, func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -134,6 +135,63 @@ async def por_codigo(db: AsyncSession, codigo: str) -> list[Insumo]:
     return list(filas.all())
 
 
+#: Cuántos insumos ofrece el desplegable de captura. Corto a propósito: es una
+#: lista que se elige con el dedo, no un catálogo que se hojea.
+TOPE_SUGERENCIAS: Final[int] = 20
+
+#: Mínimo para buscar. Con una sola letra el desplegable barre el catálogo
+#: entero en cada tecla y devuelve veinte filas al azar.
+MINIMO_BUSQUEDA: Final[int] = 2
+
+
+async def buscar(
+    db: AsyncSession, texto: str, *, limite: int = TOPE_SUGERENCIAS
+) -> list[Insumo]:
+    """Insumos cuyo código o descripción contienen `texto`.
+
+    Es el desplegable de captura del control de insumos, y por eso NO mira
+    proveedor ni ubicación como el buscador del catálogo: ahí son columnas que
+    ayudan a encontrar una ficha, pero aquí meterían en la lista productos que
+    no se parecen en nada a lo que se tecleó.
+
+    **El orden no es alfabético, y esa es la parte que importa.** Primero van
+    los del código exacto, luego los que empiezan por lo tecleado y al final el
+    resto. Con un `ILIKE %x%` a secas y un tope de veinte, teclear un código
+    corto podía dejar fuera de la lista justo a los insumos que lo comparten
+    —que son los que hay que poder distinguir— porque otro producto los
+    adelantaba por orden alfabético. Dentro de cada grupo el desempate es
+    `codigo, descripcion`, así que los homónimos salen juntos y seguidos.
+    """
+    limpio = texto.strip()
+    if len(limpio) < MINIMO_BUSQUEDA:
+        return []
+
+    escapado = limpio.translate(COMODINES_LIKE)
+    codigo = func.lower(Insumo.codigo)
+
+    filas = await db.scalars(
+        select(Insumo)
+        .where(
+            or_(
+                Insumo.codigo.ilike(f"%{escapado}%", escape="\\"),
+                Insumo.descripcion.ilike(f"%{escapado}%", escape="\\"),
+            )
+        )
+        .order_by(
+            case(
+                (codigo == limpio.lower(), 0),
+                (codigo.startswith(limpio.lower()), 1),
+                else_=2,
+            ),
+            codigo,
+            func.lower(Insumo.descripcion),
+            Insumo.id,
+        )
+        .limit(limite)
+    )
+    return list(filas.all())
+
+
 async def listar(
     db: AsyncSession,
     *,
@@ -221,52 +279,149 @@ async def eliminar(db: AsyncSession, insumo_id: uuid.UUID) -> str:
     return etiqueta
 
 
-async def importar(db: AsyncSession, filas: list[InsumoCrear]) -> tuple[int, int]:
-    """Da de alta las filas nuevas y omite las que ya existen.
+#: Lo que una reimportación puede corregir sobre un insumo que YA existe.
+#:
+#: `codigo` y `descripcion` quedan fuera porque **son** la identidad: cambiarlos
+#: no sería corregir esta fila, sería apuntar a otra distinta.
+#:
+#: `existencia` queda fuera por un motivo más fuerte: es el único número que
+#: mueve el propio sistema —confirmar una recepción le suma piezas con un
+#: ``UPDATE ... existencia + :n``—, así que dejar que el archivo la pisara
+#: borraría en silencio todas las entradas de almacén posteriores a la
+#: exportación de ese Excel, que es justo lo que nadie revisa. Corregir una
+#: existencia sigue siendo del formulario del panel, con su propio permiso.
+CAMPOS_ACTUALIZABLES: Final[tuple[str, ...]] = (
+    "categoria",
+    "unidad_medida",
+    "proveedor",
+    "ubicacion",
+    "piezas_por_empaque",
+    "minimo",
+    "maximo",
+)
 
-    Devuelve ``(creados, omitidos)``. Los repetidos se omiten en vez de
-    actualizarse a propósito: así un archivo viejo no puede pisar existencias
-    que ya se corrigieron en el panel.
+
+@dataclass(frozen=True)
+class ResumenImportacion:
+    """Qué le pasó al catálogo, contado por INSUMO y no por renglón.
+
+    Un archivo que repite la misma pareja código + descripción dos veces habla
+    de un solo insumo, y contarlo dos veces haría que los números no cuadraran
+    con lo que la pantalla muestra después.
+    """
+
+    creados: int
+    actualizados: int
+    sin_cambios: int
+
+
+def _aplicar_cambios(
+    insumo: Insumo, fila: InsumoCrear, campos: tuple[str, ...]
+) -> bool:
+    """Copia a `insumo` lo que la fila trae DISTINTO. Dice si tocó algo.
+
+    Compara antes de asignar para no marcar como actualizado —ni sellar
+    `actualizado_at`— un insumo que llegó idéntico: reimportar el mismo
+    archivo dos veces seguidas tiene que ser inocuo la segunda vez.
+    """
+    cambio = False
+    for campo in campos:
+        valor = getattr(fila, campo)
+        if getattr(insumo, campo) != valor:
+            setattr(insumo, campo, valor)
+            cambio = True
+
+    if cambio:
+        insumo.actualizado_at = datetime.now(UTC)
+    return cambio
+
+
+async def importar(
+    db: AsyncSession,
+    filas: list[InsumoCrear],
+    columnas: frozenset[str] | None = None,
+) -> ResumenImportacion:
+    """Da de alta las filas nuevas y corrige las que ya existen.
 
     Lo que decide si una fila "ya existe" es la pareja **código +
     descripción**, igual que el índice único: un mismo código puede traer
     varias descripciones y todas son insumos distintos.
 
+    De un insumo que ya está solo se toca **lo que el archivo trae distinto**
+    (ver `CAMPOS_ACTUALIZABLES`), y solo entre las columnas que el archivo
+    realmente traía: `columnas` son las que el lector encontró en el
+    encabezado, y sin ese filtro un Excel recortado a las cuatro obligatorias
+    borraría el proveedor y la ubicación de todo el catálogo, porque las filas
+    salen del lector con esas claves en su valor por omisión.
+
     Las parejas ya presentes se resuelven con **una** consulta, no una por
-    fila, y se compara en minúsculas porque así es el índice único.
+    fila, y se comparan en minúsculas porque así es el índice único.
     """
     if not filas:
-        return 0, 0
+        return ResumenImportacion(creados=0, actualizados=0, sin_cambios=0)
+
+    campos = tuple(
+        campo
+        for campo in CAMPOS_ACTUALIZABLES
+        if columnas is None or campo in columnas
+    )
 
     codigos = {fila.codigo.lower() for fila in filas}
-    existentes = {
-        (codigo, descripcion.lower())
-        for codigo, descripcion in (
+    # Se traen los insumos completos y no solo la pareja: para saber si una
+    # fila cambia algo hay que comparar campo por campo.
+    existentes: dict[tuple[str, str], Insumo] = {
+        (insumo.codigo.lower(), insumo.descripcion.lower()): insumo
+        for insumo in (
             await db.execute(
-                select(func.lower(Insumo.codigo), Insumo.descripcion).where(
-                    func.lower(Insumo.codigo).in_(codigos)
-                )
+                select(Insumo).where(func.lower(Insumo.codigo).in_(codigos))
             )
-        ).all()
+        )
+        .scalars()
+        .all()
     }
 
-    creados = 0
-    omitidos = 0
-    vistos: set[tuple[str, str]] = set()
+    nuevos: dict[tuple[str, str], Insumo] = {}
+    actualizados: set[tuple[str, str]] = set()
+    intactos: set[tuple[str, str]] = set()
 
     for fila in filas:
-        # La clave es la pareja, no el código: un archivo con dos
-        # descripciones del mismo código tiene que dar de alta las dos.
+        # La clave es la pareja, no el código: un archivo con dos descripciones
+        # del mismo código tiene que dar de alta las dos.
         clave = (fila.codigo.lower(), fila.descripcion.lower())
-        # `vistos` atrapa los repetidos DENTRO del mismo archivo, que la
-        # consulta de arriba no puede ver todavía.
-        if clave in existentes or clave in vistos:
-            omitidos += 1
+
+        existente = existentes.get(clave)
+        if existente is not None:
+            if _aplicar_cambios(existente, fila, campos):
+                actualizados.add(clave)
+                intactos.discard(clave)
+            elif clave not in actualizados:
+                intactos.add(clave)
             continue
 
-        db.add(Insumo(**fila.model_dump()))
-        vistos.add(clave)
-        creados += 1
+        repetido = nuevos.get(clave)
+        if repetido is not None:
+            # La misma pareja dos veces DENTRO del archivo, que la consulta de
+            # arriba todavía no podía ver. Manda el último renglón y se copia
+            # entero —incluida la existencia—: sigue siendo un alta, y para un
+            # insumo que no existía el archivo es la única fuente que hay.
+            for campo, valor in fila.model_dump().items():
+                setattr(repetido, campo, valor)
+            continue
 
-    await db.commit()
-    return creados, omitidos
+        alta = Insumo(**fila.model_dump())
+        db.add(alta)
+        nuevos[clave] = alta
+
+    try:
+        await db.commit()
+    except IntegrityError as exc:
+        # No debería ocurrir —los repetidos ya se resolvieron arriba—, pero
+        # entre el SELECT y el COMMIT cabe otra alta con la misma pareja.
+        await db.rollback()
+        raise ConflictoDeNegocio(CODIGO_DUPLICADO) from exc
+
+    return ResumenImportacion(
+        creados=len(nuevos),
+        actualizados=len(actualizados),
+        sin_cambios=len(intactos),
+    )

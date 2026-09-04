@@ -79,6 +79,14 @@ class ResultadoLectura:
 
     filas: list[dict[str, Any]] = field(default_factory=list)
     errores: list[ErrorFila] = field(default_factory=list)
+    #: Claves de las columnas que el archivo TRAÍA, no las que se dedujeron.
+    #:
+    #: Cada fila sale siempre con todas las claves —la columna ausente toma su
+    #: valor por omisión: proveedor en ``None``, mínimo y máximo en 0—, así que
+    #: al reimportar no habría forma de distinguir «este insumo no tiene
+    #: proveedor» de «este archivo no habla de proveedores», y la segunda
+    #: lectura borraría el dato. Solo las cuatro obligatorias están garantizadas.
+    columnas: frozenset[str] = frozenset()
 
 
 def _normalizar(valor: Any) -> str:
@@ -231,7 +239,7 @@ def parsear_excel(contenido: bytes) -> ResultadoLectura:
                     f"para ver el formato esperado."
                 )
 
-        resultado = ResultadoLectura()
+        resultado = ResultadoLectura(columnas=frozenset(mapa))
 
         # La fila 1 es el encabezado, así que la numeración arranca en 2 y
         # coincide con lo que ve el usuario en Excel.
@@ -373,11 +381,23 @@ def generar_plantilla() -> BytesIO:
         ("Qué pasa al importar", True),
         ("Los insumos nuevos se dan de alta.", False),
         (
-            "Se omite la fila cuyo código Y descripción ya existen: el archivo "
-            "no pisa lo capturado, pero sí da de alta una descripción nueva de "
-            "un código que ya estaba.",
+            "La fila cuyo código Y descripción ya existen corrige a ese insumo "
+            "con lo que traigas distinto: categoría, unidad de medida, "
+            "proveedor, ubicación, piezas por caja, mínimo y máximo.",
             False,
         ),
+        (
+            "La Existencia NO se sobrescribe: la mueven las recepciones, y un "
+            "archivo viejo borraría las entradas de almacén posteriores. "
+            "Corrígela desde el panel.",
+            False,
+        ),
+        (
+            "Una columna que no venga en el archivo no se toca: si borras la "
+            "columna Proveedor, los proveedores capturados se quedan como están.",
+            False,
+        ),
+        ("Una descripción nueva de un código que ya estaba se da de alta.", False),
         ("Una fila con problemas no invalida el resto; se reporta su número.", False),
     ]
 

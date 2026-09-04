@@ -26,7 +26,7 @@ a internet igual que el formulario.
 | `/api/health`, `/api/areas`, `/api/static/*` | Público (sin datos sensibles) |
 | `/login`, `/cuestionarios`, `/controles`, `/inventario` | Solo usuarios del panel |
 | `/catalogo`, `/rondines` | Solo usuarios del panel, según sus permisos |
-| `/p/<token>`, `/api/publico/rondin/*` | Cualquiera con el QR. El token **es** la credencial |
+| `/api/publico/rondin/escaneos` | Solo el Bot de AppSheet. El **secreto de la cabecera** es la credencial |
 | `/re/<sesion>`, `/api/publico/recepcion/*` | Cualquiera con el QR, **durante 10 minutos y una sola vez** |
 | `/administracion` | Solo el superadministrador |
 | `/api/auth/*`, `/api/cuestionarios/*`, `/api/preguntas/*`, `/api/estadisticas/*`, `/api/metas-area`, `/api/wifi`, `/api/controles/*` | Solo usuarios del panel, según sus permisos |
@@ -64,6 +64,59 @@ Desactivar una cuenta (`activo = false`) corta el acceso **de inmediato**:
 `obtener_admin_actual` revisa el estado en cada petición, así que las sesiones
 ya abiertas dejan de servir sin esperar a que venza el token, y el login
 tampoco la deja entrar.
+
+#### Extintores: una etiqueta impresa que apunta al panel
+
+El QR pegado a cada extintor lleva
+`https://esh.chwon.it.com/controles?control=extintores&extintor=<id>`. **No abre
+ninguna ruta pública**: cae en el panel, así que el celular pasa por Cloudflare
+Access y por el login la primera vez del día. Es deliberado — una revisión lleva
+responsable y es dato del panel, no del formulario de piso — y significa que un
+QR fotografiado por alguien de fuera no le sirve de nada.
+
+El identificador que viaja en la etiqueta es la llave primaria del extintor, y
+no un token: no da acceso a nada por sí solo, y lo único que se puede deducir de
+él es que ese extintor existe.
+
+`POST /api/controles/extintores/etiquetas` genera el PDF. Es un POST pese a no
+cambiar nada, para que la cola de impresión quepa en el cuerpo; queda registrado
+en la bitácora con su propia descripción.
+
+**No se tocó `Permissions-Policy`.** La revisión desde el celular usa la cámara
+nativa del teléfono, así que `camera=()` sigue cerrado en `nginx/default.conf`.
+Si alguna vez se abre a `camera=(self)`, hay que anotarlo aquí y en CLAUDE.md.
+
+#### Una excepción escrita: el Control de Insumos cruza de módulo
+
+`POST /api/controles/insumos` registra una salida de almacén y **baja
+`insumos.existencia`**, que es dato del catálogo. Quien lo hace necesita el
+módulo `controles` y **no** necesita `catalogo` ni `inventario`. Es
+deliberado —es la razón de ser de la pestaña: el almacenista entrega y el stock
+baja— pero es la única puerta por la que se toca el catálogo desde fuera de él,
+así que conviene tenerla escrita.
+
+Lo que acota el riesgo:
+
+- **Solo resta, nunca suma.** No hay forma de inflar una existencia desde aquí.
+- **No puede dejar negativo.** La resta lleva su guarda en el mismo `UPDATE`;
+  si no alcanza, se rechaza y la fila queda intacta.
+- **Deja rastro doble e inmutable**: la fila de `registros_control_insumos` con
+  su `responsable` y su `admin_id`, y un renglón de bitácora con el insumo, la
+  persona, el área y cuánto se descontó. Los registros no se editan ni se
+  borran desde el panel.
+- **No da acceso de edición al resto del módulo**: el endpoint se queda con el
+  permiso simple, sin `editar=True`.
+
+`GET /api/controles/insumos/buscar` es el otro lado de la misma decisión: le
+sirve datos del catálogo a un usuario que no tiene ese módulo. Por eso devuelve
+un schema recortado —id, código, descripción, unidad y existencia— y **omite a
+propósito** proveedor, ubicación, mínimo, máximo y el semáforo, que son
+información comercial y de inventario que ese usuario no ve por su vía normal.
+Exige al menos dos caracteres y devuelve como mucho veinte filas, para que no
+sirva de volcado del catálogo.
+
+Todo cuelga de `/api/controles`, que ya tiene su aplicación de Cloudflare
+Access: **no se estrena prefijo y no hace falta dar de alta nada nuevo.**
 
 ### Bitácora
 
@@ -137,9 +190,12 @@ contestar:
 
 ```
 /r/            → el formulario
-/p/            → la página que abre el QR de un punto de rondín
 /re/           → la página que abre el QR para fotografiar una remisión
-/api/publico/  → lo que el formulario y el escaneo consumen
+/api/publico/  → lo que el formulario, la captura por foto y el webhook de
+                 rondines de AppSheet consumen. En particular
+                 /api/publico/rondin/escaneos: AppSheet llama desde la nube de
+                 Google y no puede resolver el SSO de Access, así que
+                 protegerlo corta la ingesta de rondines en seco
 /api/health    → lo usa el healthcheck del contenedor
 /api/areas     → lo pide el formulario para el selector de área
 /api/static/   → el logo
@@ -252,6 +308,18 @@ Lista corta:
       de cambiarlo (Next incrusta esa variable en el build, no la lee en
       runtime).
 - [ ] Un cuestionario contestado de punta a punta desde datos móviles.
+- [ ] `RONDINES_WEBHOOK_SECRETO` capturado en el `.env` del servidor y el mismo
+      valor en la cabecera del Bot de AppSheet.
+- [ ] Prueba de humo del webhook: secreto equivocado ⇒ **401**, secreto correcto
+      ⇒ **202**, secreto vacío en el servidor ⇒ **503**.
+
+  ```bash
+  curl -s -o /dev/null -w '%{http_code}\n' -X POST \
+    https://esh.chwon.it.com/api/publico/rondin/escaneos \
+    -H 'Content-Type: application/json' \
+    -H 'X-Rondines-Secreto: incorrecto' -d '{}'
+  ```
+- [ ] Un escaneo real hecho en la app de AppSheet aparece en el tablero.
 
 ---
 
@@ -269,6 +337,26 @@ docker compose logs backend | grep -E "Contraseña incorrecta|usuario inexistent
 docker compose exec db psql -U evaluaciones -d evaluaciones -c \
   "SELECT punto_numero, escaneado_at AT TIME ZONE 'America/Monterrey' AS hora
      FROM escaneos_rondin ORDER BY escaneado_at DESC LIMIT 30;"
+
+# Latencia de la ingesta de AppSheet: unos minutos es normal (sincroniza sin
+# señal); varias horas de forma sistemática es que el Bot dejó de disparar.
+# Una latencia NEGATIVA o de días sobre un escaneo suelto merece una mirada:
+# es lo que se vería si alguien con el secreto fabricara una visita pasada.
+docker compose exec db psql -U evaluaciones -d evaluaciones -c \
+  "SELECT origen_id, punto_numero,
+          escaneado_at AT TIME ZONE 'America/Monterrey' AS capturado,
+          recibido_at - escaneado_at AS latencia
+     FROM escaneos_rondin
+    WHERE recibido_at - escaneado_at > interval '6 hours'
+    ORDER BY recibido_at DESC LIMIT 30;"
+
+# Intentos de ingesta con el secreto equivocado
+docker compose logs backend | grep "Ingesta de rondines: secreto inválido"
+
+# Renglones que AppSheet mandó y se descartaron (punto desconocido, fecha
+# ilegible): si aparecen puntos nuevos, el catálogo quedó viejo y toca correr
+# `importar-puntos`.
+docker compose logs backend | grep "Ingesta de rondines:"
 
 # Quién cambió qué, sin abrir el panel
 docker compose exec db psql -U evaluaciones -d evaluaciones -c \
@@ -339,13 +427,43 @@ de intentar leerla. La consecuencia es que `recepciones_fotos` acumula fotos
 huérfanas de capturas que el operador abandonó. No hay limpieza automática; si
 llega a pesar, se borran las que no tengan `recepcion` ni sesión asociada.
 
-**El código QR del punto es la credencial.** Igual que la liga del
-cuestionario: quien fotografíe o copie la etiqueta de un punto puede registrar
-visitas sin haber estado ahí. El escaneo tampoco identifica al guardia, así que
-la bitácora no puede decir quién fue. Es el mismo trato que daba el panel de
-Streamlit al que sustituye, y el control real sigue siendo de supervisión, no
-técnico. Si algún día importa, la salida es pedir identidad en la página del
-escaneo.
+**El secreto del webhook de rondines es la credencial, y puede fabricar
+historia.** Quien lo tenga puede inyectar visitas **en cualquier punto y con
+cualquier hora pasada**. Es estrictamente más poder que el QR pegado en la
+pared al que sustituye, que solo podía falsificar «ahora».
+
+Tres cosas acotan el riesgo, y ninguna lo elimina:
+
+- `recibido_at` guarda el reloj del servidor junto a `escaneado_at`, que lo
+  dicta AppSheet. La diferencia entre las dos es lo único que distingue una
+  sincronización tardía —normal: la app captura sin señal— de una hora
+  fabricada. Un escaneo que dice 03:00 y llegó a las 09:00 puede ser cualquiera
+  de las dos; lo que lo delata es compararlo con el patrón del resto del turno.
+- Sin `RONDINES_WEBHOOK_SECRETO` capturado, el endpoint responde **503**. Un
+  despliegue a medio configurar no queda abierto.
+- **Rotarlo es trivial**: se cambia en el `.env`, se reinicia el backend y se
+  actualiza la cabecera del Bot. Ésa es la mejora real sobre el QR viejo, que
+  era irrotable sin reimprimir y volver a pegar 44 etiquetas.
+
+**El escaneo sigue sin identificar al guardia.** AppSheet manda
+`Email_Guardia` (`USEREMAIL()`) y se guarda, pero en la práctica es una cuenta
+compartida de turno: medido sobre el histórico, 49,441 de 49,488 escaneos
+traen el mismo correo. La bitácora no puede decir quién fue, igual que antes.
+El control real sigue siendo de supervisión, no técnico. Si algún día importa,
+la salida es darle su cuenta a cada guardia en AppSheet.
+
+**El GPS no sirve para verificar presencia**, aunque venga en el 100 % de los
+escaneos. Es `=HERE()`, el GPS del celular: medido contra las coordenadas de
+referencia de cada punto, la mediana del error son 94 m y solo el 23.7 % cae
+dentro de 50 m, mientras que los 44 puntos de la planta están más juntos que
+eso. Se guarda como evidencia; un semáforo de «el guardia no estuvo ahí»
+construido sobre este dato acusaría en falso.
+
+**AppSheet es ahora la fuente de verdad de los rondines.** Su control de
+acceso, su retención y quién puede editar sus filas quedan fuera de este
+perímetro y no los audita nadie desde aquí. Alguien con permiso de edición en
+la app puede cambiar la hora de un escaneo ya capturado, y aquí llegaría como
+un registro más.
 
 **La liga del cuestionario es la credencial.** Quien tenga el token puede
 contestar, y puede pasárselo a alguien de fuera. No hay forma de distinguirlos:

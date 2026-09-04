@@ -859,3 +859,61 @@ PCI_PRIMER_MES: Final[tuple[int, int]] = (2026, 9)
 # vería un error opaco en lugar del mensaje en español.
 MAX_FOTOS_PCI: Final[int] = 4
 MAX_BYTES_REPORTE_PCI: Final[int] = 10 * 1024 * 1024
+
+
+# --- Extintores -------------------------------------------------------------
+#
+# El único control con una FICHA por aparato: 160 extintores, cada uno con su
+# vencimiento, su etiqueta QR y su revisión diaria. Por eso no es una
+# `DefinicionChecklist` —aquellas son una hoja de N puntos al día para toda la
+# planta— y por eso sus puntos viven aquí sueltos en vez de dentro de una.
+
+#: Cuántos extintores admite el registro. Es la dotación de la planta, no un
+#: límite técnico: si algún día se instalan más, se sube aquí. Existe para que
+#: un alta repetida por error no infle el inventario sin que nadie lo note.
+MAX_EXTINTORES: Final[int] = 160
+
+#: Agentes extintores en uso. Mismo criterio que las áreas y las categorías: el
+#: catálogo vive aquí y se sirve por la API, nunca escrito a mano en el panel.
+TIPOS_EXTINTOR: Final[tuple[str, ...]] = ("CO2", "P.Q.S.")
+TIPOS_EXTINTOR_VALIDOS: Final[frozenset[str]] = frozenset(TIPOS_EXTINTOR)
+
+#: Los doce puntos de la revisión diaria, EN ORDEN.
+#:
+#: La posición en esta tupla ES el `orden` que se guarda en cada renglón, así
+#: que reordenarla reescribiría el pasado: la revisión de marzo diría que el
+#: punto 3 era otro. Un punto nuevo se añade AL FINAL, y uno que deja de
+#: revisarse se queda aquí para que el histórico siga leyéndose.
+#:
+#: Las etiquetas también salen de aquí y no de la base: corregir una redacción
+#: no debe tocar lo ya capturado.
+PUNTOS_EXTINTOR: Final[tuple[PuntoControl, ...]] = (
+    PuntoControl("ubicacion", "Condiciones de ubicación (libre de bloqueos)"),
+    PuntoControl("manometro", "Manómetro"),
+    PuntoControl("cilindro", "Cilindro"),
+    PuntoControl("manguera", "Manguera"),
+    PuntoControl("boquillas", "Boquillas"),
+    PuntoControl("palanca", "Palanca de accionamiento"),
+    PuntoControl("manija", "Manija de transporte"),
+    PuntoControl("etiqueta", "Etiqueta instructiva"),
+    PuntoControl("valvula", "Válvula"),
+    PuntoControl("presion", "Presión"),
+    PuntoControl("seguro", "Seguro y cincho"),
+    PuntoControl("base", "Base soporte"),
+)
+
+#: Clave del control ante el sistema de cierres de hallazgo. Es la misma cadena
+#: que viaja en `/api/controles/cierres/{control}/{id}`.
+CONTROL_EXTINTORES: Final[str] = "extintores"
+
+
+def etiqueta_punto_extintor(orden: int) -> str:
+    """Cómo se llamaba el punto que ocupa esa posición.
+
+    Tolera un orden fuera de rango en vez de reventar: un registro viejo puede
+    apuntar a un punto que ya no está en la tupla, y el Excel de ese mes tiene
+    que seguir generándose.
+    """
+    if 0 <= orden < len(PUNTOS_EXTINTOR):
+        return PUNTOS_EXTINTOR[orden].etiqueta
+    return f"Punto {orden + 1}"

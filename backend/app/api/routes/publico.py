@@ -4,7 +4,6 @@ Sin autenticación: la única credencial es el token de la URL. Ver
 ``app.schemas.publico`` para la regla de no exponer nunca ``es_correcta``.
 """
 
-import ipaddress
 import logging
 import uuid
 
@@ -13,11 +12,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.core.errors import ConflictoDeNegocio
-from app.core.ratelimit import obtener_ip_cliente
+from app.api.deps import ip_valida
 from app.db.session import get_db
 from app.schemas.publico import (
     CuestionarioPublico,
-    EscaneoRegistrado,
     EstadoIntento,
     GuardarRespuestaIn,
     IniciarIntentoIn,
@@ -27,26 +25,13 @@ from app.schemas.publico import (
     ResultadoIntento,
 )
 from app.schemas.recepcion import EstadoSesionOut
-from app.services import intento_service, recepcion_service, rondin_service
+from app.services import intento_service, recepcion_service
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/publico", tags=["publico"])
 
 MAX_USER_AGENT = 500
-
-
-def _ip_valida(request: Request) -> str | None:
-    """Devuelve la IP del cliente solo si es una dirección válida.
-
-    La columna ``ip_origen`` es de tipo INET: un valor con formato inválido
-    (por una cabecera manipulada) abortaría el insert completo.
-    """
-    crudo = obtener_ip_cliente(request)
-    try:
-        return str(ipaddress.ip_address(crudo))
-    except ValueError:
-        return None
 
 
 @router.get(
@@ -90,7 +75,7 @@ async def iniciar_intento(
         db,
         token,
         datos,
-        ip_origen=_ip_valida(request),
+        ip_origen=ip_valida(request),
         user_agent=user_agent[:MAX_USER_AGENT] if user_agent else None,
     )
 
@@ -187,87 +172,3 @@ async def finalizar_intento(
         umbral_aprobacion=settings.UMBRAL_APROBACION,
         finalizado_at=intento.finalizado_at,
     )
-
-
-# --- Rondines de seguridad -------------------------------------------------
-# No choca con "/{token}" pese a ir después: aquella ruta es de un solo
-# segmento y esta de dos, así que FastAPI nunca las confunde.
-
-
-@router.post(
-    "/rondin/{token}",
-    response_model=EscaneoRegistrado,
-    status_code=status.HTTP_201_CREATED,
-    summary="Registra el escaneo de un punto de control",
-)
-async def escanear_punto(
-    token: str,
-    request: Request,
-    db: AsyncSession = Depends(get_db),
-) -> EscaneoRegistrado:
-    """Registra la visita a un punto y devuelve cuál fue.
-
-    Es POST y no GET a propósito: el QR abre una página y la página envía el
-    escaneo. Con GET, cualquier previsualizador de enlaces o rastreador
-    registraría visitas que nadie hizo.
-
-    La hora la pone el servidor. El reloj de un celular cualquiera decidiría a
-    qué rondín pertenece la visita.
-    """
-    punto, escaneado_at = await rondin_service.registrar_escaneo(
-        db, token, ip=_ip_valida(request)
-    )
-    logger.info("Escaneo registrado: punto %s", punto.numero)
-
-    return EscaneoRegistrado(
-        numero=punto.numero,
-        nombre=punto.nombre,
-        ubicacion=punto.ubicacion,
-        # La hora que selló la base, no una recalculada: es la misma que
-        # decidirá a qué rondín pertenece la visita en el tablero.
-        escaneado_at=escaneado_at,
-    )
-
-
-@router.get(
-    "/recepcion/{sesion_id}",
-    response_model=EstadoSesionOut,
-    summary="Estado de una sesión de captura por QR",
-)
-async def estado_sesion_recepcion(
-    sesion_id: uuid.UUID,
-    db: AsyncSession = Depends(get_db),
-) -> EstadoSesionOut:
-    """Lo consulta la PC por sondeo mientras espera la foto del celular.
-
-    Devuelve **solo** el estado: no revela quién abrió la sesión ni qué se
-    subió. Una sesión inexistente, vencida o ya usada dan todas el mismo
-    error, para que el endpoint no sirva para sondear identificadores.
-    """
-    return EstadoSesionOut(estado=await recepcion_service.estado_sesion(db, sesion_id))
-
-
-@router.post(
-    "/recepcion/{sesion_id}/foto",
-    status_code=status.HTTP_204_NO_CONTENT,
-    summary="Recibe la foto que manda el celular",
-)
-async def subir_foto_recepcion(
-    sesion_id: uuid.UUID,
-    archivo: UploadFile = File(description="Foto de la remisión."),
-    db: AsyncSession = Depends(get_db),
-) -> Response:
-    """La sube la página móvil que abre el QR.
-
-    Es público porque el celular no tiene sesión del panel. Lo que lo protege
-    son tres cosas **a la vez**: el identificador no es adivinable, la sesión
-    expira en minutos y solo admite una subida (``pendiente`` → ``subida``).
-    Ninguna de las tres sobra.
-    """
-    contenido = await archivo.read()
-    tipo = recepcion_service.validar_foto(contenido, archivo.content_type)
-
-    await recepcion_service.adjuntar_foto_a_sesion(
-        db, sesion_id, imagen=contenido, tipo_mime=tipo
-    )
-    return Response(status_code=status.HTTP_204_NO_CONTENT)

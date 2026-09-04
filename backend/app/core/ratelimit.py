@@ -164,10 +164,10 @@ class MiddlewareRateLimit(BaseHTTPMiddleware):
                 ),
                 solo_fallos=True,
             ),
-            # Un guardia escanea a ráfagas: cuarenta y tantos puntos en un
-            # recorrido de dos horas, a veces varios seguidos en la misma zona.
-            # Con la cuota del formulario (pensada para quien contesta una
-            # evaluación) recibiría 429 a media ronda.
+            # Cubre el webhook de ingesta de AppSheet (/api/publico/rondin/...)
+            # por prefijo. La ráfaga ya no es un guardia escaneando: es AppSheet
+            # vaciando la cola tras sincronizar sin señal, y llega toda desde una
+            # sola IP. Con la cuota del formulario se cortaría a medio lote.
             ReglaDeTasa(
                 prefijo="/api/publico/rondin",
                 limitador=LimitadorDeTasa(

@@ -92,8 +92,18 @@ CATEGORIAS_VALIDAS: Final[frozenset[str]] = frozenset(CATEGORIAS_INSUMO)
 # Unidades de medida del catálogo. Mismo patrón que las categorías: catálogo
 # fijo aquí, servido por ``GET /api/catalogo/unidades`` para que el frontend
 # nunca las tenga escritas a mano.
-UNIDADES_MEDIDA: Final[tuple[str, ...]] = ("TAB", "ML", "PZA")
+UNIDADES_MEDIDA: Final[tuple[str, ...]] = ("TAB", "ML", "PZA", "GR", "MTS")
 UNIDADES_VALIDAS: Final[frozenset[str]] = frozenset(UNIDADES_MEDIDA)
+
+# Unidades que se consumen a granel. Lo que el inventario cuenta son PIEZAS —el
+# tubo, el frasco, el rollo—, así que usar 20 GR de un tubo de 60 no baja
+# ninguna pieza: la baja se produce cuando el tubo se acaba. Por eso el control
+# de insumos pregunta si el producto se terminó antes de tocar la existencia.
+#
+# Va aquí y se sirve por la API, igual que las áreas y las categorías: el panel
+# necesita saber cuándo preguntar, y con la lista escrita a mano allá, agregar
+# una unidad nueva dejaría de preguntar sin que nada fallara.
+UNIDADES_PARCIALES: Final[frozenset[str]] = frozenset({"GR", "ML", "MTS"})
 
 # Topes de los números del inventario. No son una regla de negocio: son la
 # defensa contra el desbordamiento del INTEGER de PostgreSQL. La entrada de una

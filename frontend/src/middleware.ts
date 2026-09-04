@@ -65,9 +65,10 @@ export function middleware(request: NextRequest) {
 export const config = {
   /*
    * Se excluyen los recursos estáticos y, sobre todo, las rutas públicas
-   * `/r/` (formulario), `/p/` (escaneo de rondín) y `/re/` (captura de la
-   * foto de una remisión desde el celular): ninguna lleva sesión y jamás
-   * deben redirigirse al login.
+   * `/r/` (formulario) y `/re/` (captura de la foto de una remisión desde el
+   * celular): ninguna lleva sesión y jamás deben redirigirse al login.
+   *
+   * `/p/` se retiró con el escaneo propio: los rondines los captura AppSheet.
    */
-  matcher: ['/((?!api|_next/static|_next/image|favicon.ico|r/|p/|re/).*)'],
+  matcher: ['/((?!api|_next/static|_next/image|favicon.ico|r/|re/).*)'],
 };

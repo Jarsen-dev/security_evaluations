@@ -302,26 +302,107 @@ contra el máximo:
 El filtro de estado sirve para armar la lista de compra de un vistazo.
 
 Para cargar varios de golpe, **Descargar plantilla**, llenarla y **Importar
-desde Excel**. Los insumos nuevos se dan de alta y los que ya existen se
-omiten, así que volver a subir un archivo nunca pisa lo capturado; las filas
-con problemas se reportan con su número para corregirlas en el origen.
+desde Excel**. Los insumos nuevos se dan de alta y los que ya existían se
+corrigen con lo que el archivo traiga distinto —categoría, unidad de medida,
+proveedor, ubicación, piezas por caja, mínimo y máximo—, así que el mismo Excel
+sirve para corregir en bloque sin abrir los insumos uno por uno. Dos cosas no
+se tocan: la **existencia**, que la mueven las recepciones y se corrige desde
+el panel, y las **columnas que el archivo no traiga**, que se quedan como
+están. Las filas con problemas se reportan con su número para corregirlas en el
+origen.
 
 Las entradas no se capturan aquí: se fotografían en **Inventario → Recepciones**
 y la pestaña **Inventario → Stock** muestra el resultado, con los mismos
-filtros y la fila teñida según el semáforo. Todavía no hay salidas: lo que se
-consume se descuenta corrigiendo la existencia tras el conteo.
+filtros y la fila teñida según el semáforo. Las salidas se registran en
+**Controles → Control de Insumos**: se elige el insumo, a quién se le entrega,
+el área y cuánto se usó, y el consumo baja del stock. Lo que se mide a granel
+(GR, ML, MTS) pregunta antes si el envase se terminó: si no, el uso queda
+registrado pero el inventario no baja, porque lo que cuenta son piezas.
+
+### Extintores
+
+**Controles → Extintores** lleva la ficha de cada extintor de la planta:
+folio, modelo, capacidad, tipo (CO2 o P.Q.S.), ubicación y fecha de
+vencimiento. La tabla se pagina de 50 en 50 y se filtra por texto, tipo, estado
+del vencimiento y si ya se revisó hoy; arriba dice cuántos llevan revisión del
+día sobre el total.
+
+El **vencimiento se semaforiza solo**: amarillo a dos meses, rojo el último mes
+y en cuanto pasa la fecha. Lo que entra en el último mes aparece además en la
+campana del encabezado.
+
+Cada extintor tiene su **etiqueta QR de 3 × 3 cm**. Desde el botón del código se
+imprime una sola o se añade a una cola, para no gastar una hoja entera en una
+etiqueta; el PDF sale con todas las de la cola en una rejilla, con el folio y la
+ubicación debajo de cada código.
+
+La **revisión diaria** son doce puntos —ubicación, manómetro, cilindro,
+manguera, boquillas, palanca, manija, etiqueta, válvula, presión, seguro y
+cincho, y base— que se marcan como conforme o inconforme. Cada inconformidad
+exige observación y al menos una foto. Al terminarla el icono de la fila pasa a
+una palomita verde, y si hubo hallazgos aparece el botón de **cierre**, el mismo
+de los demás controles. La revisión del día se puede corregir con permiso de
+edición; las de días anteriores quedan cerradas.
+
+Desde el celular no hace falta buscar el extintor en la tabla: se escanea su QR
+con la cámara del teléfono y se abre directamente su revisión. El botón de la
+cámara en el panel explica cómo, y ofrece un código para abrir la pestaña en el
+teléfono.
+
+El botón de **Excel** descarga tres hojas: la ficha de todos los extintores, las
+revisiones del mes elegido con los doce puntos como columnas, y las evidencias
+fotográficas de ese mes.
+
+Eliminar un extintor borra su ficha pero **conserva sus revisiones**: siguen
+saliendo en el Excel de los meses en que se revisó.
 
 ### Rondines de seguridad
 
-La pestaña **Rondines** sustituye al panel de Streamlit que leía un Google
-Sheets. Ahora los códigos QR los genera y los recibe el propio sistema.
+La captura **la hace una app de AppSheet**, que es la que usan los guardias y
+la que tiene pegados en la planta los 44 códigos QR. Este sistema no captura:
+consume esos datos y aporta lo que AppSheet no hace —el tablero de matriz, el
+cumplimiento medido contra los rondines que ya transcurrieron, el Excel del
+turno y el correo de cambio de turno—.
 
-**Puesta en marcha.** En *Rondines → Puntos de control* se da de alta cada
-punto con su número, nombre y ubicación. El botón **Imprimir códigos QR**
-descarga un PDF con una etiqueta por punto: se imprime, se recorta y se pega en
-su lugar. El guardia escanea con la cámara del celular; se abre una página que
-registra la visita y muestra el punto y la hora. No hay nada que teclear ni que
-instalar.
+**Puesta en marcha.**
+
+1. Acuñar el secreto del webhook y capturarlo en el `.env` del servidor:
+
+   ```bash
+   openssl rand -base64 32     # → RONDINES_WEBHOOK_SECRETO
+   ```
+
+2. En AppSheet, crear un Bot que al agregarse una fila a `Hoja 1` llame al
+   webhook:
+
+   | | |
+   |---|---|
+   | URL | `https://esh.chwon.it.com/api/publico/rondin/escaneos` |
+   | Método | `POST` |
+   | Cabecera | `X-Rondines-Secreto: <el mismo secreto>` |
+
+   El cuerpo debe mandar `id` (el `ID_Registro`), `numero` (el `Punto_QR`) y
+   `escaneado_at` (el `Fecha_Hora`); lo demás —GPS, comentario, correo— viaja
+   si se incluye y se guarda, pero no es obligatorio.
+
+3. Cargar el catálogo y, si se quiere, el histórico:
+
+   ```bash
+   docker compose exec backend python -m app.cli importar-puntos \
+       --archivo /tmp/Puntos_Referencia.csv
+   docker compose exec backend python -m app.cli importar-escaneos \
+       --archivo /tmp/Hoja1.csv
+   ```
+
+   Los dos son **idempotentes**: correrlos dos veces no duplica nada. Por eso
+   `importar-escaneos` sirve además para **rellenar huecos** si el túnel se cayó
+   o AppSheet agotó los reintentos: se reexporta el rango y se vuelve a correr.
+
+**El catálogo de puntos es de solo lectura.** Los puntos se administran en
+AppSheet; la pestaña *Rondines → Puntos de control* solo los muestra. Para
+retirar uno, se quita allá y se corre `importar-puntos --desactivar-ausentes`:
+se marca inactivo, nunca se borra, para que los turnos ya cerrados sigan
+contando igual.
 
 **El tablero.** El día que se elige es el de **inicio** del turno, no el del
 calendario:
@@ -338,13 +419,16 @@ más de 30 minutos sin escanear, y se asigna completo al rondín donde cayó la
 mayoría de sus puntos: así un recorrido que cruza las 09:30 no se parte en dos
 columnas. El tablero se refresca solo cada minuto mientras se está mirando.
 
+**Un escaneo puede tardar en aparecer.** AppSheet captura sin señal y sincroniza
+después, así que una ronda recién caminada puede no verse todavía. No es un
+fallo del tablero: la hora que vale es la del escaneo, no la de la llegada, y
+el sistema guarda las dos (`escaneado_at` y `recibido_at`).
+
 **Reportes.** Se descarga el Excel del turno, o se manda por correo. Si se
 capturan las variables `SMTP_*` y `RONDINES_REPORTE_AUTOMATICO=true` en el
-`.env`, el sistema envía el reporte solo al cambio de turno.
-
-**Retirar un punto.** Conviene desactivarlo en vez de borrarlo: desactivado
-sale del tablero y su QR deja de servir, pero los turnos pasados siguen
-contando bien.
+`.env`, el sistema envía el reporte solo al cambio de turno. **Hoy está
+apagado**: AppSheet ya tiene su propio «Envío de Reporte Diario», y encender
+los dos manda dos correos.
 
 ### Actividad del sistema
 

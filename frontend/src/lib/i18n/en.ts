@@ -87,14 +87,11 @@ export const en: Diccionario = {
     platicas: 'ESH safety talks',
     recorridos: 'Perimeter walkthroughs',
     muro: 'Wall inspection',
-    medicamento: 'Medicine log',
+    insumos: 'Supply log',
     silos: 'EPS silos',
     tableros: 'Electrical panels',
+    extintores: 'Extinguishers',
     pciMtto: 'FPS MAINT',
-    enConstruccion: 'Under construction',
-    enConstruccionDetalle:
-      'This control is still filled in on paper. It will be enabled here as ' +
-      'soon as its capture rules are defined.',
   },
 
   rayser: {
@@ -553,10 +550,6 @@ export const en: Diccionario = {
     recepciones: 'Receipts',
     stock: 'Stock',
     historial: 'History',
-    enConstruccion: 'Under construction',
-    enConstruccionDetalle:
-      'Inventory is still kept in the Excel file. It will be enabled here as ' +
-      'soon as its capture rules are defined.',
   },
 
   stock: {
@@ -966,13 +959,157 @@ export const en: Diccionario = {
     importando: 'Importing…',
     plantilla: 'Download template',
     nota:
-      'New supplies are added and existing ones are skipped, so uploading a file ' +
-      'again never overwrites what was captured.',
-    resultado: '{creados} new supplies; {omitidos} already existed.',
+      'New supplies are added and existing ones are corrected with whatever the ' +
+      'file brings different. Stock on hand is left alone: receipts move it, and ' +
+      'it is corrected from the panel.',
+    resultado:
+      '{creados} new supplies; {actualizados} updated; {sinCambios} unchanged.',
     fallo: 'The file could not be imported.',
     filasConProblemas:
       '{total} row(s) with problems — fix them in your Excel and import again:',
     fila: 'Row {numero}:',
+  },
+
+  controlInsumos: {
+    titulo: 'Supply log',
+    descripcion:
+      'Warehouse issues: who took which supply and for which area. Whatever is ' +
+      'recorded here is deducted from the catalog stock.',
+    insumo: 'Supply',
+    insumoPlaceholder: 'Search by code or description',
+    insumoAyuda: 'One code can cover several products: pick the right one from the list.',
+    tecleaMas: 'Type at least two letters.',
+    buscando: 'Searching…',
+    sinResultados: 'No supply matches what you typed.',
+    falloBusqueda: 'The catalog could not be searched.',
+    entregadoA: 'Issued to',
+    entregadoAPlaceholder: 'Name of the person using it',
+    area: 'Area',
+    areaPlaceholder: 'Choose an area',
+    consumo: 'Usage',
+    consumoAyuda: 'Pieces leaving the inventory.',
+    existencia: 'On hand',
+    registrar: 'Record issue',
+    guardado: 'Issue recorded.',
+    faltaInsumo: 'Pick a supply from the list.',
+    faltaEntregadoA: 'Type who it is issued to.',
+    faltaArea: 'Choose the area.',
+    faltaConsumo: 'Enter how much was used, in whole numbers.',
+    terminoTitulo: 'Did the product run out?',
+    terminoDetalle:
+      'This supply is measured in {unidad} and the inventory counts pieces. If ' +
+      'the container ran out, {consumo} will be deducted from stock; if not, ' +
+      'nothing is deducted and it is recorded as usage only.',
+    terminoSi: 'Yes, it ran out',
+    terminoNo: 'It did not run out',
+    historial: 'Recorded issues',
+    historialVacio: 'No issues recorded in this period yet.',
+    inmutable:
+      'Records cannot be edited or deleted. If something is wrong, correct the ' +
+      'stock from the Catalog tab.',
+    colInsumo: 'Supply',
+    colEntregadoA: 'Issued to',
+    colConsumo: 'Usage',
+    colDescontado: 'Deducted',
+    colTermino: 'Ran out?',
+    noAplica: '—',
+  },
+
+  extintores: {
+    titulo: 'Extinguisher log',
+    descripcion:
+      'A record for every extinguisher in the plant, its expiry date and its ' +
+      'daily check. The QR on the unit opens its check from a phone.',
+    registrar: 'Register extinguisher',
+    editar: 'Edit extinguisher',
+    eliminar: 'Delete extinguisher',
+    revisadosHoy: 'Checked today: {revisados} of {total}',
+    tope: 'There are already {maximo} extinguishers registered, the plant total.',
+
+    folio: 'Tag number',
+    folioAyuda: 'The number printed on the label. It cannot be repeated.',
+    modelo: 'Model',
+    capacidad: 'Capacity',
+    capacidadAyuda: 'As printed on the unit: 4.5 kg, 9 kg, 6 lb…',
+    tipo: 'Type',
+    tipoPlaceholder: 'Choose the agent',
+    tipoTodos: 'All types',
+    ubicacion: 'Location',
+    vencimiento: 'Expiry',
+    vencimientoAyuda: 'Warns two months ahead, and in red for the last month.',
+
+    estado: 'Status',
+    estadoTodos: 'All statuses',
+    estadoVencido: 'Expired',
+    estadoCritico: 'Expires this month',
+    estadoPorVencer: 'Expires in two months',
+    estadoVigente: 'Current',
+
+    revisadoHoy: "Today's check",
+    revisadoTodos: 'Checked and pending',
+    revisadoSi: 'Checked today',
+    revisadoNo: 'Pending today',
+
+    buscarPlaceholder: 'Tag number, model or location',
+    limpiarFiltros: 'Clear filters',
+    pagina: 'Page {pagina} of {total}',
+    vacio: 'No extinguishers registered yet.',
+    sinResultados: 'No extinguisher matches the filters.',
+
+    verQr: 'View QR code',
+    qrTitulo: 'Extinguisher label',
+    qrDetalle:
+      "Scanning it with a phone camera opens this extinguisher's daily check. " +
+      'It prints at 3 × 3 cm.',
+    qrLocal:
+      'The configured address is local: this code will not work from a phone. ' +
+      'Ask for the public address to be set before printing.',
+    imprimirIndividual: 'Print this one',
+    anadirACola: 'Add to queue',
+    yaEnCola: 'Already queued',
+    anadidaACola: 'Label added to the print queue.',
+    imprimirCola: 'Print queue ({total})',
+    vaciarCola: 'Empty queue',
+
+    escanear: 'Check from a phone',
+    escanearTitulo: 'Check from a phone',
+    escanearDetalle:
+      'Point your phone camera at the QR on the extinguisher and its daily ' +
+      'check will open. No need to look it up in the table.',
+    escanearAbrirAqui: 'Or scan this code to open this tab on your phone:',
+
+    revisionTitulo: 'Daily check',
+    revisadoTitulo: 'Checked today — view or correct',
+    corregirRevision: "Correct today's check",
+    revisionAviso:
+      'Check every point carefully: nothing damaged, loose, missing or ' +
+      'blocked. If anything is not in perfect condition, mark it as ' +
+      'non-conforming and attach the evidence.',
+    resumenRevision: '{contestados} of {total} points · {anomalias} finding(s)',
+    faltaFoto: 'A non-conforming point needs at least one evidence photo.',
+    revisionGuardada: 'Check recorded.',
+
+    guardado: 'Extinguisher registered.',
+    actualizado: 'Extinguisher updated.',
+    eliminado: 'Extinguisher deleted.',
+    confirmarEliminar: 'Delete this extinguisher?',
+    confirmarEliminarDetalle:
+      'The record for {folio} is deleted. Its existing checks are kept and ' +
+      'will still appear in the Excel for the months it was checked.',
+
+    faltaFolio: 'Enter the tag number.',
+    faltaModelo: 'Enter the model.',
+    faltaCapacidad: 'Enter the capacity.',
+    faltaTipo: 'Choose the type.',
+    faltaUbicacion: 'Enter the location.',
+    faltaVencimiento: 'Enter the expiry date.',
+
+    falloCarga: 'The extinguishers could not be loaded.',
+    falloGuardar: 'It could not be saved.',
+    falloEliminar: 'The extinguisher could not be deleted.',
+    falloEtiquetas: 'The labels could not be generated.',
+
+    avisoTitulo: 'Extinguisher {folio} — {ubicacion}',
   },
 
   rondines: {
@@ -1016,49 +1153,14 @@ export const en: Diccionario = {
 
   puntosRondin: {
     titulo: 'Checkpoints',
-    descripcion:
-      'Each checkpoint has its own QR code. Print them, cut them out and stick ' +
-      'them in place on the plant floor.',
-    nuevo: 'New checkpoint',
-    imprimir: 'Print QR codes',
+    descripcion: 'The plant control points and their current status.',
     numero: 'Number',
-    numeroAyuda: 'This is what gets printed on the label. It cannot be repeated.',
     nombre: 'Name',
-    ubicacion: 'Location',
     estado: 'Status',
     activo: 'Active',
     inactivo: 'Retired',
-    codigo: 'QR code',
-    tituloCodigo: 'QR code — Checkpoint {numero}',
-    baseNoConfigurada:
-      'NEXT_PUBLIC_BASE_URL is empty, so the code link is relative and the ' +
-      'QR will not open anything. Set it in the .env file and rebuild the ' +
-      'frontend before printing the labels.',
-    verCodigo: 'View code',
-    crear: 'New checkpoint',
-    editar: 'Edit checkpoint',
-    vacio: 'There are no checkpoints yet.',
-    vacioAyuda: 'Add the first one to start recording rounds.',
+    vacio: 'There are no control points yet.',
+    vacioAyuda: 'Talk to the system administrator.',
     falloCarga: 'The checkpoints could not be loaded.',
-    creado: 'Checkpoint added.',
-    actualizadoOk: 'Checkpoint updated.',
-    eliminado: 'Checkpoint deleted.',
-    falloGuardar: 'The checkpoint could not be saved.',
-    falloEliminar: 'The checkpoint could not be deleted.',
-    falloImprimir: 'The QR code sheet could not be generated.',
-    confirmarEliminar: 'Delete checkpoint',
-    confirmarEliminarDetalle:
-      'Checkpoint {nombre} will be removed and its QR code will stop working. ' +
-      'Previous rounds keep the number but will no longer be counted. ' +
-      'Retiring it is almost always better than deleting it.',
-    faltaNumero: 'Enter the checkpoint number.',
-    faltaNombre: 'Enter the checkpoint name.',
-    textoLargo: '150 characters maximum.',
-    qrRetirado:
-      'this checkpoint is retired. The code is still here for reference, but ' +
-      'scanning it will not record any visit until it is reactivated.',
-    descargarQr: 'Download PNG',
-    ligaCopiada: 'Link copied.',
-    falloCopiar: 'It could not be copied. Copy it by hand: {liga}',
   },
 };

@@ -26,6 +26,11 @@ python-pptx==1.0.2
 # PDF imprimible del cuestionario. reportlab es Python puro: no arrastra
 # dependencias del sistema al contenedor, a diferencia de WeasyPrint.
 reportlab==4.2.5
+# Etiquetas QR de los extintores. Python puro y sin dependencias del sistema,
+# igual que reportlab; genera la matriz y Pillow —que ya está abajo— la pinta.
+# Se genera en el backend y no en el navegador porque la etiqueta mide 3x3 cm
+# EXACTOS y el tamaño físico de un `window.print()` depende de la impresora.
+qrcode==8.0
 # openpyxl solo puede insertar imágenes (las evidencias del control de Rayser)
 # si Pillow está presente. Llegaba de rebote como dependencia de python-pptx;
 # se fija explícito porque ahora hay código que depende de él.

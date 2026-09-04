@@ -82,13 +82,11 @@ export const ko: Diccionario = {
     platicas: 'ESH 안전 교육',
     recorridos: '외곽 순찰',
     muro: '벽체 점검',
-    medicamento: '의약품 관리',
+    insumos: '물품 관리',
     silos: 'EPS 사일로',
     tableros: '전기 판넬',
+    extintores: '소화기',
     pciMtto: '소방 정비',
-    enConstruccion: '준비 중',
-    enConstruccionDetalle:
-      '이 점검은 아직 서면으로 기록합니다. 입력 규칙이 정해지는 대로 여기에서 사용할 수 있습니다.',
   },
 
   rayser: {
@@ -521,10 +519,6 @@ export const ko: Diccionario = {
     recepciones: '입고',
     stock: '재고',
     historial: '이력',
-    enConstruccion: '준비 중',
-    enConstruccionDetalle:
-      '재고는 아직 Excel 파일로 관리합니다. 입력 규칙이 정해지는 대로 여기에서 ' +
-      '사용할 수 있습니다.',
   },
 
   stock: {
@@ -924,12 +918,154 @@ export const ko: Diccionario = {
     importando: '가져오는 중…',
     plantilla: '양식 내려받기',
     nota:
-      '새 물품은 등록되고 이미 있는 물품은 건너뜁니다. 파일을 다시 올려도 입력한 ' +
-      '내용을 덮어쓰지 않습니다.',
-    resultado: '새 물품 {creados}건, 기존 {omitidos}건은 건너뛰었습니다.',
+      '새 물품은 등록되고 이미 있는 물품은 파일에서 달라진 값으로 수정됩니다. ' +
+      '재고 수량은 건드리지 않습니다: 입고가 움직이는 값이며 패널에서 수정합니다.',
+    resultado:
+      '새 물품 {creados}건, 수정 {actualizados}건, 변경 없음 {sinCambios}건.',
     fallo: '파일을 가져오지 못했습니다.',
     filasConProblemas: '문제가 있는 행 {total}건 — Excel에서 고친 뒤 다시 가져오세요:',
     fila: '{numero}행:',
+  },
+
+  controlInsumos: {
+    titulo: '물품 관리',
+    descripcion:
+      '창고 출고 기록: 누가 어떤 물품을 어느 구역으로 가져갔는지. 여기에 기록된 ' +
+      '수량은 카탈로그 재고에서 차감됩니다.',
+    insumo: '물품',
+    insumoPlaceholder: '코드 또는 설명으로 검색',
+    insumoAyuda: '같은 코드에 여러 제품이 있을 수 있습니다. 목록에서 선택하세요.',
+    tecleaMas: '두 글자 이상 입력하세요.',
+    buscando: '검색 중…',
+    sinResultados: '일치하는 물품이 없습니다.',
+    falloBusqueda: '카탈로그를 검색하지 못했습니다.',
+    entregadoA: '수령자',
+    entregadoAPlaceholder: '사용하는 사람의 이름',
+    area: '구역',
+    areaPlaceholder: '구역을 선택하세요',
+    consumo: '사용량',
+    consumoAyuda: '재고에서 빠지는 개수입니다.',
+    existencia: '재고',
+    registrar: '출고 등록',
+    guardado: '출고가 등록되었습니다.',
+    faltaInsumo: '목록에서 물품을 선택하세요.',
+    faltaEntregadoA: '수령자를 입력하세요.',
+    faltaArea: '구역을 선택하세요.',
+    faltaConsumo: '사용량을 정수로 입력하세요.',
+    terminoTitulo: '제품을 다 썼습니까?',
+    terminoDetalle:
+      '이 물품은 {unidad} 단위로 측정되며 재고는 개수로 계산됩니다. 용기를 다 ' +
+      '썼다면 재고에서 {consumo}개가 차감되고, 아니라면 차감 없이 사용 기록만 ' +
+      '남습니다.',
+    terminoSi: '예, 다 썼습니다',
+    terminoNo: '아니요, 남았습니다',
+    historial: '등록된 출고',
+    historialVacio: '이 기간에 등록된 출고가 없습니다.',
+    inmutable:
+      '기록은 수정하거나 삭제할 수 없습니다. 잘못된 부분이 있으면 카탈로그 ' +
+      '탭에서 재고를 수정하세요.',
+    colInsumo: '물품',
+    colEntregadoA: '수령자',
+    colConsumo: '사용량',
+    colDescontado: '차감',
+    colTermino: '다 썼는지',
+    noAplica: '—',
+  },
+
+  extintores: {
+    titulo: '소화기 관리',
+    descripcion:
+      '공장 내 각 소화기의 카드, 만료일, 일일 점검. 소화기에 붙은 QR을 찍으면 ' +
+      '휴대폰에서 점검이 열립니다.',
+    registrar: '소화기 등록',
+    editar: '소화기 수정',
+    eliminar: '소화기 삭제',
+    revisadosHoy: '오늘 점검: {total}대 중 {revisados}대',
+    tope: '이미 {maximo}대가 등록되어 있습니다. 공장 전체 보유 수량입니다.',
+
+    folio: '관리번호',
+    folioAyuda: '라벨에 인쇄되는 번호입니다. 중복될 수 없습니다.',
+    modelo: '모델',
+    capacidad: '용량',
+    capacidadAyuda: '소화기에 표시된 그대로: 4.5 kg, 9 kg, 6 lb…',
+    tipo: '종류',
+    tipoPlaceholder: '소화 약제를 선택하세요',
+    tipoTodos: '모든 종류',
+    ubicacion: '위치',
+    vencimiento: '만료일',
+    vencimientoAyuda: '2개월 전부터 알리고, 마지막 1개월은 빨간색으로 표시합니다.',
+
+    estado: '상태',
+    estadoTodos: '모든 상태',
+    estadoVencido: '만료됨',
+    estadoCritico: '이번 달 만료',
+    estadoPorVencer: '2개월 내 만료',
+    estadoVigente: '유효',
+
+    revisadoHoy: '오늘 점검',
+    revisadoTodos: '점검 완료 및 대기',
+    revisadoSi: '오늘 점검함',
+    revisadoNo: '오늘 미점검',
+
+    buscarPlaceholder: '관리번호, 모델 또는 위치',
+    limpiarFiltros: '필터 지우기',
+    pagina: '{total}페이지 중 {pagina}페이지',
+    vacio: '아직 등록된 소화기가 없습니다.',
+    sinResultados: '필터와 일치하는 소화기가 없습니다.',
+
+    verQr: 'QR 코드 보기',
+    qrTitulo: '소화기 라벨',
+    qrDetalle:
+      '휴대폰 카메라로 찍으면 이 소화기의 일일 점검이 열립니다. 3 × 3 cm로 ' +
+      '인쇄됩니다.',
+    qrLocal:
+      '설정된 주소가 로컬입니다. 이 코드는 휴대폰에서 작동하지 않습니다. ' +
+      '인쇄 전에 공개 주소를 설정해 달라고 요청하세요.',
+    imprimirIndividual: '한 장 인쇄',
+    anadirACola: '인쇄 목록에 추가',
+    yaEnCola: '이미 목록에 있음',
+    anadidaACola: '라벨을 인쇄 목록에 추가했습니다.',
+    imprimirCola: '인쇄 목록 출력 ({total})',
+    vaciarCola: '목록 비우기',
+
+    escanear: '휴대폰으로 점검',
+    escanearTitulo: '휴대폰으로 점검',
+    escanearDetalle:
+      '휴대폰 카메라를 소화기의 QR에 대면 일일 점검이 열립니다. 표에서 찾을 ' +
+      '필요가 없습니다.',
+    escanearAbrirAqui: '또는 이 코드를 찍어 휴대폰에서 이 탭을 여세요:',
+
+    revisionTitulo: '일일 점검',
+    revisadoTitulo: '오늘 점검함 — 보기 또는 수정',
+    corregirRevision: '오늘 점검 수정',
+    revisionAviso:
+      '각 항목을 꼼꼼히 확인하세요: 손상, 헐거움, 누락, 막힘이 없어야 합니다. ' +
+      '완전한 상태가 아니면 부적합으로 표시하고 증빙을 첨부하세요.',
+    resumenRevision: '{total}개 중 {contestados}개 응답 · 부적합 {anomalias}건',
+    faltaFoto: '부적합 항목에는 증빙 사진이 최소 1장 필요합니다.',
+    revisionGuardada: '점검이 등록되었습니다.',
+
+    guardado: '소화기가 등록되었습니다.',
+    actualizado: '소화기가 수정되었습니다.',
+    eliminado: '소화기가 삭제되었습니다.',
+    confirmarEliminar: '이 소화기를 삭제할까요?',
+    confirmarEliminarDetalle:
+      '{folio}의 카드가 삭제됩니다. 이미 등록된 점검 기록은 유지되며 해당 ' +
+      '월의 Excel에 계속 표시됩니다.',
+
+    faltaFolio: '관리번호를 입력하세요.',
+    faltaModelo: '모델을 입력하세요.',
+    faltaCapacidad: '용량을 입력하세요.',
+    faltaTipo: '종류를 선택하세요.',
+    faltaUbicacion: '위치를 입력하세요.',
+    faltaVencimiento: '만료일을 입력하세요.',
+
+    falloCarga: '소화기 목록을 불러오지 못했습니다.',
+    falloGuardar: '저장하지 못했습니다.',
+    falloEliminar: '소화기를 삭제하지 못했습니다.',
+    falloEtiquetas: '라벨을 생성하지 못했습니다.',
+
+    avisoTitulo: '소화기 {folio} — {ubicacion}',
   },
 
   rondines: {
@@ -973,49 +1109,14 @@ export const ko: Diccionario = {
 
   puntosRondin: {
     titulo: '점검 지점',
-    descripcion:
-      '각 지점에는 고유한 QR 코드가 있습니다. 인쇄하고 잘라서 공장 내 해당 ' +
-      '위치에 부착하세요.',
-    nuevo: '새 지점',
-    imprimir: 'QR 코드 인쇄',
+    descripcion: '공장의 점검 지점과 현재 상태입니다.',
     numero: '번호',
-    numeroAyuda: '라벨에 인쇄되는 번호입니다. 중복될 수 없습니다.',
     nombre: '이름',
-    ubicacion: '위치',
     estado: '상태',
     activo: '사용',
     inactivo: '해제',
-    codigo: 'QR 코드',
-    tituloCodigo: 'QR 코드 — {numero}번 지점',
-    baseNoConfigurada:
-      'NEXT_PUBLIC_BASE_URL이 비어 있어 코드의 링크가 상대 경로가 되며 QR이 ' +
-      '아무것도 열지 못합니다. .env 파일에 설정하고 라벨을 인쇄하기 전에 ' +
-      '프런트엔드를 다시 빌드하세요.',
-    verCodigo: '코드 보기',
-    crear: '새 점검 지점',
-    editar: '점검 지점 편집',
     vacio: '아직 점검 지점이 없습니다.',
-    vacioAyuda: '첫 지점을 등록하면 순찰 기록이 시작됩니다.',
+    vacioAyuda: '시스템 관리자에게 문의하세요.',
     falloCarga: '점검 지점을 불러오지 못했습니다.',
-    creado: '지점을 등록했습니다.',
-    actualizadoOk: '지점을 수정했습니다.',
-    eliminado: '지점을 삭제했습니다.',
-    falloGuardar: '지점을 저장하지 못했습니다.',
-    falloEliminar: '지점을 삭제하지 못했습니다.',
-    falloImprimir: 'QR 코드 시트를 생성하지 못했습니다.',
-    confirmarEliminar: '점검 지점 삭제',
-    confirmarEliminarDetalle:
-      '{nombre} 지점이 삭제되고 QR 코드는 더 이상 작동하지 않습니다. 이전 ' +
-      '순찰 기록은 번호를 유지하지만 집계에서 제외됩니다. 삭제보다 해제를 ' +
-      '권장합니다.',
-    faltaNumero: '지점 번호를 입력하세요.',
-    faltaNombre: '지점 이름을 입력하세요.',
-    textoLargo: '최대 150자입니다.',
-    qrRetirado:
-      '이 지점은 사용 중지되었습니다. 코드는 확인용으로 남아 있지만 스캔해도 ' +
-      '다시 활성화할 때까지 방문이 기록되지 않습니다.',
-    descargarQr: 'PNG 내려받기',
-    ligaCopiada: '링크를 복사했습니다.',
-    falloCopiar: '복사하지 못했습니다. 직접 입력하세요: {liga}',
   },
 };

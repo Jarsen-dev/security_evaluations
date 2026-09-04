@@ -12,6 +12,8 @@ mensajes de error de la API.
 """
 
 from datetime import date
+
+from app.core.fechas import sumar_meses
 from typing import Final, NamedTuple
 
 # Colores del semáforo. Son los mismos nombres que usan los controles ESH,
@@ -140,18 +142,8 @@ def sumar_un_mes(dia: date) -> date:
     Es la ventana del aviso de vencimiento: "un mes antes" son treinta y tantos
     días según el mes, no treinta fijos. El 31 de enero avisa desde el 28 (o el
     29) de febrero, que es el último día equivalente que existe.
+
+    La cuenta vive en `core/fechas.py` desde que Extintores necesitó la misma
+    para dos meses; aquí queda el nombre con el que la conoce Estudios.
     """
-    mes = dia.month + 1
-    ano = dia.year + (mes > 12)
-    mes = mes - 12 if mes > 12 else mes
-
-    ultimo = _dias_del_mes(ano, mes)
-    return date(ano, mes, min(dia.day, ultimo))
-
-
-def _dias_del_mes(ano: int, mes: int) -> int:
-    """Cuántos días tiene un mes, sin importar `calendar`."""
-    if mes == 2:
-        bisiesto = ano % 4 == 0 and (ano % 100 != 0 or ano % 400 == 0)
-        return 29 if bisiesto else 28
-    return 30 if mes in (4, 6, 9, 11) else 31
+    return sumar_meses(dia, 1)

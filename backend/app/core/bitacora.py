@@ -258,6 +258,57 @@ CATALOGO: Final[tuple[EntradaCatalogo, ...]] = (
         "controles",
         "Corrigió el registro de mantenimiento contra incendios",
     ),
+    EntradaCatalogo(
+        "POST",
+        _ruta("/api/controles/insumos"),
+        "control_insumos.registrar",
+        "controles",
+        "Registró la salida de un insumo del almacén",
+    ),
+    # Las más específicas antes: `/extintores/{}` se tragaría `/etiquetas` y
+    # `/{}/revision` si fueran después.
+    EntradaCatalogo(
+        "POST",
+        _ruta("/api/controles/extintores/etiquetas"),
+        "extintores.etiquetas",
+        "controles",
+        "Imprimió etiquetas QR de extintores",
+    ),
+    EntradaCatalogo(
+        "POST",
+        _ruta("/api/controles/extintores/{}/revision"),
+        "extintores.revisar",
+        "controles",
+        "Registró la revisión diaria de un extintor",
+    ),
+    EntradaCatalogo(
+        "PUT",
+        _ruta("/api/controles/extintores/{}/revision"),
+        "extintores.corregir_revision",
+        "controles",
+        "Corrigió la revisión diaria de un extintor",
+    ),
+    EntradaCatalogo(
+        "POST",
+        _ruta("/api/controles/extintores"),
+        "extintores.registrar",
+        "controles",
+        "Dio de alta un extintor",
+    ),
+    EntradaCatalogo(
+        "PUT",
+        _ruta("/api/controles/extintores/{}"),
+        "extintores.actualizar",
+        "controles",
+        "Corrigió la ficha de un extintor",
+    ),
+    EntradaCatalogo(
+        "DELETE",
+        _ruta("/api/controles/extintores/{}"),
+        "extintores.eliminar",
+        "controles",
+        "Eliminó la ficha de un extintor",
+    ),
     # --- Estudios y capacitaciones -----------------------------------------
     EntradaCatalogo(
         "POST",
@@ -312,35 +363,17 @@ CATALOGO: Final[tuple[EntradaCatalogo, ...]] = (
         "Eliminó un insumo",
     ),
     # --- Rondines de seguridad ---------------------------------------------
-    # El ESCANEO no se registra: cae bajo /api/publico, excluido a propósito,
-    # y ya deja su propio rastro en `escaneos_rondin`.
+    # La INGESTA no se registra: el webhook de AppSheet cae bajo /api/publico,
+    # excluido a propósito, y cada escaneo ya deja su propio rastro en
+    # `escaneos_rondin` con su `origen_id` y su `recibido_at`.
+    # Los puntos tampoco aparecen: el catálogo es de solo lectura y se refresca
+    # con `python -m app.cli importar-puntos`, que no pasa por HTTP.
     EntradaCatalogo(
         "POST",
         _ruta("/api/rondines/reporte/enviar"),
         "rondin.reporte",
         "rondines",
         "Envió el reporte de rondines por correo",
-    ),
-    EntradaCatalogo(
-        "POST",
-        _ruta("/api/rondines/puntos"),
-        "punto.crear",
-        "rondines",
-        "Dio de alta un punto de control",
-    ),
-    EntradaCatalogo(
-        "PUT",
-        _ruta("/api/rondines/puntos/{}"),
-        "punto.editar",
-        "rondines",
-        "Editó un punto de control",
-    ),
-    EntradaCatalogo(
-        "DELETE",
-        _ruta("/api/rondines/puntos/{}"),
-        "punto.eliminar",
-        "rondines",
-        "Eliminó un punto de control",
     ),
     # --- Recepciones de mercancía ------------------------------------------
     # Las rutas específicas van ANTES del POST a secas, o el patrón general se

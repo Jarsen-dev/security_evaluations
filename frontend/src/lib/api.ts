@@ -12,22 +12,25 @@ import type {
   Area,
   AreaPlatica,
   Avisos,
+  AvisosExtintores,
   AvisosPciMtto,
   BitacoraPaginada,
-  CatalogoChecklist,
-  CatalogoEstudios,
-  EscaneoRegistrado,
   CapturaPciMtto,
+  CatalogoChecklist,
+  CatalogoControlInsumos,
+  CatalogoEstudios,
+  CatalogoExtintores,
   CatalogoSqp,
   CierreHallazgo,
   CierrePayload,
   ConfigWifi,
+  ControlInsumoPayload,
   Credenciales,
   Cuestionario,
   CuestionarioActualizarPayload,
   CuestionarioCrearPayload,
-  CuestionarioResumen,
   CuestionarioPublico,
+  CuestionarioResumen,
   DetalleCierre,
   DetalleIntento,
   ErrorApi,
@@ -35,49 +38,56 @@ import type {
   EstadisticaPregunta,
   EstadoIntento,
   EstadoSalud,
+  EstadoSesionQr,
   Estudio,
   EstudioPayload,
+  Extintor,
+  ExtintoresPaginados,
+  ExtintorPayload,
   FiltrosBitacora,
   FiltrosCatalogo,
   FiltrosEstadisticas,
+  FiltrosExtintores,
   FiltrosIncidencias,
+  FiltrosRecepciones,
   IdentidadRespondiente,
   Incidencia,
-  IntentoIniciado,
   InspeccionSqpPayload,
   InspeccionSqpResumen,
   Insumo,
+  InsumoParaControl,
   InsumoPayload,
-  ListadoPciMtto,
-  RegistroPciMtto,
-  Recepcion,
-  RecepcionPayload,
-  RecepcionesPaginadas,
-  ResultadoOcr,
-  SesionQr,
-  TipoDocumento,
-  FiltrosRecepciones,
-  EstadoSesionQr,
   InsumosPaginados,
+  IntentoIniciado,
   IntentosPaginados,
+  ListadoPciMtto,
   Mantenimiento,
   Mensaje,
   MetaArea,
   Platica,
-  PuntoRondin,
-  PuntoRondinPayload,
+  PreguntaPayload,
   PuntoLineaTiempo,
+  PuntoRevisionPayload,
+  PuntoRondin,
   RangoDistribucion,
   RangoRayser,
+  Recepcion,
+  RecepcionesPaginadas,
+  RecepcionPayload,
   RegistroChecklist,
+  RegistroControlInsumo,
+  RegistroPciMtto,
   RegistroRayser,
-  Resumen,
-  Tablero,
-  TurnoRondin,
-  PreguntaPayload,
   ResultadoImportacion,
   ResultadoImportacionInsumos,
   ResultadoIntento,
+  ResultadoOcr,
+  Resumen,
+  RevisionExtintor,
+  SesionQr,
+  Tablero,
+  TipoDocumento,
+  TurnoRondin,
   Usuario,
   UsuarioActualizarPayload,
   UsuarioCrearPayload,
@@ -322,10 +332,26 @@ export const obtenerIntentos = (
  * `descargarReporte`: pide con `fetch` para poder mostrar un error legible
  * en vez de navegar a una página con JSON crudo.
  */
-async function descargarArchivo(ruta: string, nombrePorDefecto: string): Promise<void> {
+async function descargarArchivo(
+  ruta: string,
+  nombrePorDefecto: string,
+  /**
+   * Cuerpo del POST cuando la descarga no cabe en una URL. Lo usa la cola de
+   * etiquetas de extintores: ciento sesenta identificadores se pasarían del
+   * búfer de cabeceras de Nginx.
+   */
+  cuerpo?: unknown,
+): Promise<void> {
   const respuesta = await fetch(`${baseUrl()}${ruta}`, {
+    method: cuerpo === undefined ? 'GET' : 'POST',
     credentials: 'include',
     cache: 'no-store',
+    ...(cuerpo === undefined
+      ? {}
+      : {
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(cuerpo),
+        }),
   }).catch(() => {
     throw new ErrorDeApi(0, 'No se pudo conectar con el servidor.');
   });
@@ -754,6 +780,140 @@ export const descargarExcelPlaticas = (desde: string, hasta: string): Promise<vo
     'platicas_esh.xlsx',
   );
 
+// --- Control de insumos ----------------------------------------------------
+
+export const obtenerCatalogoControlInsumos = (): Promise<CatalogoControlInsumos> =>
+  api.get<CatalogoControlInsumos>('/controles/insumos/catalogo');
+
+/**
+ * Busca insumos para el desplegable de captura.
+ *
+ * Cuelga de `/controles` y no del catálogo ni de stock por los permisos:
+ * aquellos exigen los módulos `catalogo` e `inventario`, y quien solo tiene
+ * `controles` recibiría 403 en cada tecla.
+ */
+export const buscarInsumosControl = (
+  texto: string,
+  senal?: AbortSignal,
+): Promise<InsumoParaControl[]> =>
+  api.get<InsumoParaControl[]>(
+    `/controles/insumos/buscar?${new URLSearchParams({ texto }).toString()}`,
+    senal,
+  );
+
+export const listarControlInsumos = (
+  desde: string,
+  hasta: string,
+): Promise<RegistroControlInsumo[]> =>
+  api.get<RegistroControlInsumo[]>(
+    `/controles/insumos?${new URLSearchParams({ desde, hasta }).toString()}`,
+  );
+
+export const registrarControlInsumo = (
+  datos: ControlInsumoPayload,
+): Promise<RegistroControlInsumo> =>
+  api.post<RegistroControlInsumo>('/controles/insumos', datos);
+
+export const descargarExcelControlInsumos = (
+  desde: string,
+  hasta: string,
+): Promise<void> =>
+  descargarArchivo(
+    `/controles/insumos/exportar/excel?${new URLSearchParams({ desde, hasta }).toString()}`,
+    'control_insumos.xlsx',
+  );
+
+// --- Extintores ------------------------------------------------------------
+
+function consultaExtintores(filtros: FiltrosExtintores, pagina: number): string {
+  const parametros = new URLSearchParams({ page: String(pagina) });
+  if (filtros.busqueda) parametros.set('busqueda', filtros.busqueda);
+  if (filtros.tipo) parametros.set('tipo', filtros.tipo);
+  if (filtros.estado) parametros.set('estado', filtros.estado);
+  if (filtros.revisado !== undefined) {
+    parametros.set('revisado', String(filtros.revisado));
+  }
+  return parametros.toString();
+}
+
+export const obtenerCatalogoExtintores = (): Promise<CatalogoExtintores> =>
+  api.get<CatalogoExtintores>('/controles/extintores/catalogo');
+
+export const obtenerAvisosExtintores = (): Promise<AvisosExtintores> =>
+  api.get<AvisosExtintores>('/controles/extintores/avisos');
+
+export const listarExtintores = (
+  filtros: FiltrosExtintores,
+  pagina = 1,
+  senal?: AbortSignal,
+): Promise<ExtintoresPaginados> =>
+  api.get<ExtintoresPaginados>(
+    `/controles/extintores?${consultaExtintores(filtros, pagina)}`,
+    senal,
+  );
+
+export const crearExtintor = (datos: ExtintorPayload): Promise<Extintor> =>
+  api.post<Extintor>('/controles/extintores', datos);
+
+export const actualizarExtintor = (
+  id: string,
+  datos: ExtintorPayload,
+): Promise<Extintor> => api.put<Extintor>(`/controles/extintores/${id}`, datos);
+
+export const eliminarExtintor = (id: string): Promise<void> =>
+  api.delete<void>(`/controles/extintores/${id}`);
+
+export const obtenerRevisionDeHoy = (id: string): Promise<RevisionExtintor | null> =>
+  api.get<RevisionExtintor | null>(`/controles/extintores/${id}/revision`);
+
+/**
+ * Guarda la revisión diaria.
+ *
+ * Va por `enviarFormulario` y no por `api.post`: cada punto INCONFORME trae
+ * sus fotos, y forzar `Content-Type: application/json` rompería el multipart.
+ */
+export function guardarRevisionExtintor(
+  id: string,
+  puntos: PuntoRevisionPayload[],
+  fotos: Record<number, File[]>,
+  corrigiendo: boolean,
+): Promise<RevisionExtintor> {
+  const cuerpo = new FormData();
+  cuerpo.append(
+    'puntos',
+    JSON.stringify(
+      puntos.map((punto) => ({
+        orden: punto.orden,
+        valor: punto.valor,
+        observaciones: punto.observaciones || null,
+      })),
+    ),
+  );
+
+  for (const [orden, archivos] of Object.entries(fotos)) {
+    archivos.forEach((archivo) => cuerpo.append(`fotos_${orden}`, archivo));
+  }
+
+  return enviarFormulario<RevisionExtintor>(
+    `/controles/extintores/${id}/revision`,
+    cuerpo,
+    undefined,
+    corrigiendo ? 'PUT' : 'POST',
+  );
+}
+
+/** El PDF con las etiquetas de 3 x 3 cm, listas para recortar y pegar. */
+export const descargarEtiquetasExtintores = (ids: string[]): Promise<void> =>
+  descargarArchivo('/controles/extintores/etiquetas', 'etiquetas_extintores.pdf', {
+    ids,
+  });
+
+export const descargarExcelExtintores = (desde: string, hasta: string): Promise<void> =>
+  descargarArchivo(
+    `/controles/extintores/exportar/excel?${new URLSearchParams({ desde, hasta }).toString()}`,
+    'extintores.xlsx',
+  );
+
 // --- Administración: usuarios ----------------------------------------------
 
 export const listarUsuarios = (): Promise<Usuario[]> =>
@@ -922,19 +1082,12 @@ export const obtenerTablero = (fecha: string, turno: TurnoRondin): Promise<Table
     `/rondines/tablero?${new URLSearchParams({ fecha, turno }).toString()}`,
   );
 
+/**
+ * Catálogo de puntos, de solo lectura: lo manda AppSheet y se refresca en el
+ * servidor con `python -m app.cli importar-puntos`.
+ */
 export const listarPuntosRondin = (): Promise<PuntoRondin[]> =>
   api.get<PuntoRondin[]>('/rondines/puntos');
-
-export const crearPuntoRondin = (datos: PuntoRondinPayload): Promise<PuntoRondin> =>
-  api.post<PuntoRondin>('/rondines/puntos', datos);
-
-export const actualizarPuntoRondin = (
-  id: string,
-  datos: PuntoRondinPayload,
-): Promise<PuntoRondin> => api.put<PuntoRondin>(`/rondines/puntos/${id}`, datos);
-
-export const eliminarPuntoRondin = (id: string): Promise<void> =>
-  api.delete<void>(`/rondines/puntos/${id}`);
 
 export const descargarExcelRondines = (
   fecha: string,
@@ -951,24 +1104,6 @@ export const enviarReporteRondines = (
   destinatario: string,
 ): Promise<Mensaje> =>
   api.post<Mensaje>('/rondines/reporte/enviar', { fecha, turno, destinatario });
-
-/** La cookie httpOnly viaja sola, así que basta un <a download>. */
-/**
- * Hoja imprimible con los códigos QR de los puntos activos.
- *
- * Va por `descargarArchivo` y no por un `<a download>`: el endpoint responde
- * 422 cuando no hay puntos activos, y un ancla guardaría el JSON del error
- * como si fuera el PDF.
- */
-export const descargarQrPuntos = (): Promise<void> =>
-  descargarArchivo('/rondines/puntos/imprimir', 'qr_puntos_rondin.pdf');
-
-/**
- * Registra el escaneo de un punto. NO lleva sesión: la llama la página que
- * abre el código QR pegado en la planta.
- */
-export const escanearPunto = (token: string): Promise<EscaneoRegistrado> =>
-  api.post<EscaneoRegistrado>(`/publico/rondin/${token}`);
 
 // --- Recepciones de mercancía ----------------------------------------------
 
